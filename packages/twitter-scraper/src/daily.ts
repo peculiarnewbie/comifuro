@@ -1,5 +1,5 @@
 import puppeteer, { Browser, Page } from "puppeteer";
-import { unlink } from "node:fs/promises";
+import { mkdir, exists, access } from "node:fs/promises";
 
 const sleep = async (ms: number) => {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -25,7 +25,25 @@ const downloadImage = async (page: Page) => {
     });
 };
 
+const downloadDir = "D:/Ryzen/Downloads";
+const distDir = "C:/Users/Ryzen/git/web/comifuro/packages/twitter-scraper/dist";
+
+const checkDistDir = async () => {
+    try {
+        await access(distDir);
+    } catch {
+        try {
+            await mkdir(distDir, { recursive: true });
+            console.log(`Directory created`);
+        } catch {
+            return "";
+        }
+    }
+};
+
 const main = async () => {
+    await checkDistDir();
+
     const browserWs = await fetch("http://localhost:9222/json/version");
     //@ts-expect-error
     const browserEndpoint = (await browserWs.json()).webSocketDebuggerUrl;
@@ -44,19 +62,28 @@ const main = async () => {
     const article = page.locator("article");
     await article.click();
 
-    while (true) {
-        const imageFile = Bun.file("/home/bolt/Downloads/twitter-image.jpg");
-        if (await imageFile.exists()) await imageFile.delete();
+    let i = 0;
 
-        await sleep(3000);
+    while (true) {
+        let imageFile = Bun.file(`${downloadDir}/twitter-image.jpg`);
+        if (await imageFile.exists()) {
+            await imageFile.delete();
+        }
+
+        await sleep(2500);
 
         await downloadImage(page);
         console.log("downloaded");
+        await sleep(500);
+        imageFile = Bun.file(`${downloadDir}/twitter-image.jpg`);
+        console.log(imageFile, await imageFile.exists());
+        await Bun.write(`${distDir}/twitter-image-${i}.jpg`, imageFile);
 
         try {
             await page.$eval(`[data-testid="Carousel-NavRight"]`, (el) => {
                 if (el) el.click();
             });
+            i++;
         } catch (e) {
             console.log("no more images");
             break;
