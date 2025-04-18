@@ -59,10 +59,14 @@ const downloadImagesFromTweet = async (page: Page, articleDir: string) => {
         await sleep(2500);
 
         const carousel = await page.$(`[aria-roledescription="carousel"]`);
-        let image = carousel
-            ? await carousel.$("img")
-            : await page.$(`[aria-label="Image"] img`);
-        if (!image) continue;
+
+        let image: undefined | ElementHandle<HTMLElement> | null;
+        if (carousel) {
+            const list = await carousel.$$("ul li");
+            image = await list[imageIndex]?.$("img");
+        } else image = await page.$(`[aria-label="Image"] img`);
+
+        if (!image) break;
 
         await downloadImage(image);
         await sleep(500);
@@ -137,7 +141,8 @@ const getArticlesData = async (article: ElementHandle<HTMLElement>) => {
 
 const processArticles = async (
     page: Page,
-    articles: ElementHandle<HTMLElement>[]
+    articles: ElementHandle<HTMLElement>[],
+    offset: number
 ) => {
     let currentArticle = articles ? articles[0] : null;
 
@@ -156,7 +161,7 @@ const processArticles = async (
 
             if (tweetText.text.toLowerCase().includes("wtb")) continue;
 
-            const articleDir = join(distDir, `twitter-article-${i}`);
+            const articleDir = join(distDir, `twitter-article-${i + offset}`);
             await ensureDir(articleDir);
 
             await Bun.write(
@@ -186,6 +191,8 @@ const processArticles = async (
             await close.click();
         }
     }
+
+    return { currentArticle, index: articles.length - 1 };
 };
 
 const main = async () => {
@@ -205,14 +212,47 @@ const main = async () => {
         deviceScaleFactor: 1,
     });
 
-    const articles = await getCurrentArticlesOnPage(page);
+    let articles = await getCurrentArticlesOnPage(page);
+    let offset = 0;
     console.log(articles?.length);
 
-    if (!articles) process.abort();
+    while (true) {
+        if (!articles) process.abort();
 
-    await processArticles(page, articles);
+        const { currentArticle, index } = await processArticles(
+            page,
+            articles,
+            offset
+        );
 
-    console.log("done");
+        const evaluated = await currentArticle?.evaluate((el) => {
+            return el.innerText;
+        });
+
+        const nextArticles = await getCurrentArticlesOnPage(page);
+
+        if (!nextArticles) process.exit(0);
+
+        let startIndex = 0;
+
+        for (let i = 0; i < nextArticles.length; i++) {
+            const currentEval = await nextArticles[i]?.evaluate((el) => {
+                return el.innerText;
+            });
+            if (currentEval == evaluated) {
+                startIndex = i + 1;
+                console.log("found last article", i, currentEval, evaluated);
+                break;
+            }
+        }
+
+        articles = nextArticles.slice(startIndex);
+        offset = offset + startIndex;
+
+        console.log("next", articles?.length, offset);
+
+        if (articles.length == 0) break;
+    }
 
     process.exit(0);
 };
