@@ -1,18 +1,40 @@
-import puppeteer, { Browser, Page } from "puppeteer";
+import puppeteer, { Browser, ElementHandle, Page } from "puppeteer";
 import { mkdir, exists, access } from "node:fs/promises";
+import { join, dirname } from "node:path";
+
+const findProjectRoot = async (
+    startDir: string = process.cwd()
+): Promise<string | null> => {
+    let currentDir = startDir;
+
+    while (true) {
+        if (
+            (await exists(join(currentDir, "package.json"))) ||
+            (await exists(join(currentDir, ".git")))
+        ) {
+            return currentDir;
+        }
+
+        const parentDir = dirname(currentDir);
+
+        if (parentDir === currentDir) {
+            return null;
+        }
+
+        currentDir = parentDir;
+    }
+};
 
 const sleep = async (ms: number) => {
     return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
-const downloadImage = async (page: Page) => {
-    const image = await page.$(`[aria-roledescription="carousel"] img`);
-    await image?.evaluate(async (node) => {
+const downloadImage = async (image: ElementHandle<any>) => {
+    await image.evaluate(async (node) => {
         const imgSrc = node.getAttribute("src");
         const document = node.ownerDocument;
         const response = await fetch(imgSrc, { mode: "cors" });
         const blob = await response.blob();
-        //@ts-expect-error
         const url = URL.createObjectURL(blob);
 
         const a = document.createElement("a");
@@ -25,15 +47,51 @@ const downloadImage = async (page: Page) => {
     });
 };
 
-const downloadDir = "D:/Ryzen/Downloads";
-const distDir = "C:/Users/Ryzen/git/web/comifuro/packages/twitter-scraper/dist";
+const downloadImagesFromTweet = async (page: Page, articleDir: string) => {
+    let imageIndex = 0;
 
-const checkDistDir = async () => {
+    while (true) {
+        let imageFile = Bun.file(`${downloadDir}twitter-image.jpg`);
+        if (await imageFile.exists()) {
+            await imageFile.delete();
+        }
+
+        await sleep(2500);
+
+        const carousel = await page.$(`[aria-roledescription="carousel"]`);
+        let image = carousel
+            ? await carousel.$("img")
+            : await page.$(`[aria-label="Image"] img`);
+        if (!image) continue;
+
+        await downloadImage(image);
+        await sleep(500);
+        imageFile = Bun.file(`${downloadDir}twitter-image.jpg`);
+        console.log("downloaded", imageFile, await imageFile.exists());
+        await Bun.write(`${articleDir}/image-${imageIndex}.jpg`, imageFile);
+
+        try {
+            await page.$eval(`[data-testid="Carousel-NavRight"]`, (el) => {
+                //@ts-expect-error
+                if (el) el.click();
+            });
+            imageIndex++;
+        } catch (e) {
+            console.log("no more images");
+            break;
+        }
+    }
+};
+
+const downloadDir = process.env.DOWNLOADS_DIR;
+const distDir = `${await findProjectRoot()}/dist/`;
+
+const ensureDir = async (dir: string) => {
     try {
-        await access(distDir);
+        await access(dir);
     } catch {
         try {
-            await mkdir(distDir, { recursive: true });
+            await mkdir(dir, { recursive: true });
             console.log(`Directory created`);
         } catch {
             return "";
@@ -41,11 +99,99 @@ const checkDistDir = async () => {
     }
 };
 
+const getCurrentArticlesOnPage = async (page: Page) => {
+    const timeline = await page.$("[aria-label='Timeline: Search timeline']");
+    const articlesContainer = await timeline?.$("div");
+    const articles = await articlesContainer?.$$("article");
+    return articles;
+};
+
+const getArticlesData = async (article: ElementHandle<HTMLElement>) => {
+    const userData = (await article.$eval(
+        `[data-testid="User-Name"]`,
+        (el: Element) => {
+            try {
+                const part = el.lastChild as HTMLElement;
+                const username = part.querySelector("span")?.textContent;
+                const time = part.querySelector("time")?.dateTime;
+                return { username, time };
+            } catch (e) {
+                return { error: e };
+            }
+        }
+    )) as { username: string; time: string } | { error: Error };
+
+    const tweetText = (await article.$eval(
+        `[data-testid="tweetText"]`,
+        (el: Element) => {
+            try {
+                return { text: el.textContent };
+            } catch (e) {
+                return { error: e };
+            }
+        }
+    )) as { text: string } | { error: Error };
+
+    return { userData, tweetText };
+};
+
+const processArticles = async (
+    page: Page,
+    articles: ElementHandle<HTMLElement>[]
+) => {
+    let currentArticle = articles ? articles[0] : null;
+
+    for (let i = 0; i < articles.length; i++) {
+        console.log("clicking article", i);
+        currentArticle = articles[i];
+        if (currentArticle) {
+            const firstImage = await currentArticle.$(`[aria-label="Image"]`);
+
+            const { userData, tweetText } = await getArticlesData(
+                currentArticle
+            );
+
+            if (!firstImage || "error" in userData || "error" in tweetText)
+                continue;
+
+            if (tweetText.text.toLowerCase().includes("wtb")) continue;
+
+            const articleDir = join(distDir, `twitter-article-${i}`);
+            await ensureDir(articleDir);
+
+            await Bun.write(
+                `${articleDir}/tweet.json`,
+                JSON.stringify(
+                    {
+                        user: userData.username,
+                        time: userData.time,
+                        text: tweetText.text,
+                    },
+                    null,
+                    4
+                )
+            );
+
+            firstImage.click();
+
+            await sleep(1000);
+
+            await downloadImagesFromTweet(page, articleDir);
+
+            await sleep(1000);
+
+            console.log("closing article", i);
+
+            const close = page.locator(`[aria-label="Close"]`);
+            await close.click();
+        }
+    }
+};
+
 const main = async () => {
-    await checkDistDir();
+    await ensureDir(distDir);
 
     const browserWs = await fetch("http://localhost:9222/json/version");
-    //@ts-expect-error
     const browserEndpoint = (await browserWs.json()).webSocketDebuggerUrl;
     const browser = await puppeteer.connect({
         browserWSEndpoint: browserEndpoint,
@@ -59,45 +205,16 @@ const main = async () => {
         deviceScaleFactor: 1,
     });
 
-    const article = page.locator("article");
-    await article.click();
+    const articles = await getCurrentArticlesOnPage(page);
+    console.log(articles?.length);
 
-    let i = 0;
+    if (!articles) process.abort();
 
-    while (true) {
-        let imageFile = Bun.file(`${downloadDir}/twitter-image.jpg`);
-        if (await imageFile.exists()) {
-            await imageFile.delete();
-        }
+    await processArticles(page, articles);
 
-        await sleep(2500);
+    console.log("done");
 
-        await downloadImage(page);
-        console.log("downloaded");
-        await sleep(500);
-        imageFile = Bun.file(`${downloadDir}/twitter-image.jpg`);
-        console.log(imageFile, await imageFile.exists());
-        await Bun.write(`${distDir}/twitter-image-${i}.jpg`, imageFile);
-
-        try {
-            await page.$eval(`[data-testid="Carousel-NavRight"]`, (el) => {
-                if (el) el.click();
-            });
-            i++;
-        } catch (e) {
-            console.log("no more images");
-            break;
-        }
-    }
-
-    await sleep(1000);
-
-    console.log("closing");
-
-    const close = page.locator(`[aria-label="Close"]`);
-    await close.click();
-
-    process.abort();
+    process.exit(0);
 };
 
 main();
