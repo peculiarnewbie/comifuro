@@ -12,7 +12,7 @@ const findProjectRoot = async (
             (await exists(join(currentDir, "package.json"))) ||
             (await exists(join(currentDir, ".git")))
         ) {
-            return currentDir;
+            return currentDir.replaceAll("\\", "/");
         }
 
         const parentDir = dirname(currentDir);
@@ -69,7 +69,14 @@ const downloadImagesFromTweet = async (page: Page, articleDir: string) => {
         if (!image) break;
 
         await downloadImage(image);
+        //wait for download
+        let limit = 4;
+        let i = 0;
         await sleep(500);
+        while (!(await imageFile.exists()) && i < limit) {
+            await sleep(1000);
+            i++;
+        }
         imageFile = Bun.file(`${downloadDir}twitter-image.jpg`);
         console.log("downloaded", imageFile, await imageFile.exists());
         await Bun.write(`${articleDir}/image-${imageIndex}.jpg`, imageFile);
