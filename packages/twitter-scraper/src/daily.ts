@@ -1,8 +1,8 @@
-import puppeteer, { Browser, ElementHandle, Page } from "puppeteer";
+import { ElementHandle, Page } from "puppeteer";
 import { mkdir, exists, access } from "node:fs/promises";
 import { join, dirname } from "node:path";
 
-const findProjectRoot = async (
+export const findProjectRoot = async (
     startDir: string = process.cwd()
 ): Promise<string | null> => {
     let currentDir = startDir;
@@ -25,11 +25,11 @@ const findProjectRoot = async (
     }
 };
 
-const sleep = async (ms: number) => {
+export const sleep = async (ms: number) => {
     return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
-const downloadImage = async (image: ElementHandle<any>) => {
+export const downloadImage = async (image: ElementHandle<any>) => {
     await image.evaluate(async (node) => {
         const imgSrc = node.getAttribute("src");
         const document = node.ownerDocument;
@@ -47,12 +47,19 @@ const downloadImage = async (image: ElementHandle<any>) => {
     });
 };
 
-const downloadImagesFromTweet = async (page: Page, articleDir: string) => {
+export const downloadImagesFromTweet = async (
+    page: Page,
+    articleDir: string,
+    downloadDir: string
+) => {
     let imageIndex = 0;
 
     while (true) {
-        let imageFile = Bun.file(`${downloadDir}twitter-image.jpg`);
+        const twitterImagePath = `${downloadDir}twitter-image.jpg`;
+        console.log(twitterImagePath);
+        let imageFile = Bun.file(twitterImagePath);
         if (await imageFile.exists()) {
+            console.log("deleting", imageFile);
             await imageFile.delete();
         }
 
@@ -73,11 +80,12 @@ const downloadImagesFromTweet = async (page: Page, articleDir: string) => {
         let limit = 4;
         let i = 0;
         await sleep(500);
+        imageFile = Bun.file(twitterImagePath);
         while (!(await imageFile.exists()) && i < limit) {
+            imageFile = Bun.file(twitterImagePath);
             await sleep(1000);
             i++;
         }
-        imageFile = Bun.file(`${downloadDir}twitter-image.jpg`);
         console.log("downloaded", imageFile, await imageFile.exists());
         await Bun.write(`${articleDir}/image-${imageIndex}.jpg`, imageFile);
 
@@ -94,10 +102,7 @@ const downloadImagesFromTweet = async (page: Page, articleDir: string) => {
     }
 };
 
-const downloadDir = process.env.DOWNLOADS_DIR;
-const distDir = `${await findProjectRoot()}/dist/`;
-
-const ensureDir = async (dir: string) => {
+export const ensureDir = async (dir: string) => {
     try {
         await access(dir);
     } catch {
@@ -110,14 +115,14 @@ const ensureDir = async (dir: string) => {
     }
 };
 
-const getCurrentArticlesOnPage = async (page: Page) => {
+export const getCurrentArticlesOnPage = async (page: Page) => {
     const timeline = await page.$("[aria-label='Timeline: Search timeline']");
     const articlesContainer = await timeline?.$("div");
     const articles = await articlesContainer?.$$("article");
     return articles;
 };
 
-const getArticlesData = async (article: ElementHandle<HTMLElement>) => {
+export const getArticlesData = async (article: ElementHandle<HTMLElement>) => {
     const userData = (await article.$eval(
         `[data-testid="User-Name"]`,
         (el: Element) => {
@@ -146,10 +151,12 @@ const getArticlesData = async (article: ElementHandle<HTMLElement>) => {
     return { userData, tweetText };
 };
 
-const processArticles = async (
+export const processArticles = async (
     page: Page,
     articles: ElementHandle<HTMLElement>[],
-    offset: number
+    offset: number,
+    distDir: string,
+    downloadsDir: string
 ) => {
     let currentArticle = articles ? articles[0] : null;
 
@@ -188,7 +195,7 @@ const processArticles = async (
 
             await sleep(1000);
 
-            await downloadImagesFromTweet(page, articleDir);
+            await downloadImagesFromTweet(page, articleDir, downloadsDir);
 
             await sleep(1000);
 
@@ -201,67 +208,3 @@ const processArticles = async (
 
     return { currentArticle, index: articles.length - 1 };
 };
-
-const main = async () => {
-    await ensureDir(distDir);
-
-    const browserWs = await fetch("http://localhost:9222/json/version");
-    const browserEndpoint = (await browserWs.json()).webSocketDebuggerUrl;
-    const browser = await puppeteer.connect({
-        browserWSEndpoint: browserEndpoint,
-    });
-
-    const [page, _] = await browser.pages();
-    if (!page) process.abort();
-    await page.setViewport({
-        width: 1920,
-        height: 1000,
-        deviceScaleFactor: 1,
-    });
-
-    let articles = await getCurrentArticlesOnPage(page);
-    let offset = 0;
-    console.log(articles?.length);
-
-    while (true) {
-        if (!articles) process.abort();
-
-        const { currentArticle, index } = await processArticles(
-            page,
-            articles,
-            offset
-        );
-
-        const evaluated = await currentArticle?.evaluate((el) => {
-            return el.innerText;
-        });
-
-        const nextArticles = await getCurrentArticlesOnPage(page);
-
-        if (!nextArticles) process.exit(0);
-
-        let startIndex = 0;
-
-        for (let i = 0; i < nextArticles.length; i++) {
-            const currentEval = await nextArticles[i]?.evaluate((el) => {
-                return el.innerText;
-            });
-            if (currentEval == evaluated) {
-                startIndex = i + 1;
-                console.log("found last article", i, currentEval, evaluated);
-                break;
-            }
-        }
-
-        articles = nextArticles.slice(startIndex);
-        offset = offset + startIndex;
-
-        console.log("next", articles?.length, offset);
-
-        if (articles.length == 0) break;
-    }
-
-    process.exit(0);
-};
-
-main();
