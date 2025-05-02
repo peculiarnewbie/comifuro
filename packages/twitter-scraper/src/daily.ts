@@ -60,7 +60,16 @@ export const downloadImagesFromTweet = async (
         let imageFile = Bun.file(twitterImagePath);
         if (await imageFile.exists()) {
             console.log("deleting", imageFile);
-            await imageFile.delete();
+            while (true) {
+                try {
+                    await imageFile.delete();
+                } catch (e) {
+                    console.log("error deleting", e);
+                    await sleep(1000);
+                    continue;
+                }
+                break;
+            }
         }
 
         await sleep(2500);
@@ -201,8 +210,10 @@ export const processArticles = async (
 
             console.log("closing article", i);
 
-            const close = page.locator(`[aria-label="Close"]`);
-            await close.click();
+            // const close = page.locator(`[aria-label="Close"]`);
+            // await close.click();
+            await page.goBack();
+            await sleep(2000);
         }
     }
 
