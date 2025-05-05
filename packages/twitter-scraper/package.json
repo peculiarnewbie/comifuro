@@ -10,6 +10,8 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@types/luxon": "^3.6.2",
+    "luxon": "^3.6.1",
     "puppeteer": "^24.6.1"
   }
 }

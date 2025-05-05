@@ -194,13 +194,23 @@ export const processArticles = async (
                         user: userData.username,
                         time: userData.time,
                         text: tweetText.text,
+                        url: page.url()
                     },
                     null,
                     4
                 )
             );
 
-            firstImage.click();
+            try {
+                firstImage.click();
+            } catch (e) {
+                console.error("error clicking image", e);
+                await Bun.write(
+                    `${articleDir}/error.json`,
+                    JSON.stringify(e, null, 4)
+                );
+                continue;
+            }
 
             await sleep(1000);
 

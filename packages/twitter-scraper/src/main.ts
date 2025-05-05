@@ -6,9 +6,10 @@ import {
     processArticles,
 } from "./daily";
 import { sleep } from "bun";
+import { DateTime } from "luxon";
 
-const downloadDir = process.env.DOWNLOADS_DIR ?? "";
-const distDir = `${await findProjectRoot()}/dist/`;
+export const downloadDir = process.env.DOWNLOADS_DIR ?? "";
+export const distDir = `${await findProjectRoot()}/dist/`;
 
 const crawlPage = async (page: Page, destination: string) => {
     if (!page) process.abort();
@@ -79,23 +80,34 @@ async function main() {
         process.abort();
     }
 
-    let startingDate = 30;
-    let month = 4;
+    const startDate = "2025-03-09";
+    const endDate = "2025-02-01";
 
-    while (startingDate > 1) {
-        console.log("crawling: ", startingDate);
-        const url = `https://x.com/search?q=cfxxcatalogue%20until%3A2025-${month}-${startingDate}%20since%3A2025-${month}-${
-            startingDate - 1
-        }&src=typed_query&f=live`;
+    let currentDate = startDate;
+
+    while (true) {
+        const previousDate = DateTime.fromFormat(currentDate, "yyyy-MM-dd")
+            .minus({ days: 1 })
+            .toISODate();
+        console.log("crawling: ", currentDate, previousDate);
+        const url = `https://x.com/search?q=cfxxcatalogue%20until%3A${currentDate}%20since%3A${previousDate}&src=typed_query&f=live`;
 
         page.goto(url);
         await page.waitForNetworkIdle();
         await sleep(2000);
 
-        await crawlPage(page, `${distDir}25-${month}-${startingDate}/`);
+        await crawlPage(page, `${distDir}${previousDate}/`);
 
-        startingDate--;
+        currentDate = DateTime.fromFormat(currentDate, "yyyy-MM-dd")
+            .minus({ days: 1 })
+            .toISODate() as string;
+
+        if (currentDate == endDate) break;
     }
+
+    console.log("done");
 }
 
-main();
+if (import.meta.main) {
+    main();
+}
