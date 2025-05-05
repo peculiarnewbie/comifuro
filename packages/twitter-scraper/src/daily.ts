@@ -56,10 +56,10 @@ export const downloadImagesFromTweet = async (
 
     while (true) {
         const twitterImagePath = `${downloadDir}twitter-image.jpg`;
-        console.log(twitterImagePath);
+        //console.log(twitterImagePath);
         let imageFile = Bun.file(twitterImagePath);
         if (await imageFile.exists()) {
-            console.log("deleting", imageFile);
+            //console.log("deleting", imageFile);
             while (true) {
                 try {
                     await imageFile.delete();
@@ -117,7 +117,7 @@ export const ensureDir = async (dir: string) => {
     } catch {
         try {
             await mkdir(dir, { recursive: true });
-            console.log(`Directory created`);
+            console.log(`Directory created`, dir);
         } catch {
             return "";
         }
@@ -126,8 +126,8 @@ export const ensureDir = async (dir: string) => {
 
 export const getCurrentArticlesOnPage = async (page: Page) => {
     const timeline = await page.$("[aria-label='Timeline: Search timeline']");
-    const articlesContainer = await timeline?.$("div");
-    const articles = await articlesContainer?.$$("article");
+    //const articlesContainer = await timeline?.$("div");
+    const articles = await timeline?.$$("article");
     return articles;
 };
 
@@ -157,7 +157,16 @@ export const getArticlesData = async (article: ElementHandle<HTMLElement>) => {
         }
     )) as { text: string } | { error: Error };
 
-    return { userData, tweetText };
+    const links = await article.$$eval("a", (links) => {
+        try {
+            return links.map((link) => link.href);
+        } catch (e) {
+            return null;
+        }
+    });
+    const url = links?.find((link) => link.includes("/status/")) ?? "";
+
+    return { userData, tweetText, url };
 };
 
 export const processArticles = async (
@@ -175,7 +184,7 @@ export const processArticles = async (
         if (currentArticle) {
             const firstImage = await currentArticle.$(`[aria-label="Image"]`);
 
-            const { userData, tweetText } = await getArticlesData(
+            const { userData, tweetText, url } = await getArticlesData(
                 currentArticle
             );
 
@@ -194,7 +203,7 @@ export const processArticles = async (
                         user: userData.username,
                         time: userData.time,
                         text: tweetText.text,
-                        url: page.url()
+                        url: url,
                     },
                     null,
                     4
@@ -212,7 +221,7 @@ export const processArticles = async (
                 continue;
             }
 
-            await sleep(1000);
+            await page.waitForNetworkIdle();
 
             await downloadImagesFromTweet(page, articleDir, downloadsDir);
 
