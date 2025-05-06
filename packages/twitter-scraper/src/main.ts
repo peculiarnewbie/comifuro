@@ -50,7 +50,6 @@ const crawlPage = async (page: Page, destination: string) => {
             });
             if (currentEval == evaluated) {
                 startIndex = i + 1;
-                console.log("found last article", i, currentEval, evaluated);
                 break;
             }
         }
@@ -80,8 +79,8 @@ async function main() {
         process.abort();
     }
 
-    const startDate = "2025-03-09";
-    const endDate = "2025-02-01";
+    const startDate = "2025-05-05";
+    const endDate = "2025-05-05";
 
     let currentDate = startDate;
 
@@ -89,6 +88,7 @@ async function main() {
         const previousDate = DateTime.fromFormat(currentDate, "yyyy-MM-dd")
             .minus({ days: 1 })
             .toISODate();
+        if (!previousDate) break;
         console.log("crawling: ", currentDate, previousDate);
         const url = `https://x.com/search?q=cfxxcatalogue%20until%3A${currentDate}%20since%3A${previousDate}&src=typed_query&f=live`;
 
@@ -98,9 +98,7 @@ async function main() {
 
         await crawlPage(page, `${distDir}${previousDate}/`);
 
-        currentDate = DateTime.fromFormat(currentDate, "yyyy-MM-dd")
-            .minus({ days: 1 })
-            .toISODate() as string;
+        currentDate = previousDate
 
         if (currentDate == endDate) break;
     }

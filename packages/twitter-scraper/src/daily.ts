@@ -95,7 +95,7 @@ export const downloadImagesFromTweet = async (
             await sleep(1000);
             i++;
         }
-        console.log("downloaded", imageFile, await imageFile.exists());
+        // console.log("downloaded", imageFile, await imageFile.exists());
         await Bun.write(`${articleDir}/image-${imageIndex}.jpg`, imageFile);
 
         try {
@@ -126,25 +126,29 @@ export const ensureDir = async (dir: string) => {
 
 export const getCurrentArticlesOnPage = async (page: Page) => {
     const timeline = await page.$("[aria-label='Timeline: Search timeline']");
-    //const articlesContainer = await timeline?.$("div");
-    const articles = await timeline?.$$("article");
+    const articles = await timeline?.$$(`article[tabindex="0"]`);
     return articles;
 };
 
 export const getArticlesData = async (article: ElementHandle<HTMLElement>) => {
-    const userData = (await article.$eval(
-        `[data-testid="User-Name"]`,
-        (el: Element) => {
-            try {
-                const part = el.lastChild as HTMLElement;
-                const username = part.querySelector("span")?.textContent;
-                const time = part.querySelector("time")?.dateTime;
-                return { username, time };
-            } catch (e) {
-                return { error: e };
+    let userData: { username: string; time: string } | { error: Error };
+    try {
+        userData = (await article.$eval(
+            `[data-testid="User-Name"]`,
+            (el: Element) => {
+                try {
+                    const part = el.lastChild as HTMLElement;
+                    const username = part.querySelector("span")?.textContent;
+                    const time = part.querySelector("time")?.dateTime;
+                    return { username, time };
+                } catch (e) {
+                    return { error: e };
+                }
             }
-        }
-    )) as { username: string; time: string } | { error: Error };
+        )) as { username: string; time: string } | { error: Error };
+    } catch (e) {
+        userData = { error: e as Error };
+    }
 
     const tweetText = (await article.$eval(
         `[data-testid="tweetText"]`,
@@ -182,14 +186,15 @@ export const processArticles = async (
         console.log("clicking article", i);
         currentArticle = articles[i];
         if (currentArticle) {
-            const firstImage = await currentArticle.$(`[aria-label="Image"]`);
+            let firstImage = await currentArticle.$(`[aria-label="Image"]`);
+
+            if (!firstImage) continue;
 
             const { userData, tweetText, url } = await getArticlesData(
                 currentArticle
             );
 
-            if (!firstImage || "error" in userData || "error" in tweetText)
-                continue;
+            if ("error" in userData || "error" in tweetText) continue;
 
             if (tweetText.text.toLowerCase().includes("wtb")) continue;
 
@@ -210,6 +215,9 @@ export const processArticles = async (
                 )
             );
 
+            firstImage = await currentArticle.$(`[aria-label="Image"]`);
+            if (!firstImage) continue;
+
             try {
                 firstImage.click();
             } catch (e) {
@@ -227,7 +235,7 @@ export const processArticles = async (
 
             await sleep(1000);
 
-            console.log("closing article", i);
+            //console.log("closing article", i);
 
             // const close = page.locator(`[aria-label="Close"]`);
             // await close.click();
