@@ -1,17 +1,37 @@
-const endpoint = "http://localhost:8787/upload";
+import { Glob } from "bun";
 
-const file = Bun.file("./dist/2025-05-04/twitter-article-1/image-0.webp");
+const endpoint = "https://api-comifuro.peculiarnewbie.workers.dev/upload";
 
-console.log(file);
+const glob = new Glob("**/*.webp");
 
-const formData = new FormData();
-formData.append("image", file);
+let i = 0;
 
-console.time("upload");
-await fetch(endpoint, {
-    method: "POST",
-    body: formData,
-});
-console.timeEnd("upload");
+for await (const path of glob.scan("../dist")) {
+    const fullPath = "../dist/" + path;
+
+    const file = Bun.file(fullPath);
+
+    const formData = new FormData();
+    formData.append("image", file);
+
+    const key = fullPath
+        .replace("../dist", "")
+        .replace("/twitter-article-", "_")
+        .replace("/image-", "_")
+        .replace(".webp", "");
+
+    console.log(i, file.name, key);
+    console.time("upload");
+    await fetch(endpoint + key, {
+        method: "POST",
+        headers: {
+            "pec-password": process.env.PASSWORD ?? "",
+        },
+        body: formData,
+    });
+    console.timeEnd("upload");
+
+    i++;
+}
 
 export {};
