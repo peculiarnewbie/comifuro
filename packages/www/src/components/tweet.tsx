@@ -1,12 +1,9 @@
-export default function Tweet(props: { tweet: [string, string] }) {
+import { Metadata } from "~/routes";
+
+export default function Tweet(props: { tweet: [string, Metadata] }) {
     console.log(props);
-    const data: () => {
-        user: string;
-        text: string;
-        url: string;
-        images: number[];
-    } = () => {
-        return JSON.parse(props.tweet[1]);
+    const data: () => Metadata = () => {
+        return props.tweet[1];
     };
     return (
         <div>
