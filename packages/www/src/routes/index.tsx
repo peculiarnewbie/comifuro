@@ -10,6 +10,15 @@ export type Metadata = {
     images: number[];
 };
 
+import { Mason, createMasonryBreakpoints } from "solid-mason";
+
+const breakpoints = createMasonryBreakpoints(() => [
+    { query: "(min-width: 1536px)", columns: 4 },
+    { query: "(min-width: 1280px) and (max-width: 1536px)", columns: 3 },
+    { query: "(min-width: 768px) and (max-width: 1280px)", columns: 2 },
+    { query: "(max-width: 768px)", columns: 1 },
+]);
+
 export default function Home() {
     const [data] = createResource(async () => {
         const res = await fetch(
@@ -43,6 +52,7 @@ export default function Home() {
     const [filter, setFilter] = createSignal<{ word: string | null }>({
         word: null,
     });
+    const [filteredCount, setFilteredCount] = createSignal(0);
 
     const filtered = () => {
         const filters = filter();
@@ -52,12 +62,21 @@ export default function Home() {
             allData,
             R.filter(([k, v]) => {
                 if (filters.word) {
-                    return v.text.includes(filters.word);
+                    return v.text
+                        .toLowerCase()
+                        .includes(filters.word.toLowerCase());
                 }
                 return true;
             }),
-            R.take(10)
-        ) as [string, Metadata][];
+            R.tap((x) => setFilteredCount(x.length)),
+            R.take(50),
+            R.map(([k, v]) => {
+                return { tweet: [k, v], height: 0 };
+            })
+        ) as {
+            tweet: [string, Metadata];
+            height: number;
+        }[];
     };
 
     const [counter, setCounter] = createSignal(0);
@@ -69,12 +88,13 @@ export default function Home() {
                 placeholder="Filter"
                 oninput={(e) => setFilter({ word: e.target.value })}
             />
+            <div>total: {data()?.length}</div>
+            <div>filtered: {filteredCount()}</div>
             <Show when={data()}>
-                {filtered().map((tweet) => (
-                    <Tweet tweet={tweet} />
-                ))}
+                <Mason as="div" items={filtered()} columns={breakpoints()}>
+                    {(item, index) => <Tweet tweet={item.tweet} />}
+                </Mason>
             </Show>
-            <button onclick={() => setCounter((c) => c + 1)}>Next</button>
         </main>
     );
 }

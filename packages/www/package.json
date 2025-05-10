@@ -13,6 +13,7 @@
 		"@solidjs/start": "^1.1.0",
 		"remeda": "^2.21.3",
 		"solid-js": "^1.9.5",
+		"solid-mason": "^0.1.7",
 		"vinxi": "^0.5.3"
 	},
 	"devDependencies": {
