@@ -3,8 +3,15 @@ import { readdir } from "node:fs/promises";
 
 const glob = new Glob("**/*.json");
 const globImg = new Glob("**/*.webp");
+type StoredTweet = {
+    images: string[];
+    text: string;
+    user: string;
+    time: string;
+    url: string;
+};
 
-const tweets: Record<string, string> = {};
+const tweetsArray: [string, StoredTweet][] = [];
 
 for await (const path of glob.scan("../dist")) {
     const fullPath = "../dist/" + path;
@@ -13,12 +20,16 @@ for await (const path of glob.scan("../dist")) {
         .filter((f) => f.endsWith(".webp"))
         .map((f) => f.replace(".webp", "").replace("image-", ""));
     const json = await Bun.file(fullPath).json();
-    json.images = images;
+    json.images = images.sort();
     const shortened = path
         .replace("/twitter-article-", "/")
         .replace("tweet.json", "");
-    tweets[shortened] = JSON.stringify(json);
+    tweetsArray.push([shortened, json]);
 }
+
+tweetsArray.sort((a, b) => b[1].time.localeCompare(a[1].time));
+
+const tweets: Record<string, StoredTweet> = Object.fromEntries(tweetsArray);
 
 await Bun.write("./dist/tweets.json", JSON.stringify(tweets));
 

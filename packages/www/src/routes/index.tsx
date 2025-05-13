@@ -45,7 +45,7 @@ export default function Home() {
         return R.pipe(
             json,
             R.entries(),
-            R.map(([k, v]) => [k, JSON.parse(v)])
+            R.map(([k, v]) => [k, v])
         );
     });
 
