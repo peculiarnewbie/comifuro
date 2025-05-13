@@ -79,7 +79,7 @@ async function main() {
         process.abort();
     }
 
-    const startDate = "2025-05-05";
+    const startDate = "2025-05-11";
     const endDate = "2025-05-05";
 
     let currentDate = startDate;

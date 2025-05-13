@@ -31,6 +31,7 @@ export const sleep = async (ms: number) => {
 
 export const downloadImage = async (image: ElementHandle<any>) => {
     await image.evaluate(async (node) => {
+        if (node.getAttribute("alt") === "placeholder") return;
         const imgSrc = node.getAttribute("src");
         const document = node.ownerDocument;
         const response = await fetch(imgSrc, { mode: "cors" });
@@ -80,6 +81,13 @@ export const downloadImagesFromTweet = async (
         if (carousel) {
             const list = await carousel.$$("ul li");
             image = await list[imageIndex]?.$("img");
+            const isPlaceholder = await image?.evaluate((node) => {
+                return node.getAttribute("alt") === "placeholder";
+            });
+            if (isPlaceholder) {
+                imageIndex++;
+                continue;
+            }
         } else image = await page.$(`[aria-label="Image"] img`);
 
         if (!image) break;
