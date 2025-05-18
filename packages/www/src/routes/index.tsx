@@ -1,7 +1,14 @@
 import { A } from "@solidjs/router";
-import { createResource, createSignal, Show } from "solid-js";
+import {
+    createEffect,
+    createResource,
+    createSignal,
+    onMount,
+    Show,
+} from "solid-js";
 import Tweet from "~/components/tweet";
 import * as R from "remeda";
+import { Mason, createMasonryBreakpoints } from "solid-mason";
 
 export type Metadata = {
     user: string;
@@ -9,8 +16,6 @@ export type Metadata = {
     url: string;
     images: number[];
 };
-
-import { Mason, createMasonryBreakpoints } from "solid-mason";
 
 const breakpoints = createMasonryBreakpoints(() => [
     { query: "(min-width: 1536px)", columns: 4 },
@@ -49,8 +54,14 @@ export default function Home() {
         );
     });
 
-    const [filter, setFilter] = createSignal<{ word: string | null }>({
+    const [filter, setFilter] = createSignal<{
+        word: string | null;
+        limit: number;
+        dummy: number;
+    }>({
         word: null,
+        limit: 20,
+        dummy: 0,
     });
     const [filteredCount, setFilteredCount] = createSignal(0);
 
@@ -69,7 +80,7 @@ export default function Home() {
                 return true;
             }),
             R.tap((x) => setFilteredCount(x.length)),
-            R.take(50),
+            R.take(filters.limit),
             R.map(([k, v]) => {
                 return { tweet: [k, v], height: 0 };
             })
@@ -79,22 +90,71 @@ export default function Home() {
         }[];
     };
 
-    const [counter, setCounter] = createSignal(0);
+    function debounce<T extends (...args: any[]) => void>(
+        fn: T,
+        delay: number
+    ) {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        return (...args: Parameters<T>) => {
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(() => fn(...args), delay);
+        };
+    }
+
+    const recalculate = () => {
+        const currentFilters = filter();
+        setFilter({
+            ...currentFilters,
+            limit: currentFilters.limit + 1,
+        });
+        console.log(filter().dummy);
+    };
+
+    const debounceRecalculate = debounce(recalculate, 2000);
+    //   const debounceFilterInput = debounce(filterLogic, 300);
+
+    onMount(() => {
+        debounceRecalculate();
+    });
 
     return (
         <main class="text-center mx-auto text-gray-700 p-4">
             <input
                 type="text"
                 placeholder="Filter"
-                oninput={(e) => setFilter({ word: e.target.value })}
+                oninput={(e) => {
+                    const currentFilters = filter();
+                    setFilter({
+                        ...currentFilters,
+                        word: e.target.value,
+                    });
+                    debounceRecalculate();
+                }}
             />
             <div>total: {data()?.length}</div>
             <div>filtered: {filteredCount()}</div>
             <Show when={data()}>
                 <Mason as="div" items={filtered()} columns={breakpoints()}>
-                    {(item, index) => <Tweet tweet={item.tweet} />}
+                    {(item, index) => (
+                        <Tweet
+                            tweet={item.tweet}
+                            // onImageLoad={() => debounceRecalculate()}
+                        />
+                    )}
                 </Mason>
             </Show>
+            <button
+                onclick={() => {
+                    const currentFilters = filter();
+                    setFilter({
+                        ...currentFilters,
+                        limit: currentFilters.limit + 20,
+                    });
+                    debounceRecalculate();
+                }}
+            >
+                more
+            </button>
         </main>
     );
 }
