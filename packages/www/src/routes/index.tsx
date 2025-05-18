@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/solid-router";
 
-import { createResource, createSignal, For, onMount, Show } from "solid-js";
+import { createResource, createSignal, For, Show } from "solid-js";
 import Tweet from "../components/tweet";
 import * as R from "remeda";
 import { createMasonry } from "@solid-primitives/masonry";
@@ -36,10 +36,7 @@ function App() {
             compressedStream.pipeThrough(decompressionStream);
 
         const decompressedResponse = new Response(decompressedStream);
-        const json = (await decompressedResponse.json()) as Record<
-            string,
-            string
-        >;
+        const json = (await decompressedResponse.json()) as Record<string, any>;
 
         return R.pipe(
             json,
@@ -51,13 +48,32 @@ function App() {
     const [filter, setFilter] = createSignal<{
         word: string | null;
         limit: number;
-        dummy: number;
     }>({
         word: null,
         limit: 20,
-        dummy: 0,
     });
-    const [filteredCount, setFilteredCount] = createSignal(0);
+    const [filteredCount, setFilteredCount] = createSignal(1);
+
+    const [masonElementsRefs, setMasonElementsRefs] = createSignal<
+        HTMLElement[]
+    >([]);
+
+    // const setRef = (el: HTMLElement, index: number) => {
+    //     if (el) {
+    //         setMasonElementsRefs((prev) => {
+    //             const newArr = [...prev];
+    //             newArr[index] = el;
+    //             return newArr;
+    //         });
+    //     }
+    // };
+
+    const assignMasonElements = () => {
+        const masonElements = document.querySelectorAll(".tweet");
+        const elementsArray = Array.from(masonElements) as HTMLElement[];
+        if (elementsArray.length === 0) setTimeout(assignMasonElements, 0);
+        setMasonElementsRefs(elementsArray);
+    };
 
     const filtered = () => {
         const filters = filter();
@@ -65,14 +81,12 @@ function App() {
         if (!allData) return [];
 
         setTimeout(() => {
-            const masonElements = document.querySelectorAll(".tweet");
-            const elementsArray = Array.from(masonElements) as HTMLElement[];
-            setMasonElementsRefs(elementsArray);
-        }, 1000);
+            assignMasonElements();
+        }, 100);
 
         return R.pipe(
             allData,
-            R.filter(([k, v]) => {
+            R.filter(([_, v]) => {
                 if (filters.word) {
                     return v.text
                         .toLowerCase()
@@ -91,32 +105,16 @@ function App() {
         }[];
     };
 
-    function debounce<T extends (...args: any[]) => void>(
-        fn: T,
-        delay: number
-    ) {
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        return (...args: Parameters<T>) => {
-            if (timer) clearTimeout(timer);
-            timer = setTimeout(() => fn(...args), delay);
-        };
-    }
-
-    const recalculate = () => {
-        // const currentFilters = filter();
-        // setFilter({
-        //     ...currentFilters,
-        //     limit: currentFilters.limit + 1,
-        // });
-        // console.log(filter().dummy);
-    };
-
-    const debounceRecalculate = debounce(recalculate, 2000);
-    //   const debounceFilterInput = debounce(filterLogic, 300);
-
-    onMount(() => {
-        debounceRecalculate();
-    });
+    // function debounce<T extends (...args: any[]) => void>(
+    //     fn: T,
+    //     delay: number
+    // ) {
+    //     let timer: ReturnType<typeof setTimeout> | undefined;
+    //     return (...args: Parameters<T>) => {
+    //         if (timer) clearTimeout(timer);
+    //         timer = setTimeout(() => fn(...args), delay);
+    //     };
+    // }
 
     const br = createBreakpoints({
         sm: "640px",
@@ -124,10 +122,6 @@ function App() {
         lg: "1024px",
         xl: "1280px",
     });
-
-    const [masonElementsRefs, setMasonElementsRefs] = createSignal<
-        HTMLElement[]
-    >([]);
 
     const masonry = createMasonry({
         source: masonElementsRefs,
@@ -173,25 +167,24 @@ function App() {
                         ...currentFilters,
                         word: e.target.value,
                     });
-                    debounceRecalculate();
                 }}
+                class="p-1 border"
             />
             <div>total: {data()?.length}</div>
             <div>filtered: {filteredCount()}</div>
-            <div>height: {masonry.height()}</div>
-            <div
-                style={{
-                    display: "flex",
-                    "flex-direction": "column",
-                    "flex-wrap": "wrap",
-                    height: `${masonry.height()}px`,
-                }}
-            >
-                {masonry()}
-            </div>
-            <Show when={data()}>
+            <Show when={filtered().length > 0}>
+                <div
+                    style={{
+                        display: "flex",
+                        "flex-direction": "column",
+                        "flex-wrap": "wrap",
+                        height: `${masonry.height()}px`,
+                    }}
+                >
+                    {masonry()}
+                </div>
                 <For ref={masonElementsRefs} each={filtered()}>
-                    {(item, index) => (
+                    {(item) => (
                         <Tweet
                             tweet={item.tweet}
                             // onImageLoad={() => debounceRecalculate()}
@@ -199,6 +192,12 @@ function App() {
                     )}
                 </For>
             </Show>
+            {/* {filtered().map((item, index) => (
+                    <Tweet
+                        ref={(el: HTMLElement) => setRef(el, index)}
+                        tweet={item.tweet}
+                    />
+                ))} */}
             <button
                 onclick={() => {
                     const currentFilters = filter();
@@ -206,8 +205,8 @@ function App() {
                         ...currentFilters,
                         limit: currentFilters.limit + 20,
                     });
-                    debounceRecalculate();
                 }}
+                class="p-2 bg-blue-400 text-2xl hover:cursor-pointer rounded text-white"
             >
                 more
             </button>

@@ -1,4 +1,4 @@
-import { Glob } from "bun";
+import { argv, Glob } from "bun";
 import { readdir } from "node:fs/promises";
 
 const glob = new Glob("**/*.json");
@@ -11,7 +11,10 @@ type StoredTweet = {
     url: string;
 };
 
-const tweetsArray: [string, StoredTweet][] = [];
+const old = await Bun.file("./dist/tweets.json").json()
+const useOld = argv[2] === "true"
+
+const tweetsArray: [string, StoredTweet][] = useOld ? Object.entries(old) : [];
 
 for await (const path of glob.scan("../dist")) {
     const fullPath = "../dist/" + path;
@@ -33,4 +36,4 @@ const tweets: Record<string, StoredTweet> = Object.fromEntries(tweetsArray);
 
 await Bun.write("./dist/tweets.json", JSON.stringify(tweets));
 
-export {};
+export { };
