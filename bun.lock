@@ -32,6 +32,9 @@
     "packages/www": {
       "name": "www",
       "dependencies": {
+        "@solid-primitives/masonry": "^0.1.1",
+        "@solid-primitives/media": "^2.3.1",
+        "@solid-primitives/resize-observer": "^2.1.1",
         "@tailwindcss/vite": "^4.1.7",
         "@tanstack/solid-router": "^1.110.0",
         "@tanstack/solid-router-devtools": "^1.109.2",
@@ -278,6 +281,8 @@
     "@solid-primitives/event-listener": ["@solid-primitives/event-listener@2.4.1", "", { "dependencies": { "@solid-primitives/utils": "^6.3.1" }, "peerDependencies": { "solid-js": "^1.6.12" } }, "sha512-Xc/lBCeuh9LwzR4lYbMDtopwWK7N9b4o+FmI4uoI8DOtVGYi0Ip20DG8PtwHk+g31lHgvwtFFVKfnUx2UaqZJg=="],
 
     "@solid-primitives/keyboard": ["@solid-primitives/keyboard@1.3.1", "", { "dependencies": { "@solid-primitives/event-listener": "^2.4.1", "@solid-primitives/rootless": "^1.5.1", "@solid-primitives/utils": "^6.3.1" }, "peerDependencies": { "solid-js": "^1.6.12" } }, "sha512-ib4xPC5ioOGj2A/5PqFTJvWbgGVx/5okFEoU0qXhCrehVB84gPBhKFNRqTlpiYzCbVHPIUZCTO2ZMkqzJdIA2w=="],
+
+    "@solid-primitives/masonry": ["@solid-primitives/masonry@0.1.1", "", { "dependencies": { "@solid-primitives/utils": "^6.3.1" }, "peerDependencies": { "solid-js": "^1.6.12" } }, "sha512-uzRUa/1jfWkFD+qdFeREz/mx8WbrlbDKV9MLgLnzHFTvigetGXyxJ62eaX7XI8569ZUwAF36hGOub1PLSfbepg=="],
 
     "@solid-primitives/media": ["@solid-primitives/media@2.3.1", "", { "dependencies": { "@solid-primitives/event-listener": "^2.4.1", "@solid-primitives/rootless": "^1.5.1", "@solid-primitives/static-store": "^0.1.1", "@solid-primitives/utils": "^6.3.1" }, "peerDependencies": { "solid-js": "^1.6.12" } }, "sha512-UTX8LAaQS7k3rvekme8y5ihOrt5SJpgkw7xyUySlPhIapD7JxlhYncQoSFsys5D1XPCgI/3snobpvbanRcrTAw=="],
 
