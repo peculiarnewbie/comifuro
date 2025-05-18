@@ -8,10 +8,10 @@ export default function Tweet(props: {
         return props.tweet[1];
     };
     return (
-        <div class=" p-2">
+        <div class="p-2 tweet">
             <div class="overflow-hidden">
                 <img
-                    class="w-full h-full object-cover"
+                    class="object-cover"
                     src={`https://r2.comifuro.peculiarnewbie.com/${props.tweet[0]}0`}
                     loading="lazy"
                     // onload={() => {

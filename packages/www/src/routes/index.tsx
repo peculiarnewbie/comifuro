@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/solid-router";
 
-import { createResource, createSignal, onMount, Show } from "solid-js";
+import { createResource, createSignal, For, onMount, Show } from "solid-js";
 import Tweet from "../components/tweet";
 import * as R from "remeda";
-import { Mason, createMasonryBreakpoints } from "solid-mason";
+import { createMasonry } from "@solid-primitives/masonry";
+import { createBreakpoints } from "@solid-primitives/media";
+import { createElementSize } from "@solid-primitives/resize-observer";
 
 export const Route = createFileRoute("/")({
     component: App,
@@ -15,13 +17,6 @@ export type Metadata = {
     url: string;
     images: number[];
 };
-
-const breakpoints = createMasonryBreakpoints(() => [
-    { query: "(min-width: 1536px)", columns: 4 },
-    { query: "(min-width: 1280px) and (max-width: 1536px)", columns: 3 },
-    { query: "(min-width: 768px) and (max-width: 1280px)", columns: 2 },
-    { query: "(max-width: 768px)", columns: 1 },
-]);
 
 function App() {
     const [data] = createResource(async () => {
@@ -68,6 +63,13 @@ function App() {
         const filters = filter();
         const allData = data();
         if (!allData) return [];
+
+        setTimeout(() => {
+            const masonElements = document.querySelectorAll(".tweet");
+            const elementsArray = Array.from(masonElements) as HTMLElement[];
+            setMasonElementsRefs(elementsArray);
+        }, 1000);
+
         return R.pipe(
             allData,
             R.filter(([k, v]) => {
@@ -101,12 +103,12 @@ function App() {
     }
 
     const recalculate = () => {
-        const currentFilters = filter();
-        setFilter({
-            ...currentFilters,
-            limit: currentFilters.limit + 1,
-        });
-        console.log(filter().dummy);
+        // const currentFilters = filter();
+        // setFilter({
+        //     ...currentFilters,
+        //     limit: currentFilters.limit + 1,
+        // });
+        // console.log(filter().dummy);
     };
 
     const debounceRecalculate = debounce(recalculate, 2000);
@@ -114,6 +116,50 @@ function App() {
 
     onMount(() => {
         debounceRecalculate();
+    });
+
+    const br = createBreakpoints({
+        sm: "640px",
+        md: "768px",
+        lg: "1024px",
+        xl: "1280px",
+    });
+
+    const [masonElementsRefs, setMasonElementsRefs] = createSignal<
+        HTMLElement[]
+    >([]);
+
+    const masonry = createMasonry({
+        source: masonElementsRefs,
+        mapHeight(item) {
+            // observe the height of the element
+            const size = createElementSize(item);
+            // return the accessor of the height of the element
+            return () => size.height ?? 100;
+        },
+        columns() {
+            if (br.xl) return 4;
+            if (br.lg) return 3;
+            if (br.md) return 2;
+            return 1;
+        },
+        mapElement: (data) => (
+            <div
+                class="sm:w-full md:w-1/2 lg:w-1/3 xl:w-1/4 rounded-lg"
+                style={{
+                    // data.height is the value returned by `mapHeight`
+                    // Height of the element should always match that value.
+                    height: `${data.height()}px`,
+                    // The flex order of the item in the masonry
+                    order: data.order(),
+                    // The space needed to be filled to prevent the next item from switching columns.
+                    // "margin-bottom" is just an example, you could also add this to the element's height.
+                    "margin-bottom": `${data.margin()}px`,
+                }}
+            >
+                {data.source}
+            </div>
+        ),
     });
 
     return (
@@ -132,15 +178,26 @@ function App() {
             />
             <div>total: {data()?.length}</div>
             <div>filtered: {filteredCount()}</div>
+            <div>height: {masonry.height()}</div>
+            <div
+                style={{
+                    display: "flex",
+                    "flex-direction": "column",
+                    "flex-wrap": "wrap",
+                    height: `${masonry.height()}px`,
+                }}
+            >
+                {masonry()}
+            </div>
             <Show when={data()}>
-                <Mason as="div" items={filtered()} columns={breakpoints()}>
+                <For ref={masonElementsRefs} each={filtered()}>
                     {(item, index) => (
                         <Tweet
                             tweet={item.tweet}
                             // onImageLoad={() => debounceRecalculate()}
                         />
                     )}
-                </Mason>
+                </For>
             </Show>
             <button
                 onclick={() => {
