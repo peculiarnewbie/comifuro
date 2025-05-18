@@ -1,14 +1,13 @@
-import { A } from "@solidjs/router";
-import {
-    createEffect,
-    createResource,
-    createSignal,
-    onMount,
-    Show,
-} from "solid-js";
-import Tweet from "~/components/tweet";
+import { createFileRoute } from "@tanstack/solid-router";
+
+import { createResource, createSignal, onMount, Show } from "solid-js";
+import Tweet from "../components/tweet";
 import * as R from "remeda";
 import { Mason, createMasonryBreakpoints } from "solid-mason";
+
+export const Route = createFileRoute("/")({
+    component: App,
+});
 
 export type Metadata = {
     user: string;
@@ -24,7 +23,7 @@ const breakpoints = createMasonryBreakpoints(() => [
     { query: "(max-width: 768px)", columns: 1 },
 ]);
 
-export default function Home() {
+function App() {
     const [data] = createResource(async () => {
         const res = await fetch(
             "https://r2.comifuro.peculiarnewbie.com/tweets.json.gz"

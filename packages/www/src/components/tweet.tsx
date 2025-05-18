@@ -1,4 +1,4 @@
-import { Metadata } from "~/routes";
+import type { Metadata } from "../routes/index";
 
 export default function Tweet(props: {
     tweet: [string, Metadata];

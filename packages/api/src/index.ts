@@ -49,6 +49,19 @@ app.get("/", (c) => {
             }),
         });
         return res;
+    })
+    .get("/purge-everything", async (c) => {
+        const zone = c.env.CF_ZONE;
+        const url = `https://api.cloudflare.com/client/v4/zones/${zone}/purge_cache`;
+        const res = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${c.env.CF_TOKEN}`,
+            },
+            body: JSON.stringify({ purge_everything: true }),
+        });
+        return res;
     });
 
 export default app;

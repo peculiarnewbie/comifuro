@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+@layer global {
+    *,
+    :before,
+    :after {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: system-ui, sans-serif;
+        line-height: 1.5;
+    }
+}
+
+@layer tkb {
+    :root {
+        --_grid: 0.25rem;
+        --border_rpsButton: solid 0.25rem white;
+        --color_pink: oklch(0.88 0.0606 19.63);
+        --font-size_huge: 3rem;
+        --radii_xl: 0.75rem;
+        --shadow_xl: 0 20px 25px -5px #0000001a, 0 8px 10px -6px #0000001a;
+        --size_full: 100%;
+        --size_screen: 100vh;
+        --z_2: 2;
+    }
+
+    .theme-light {
+        --color_bg: oklch(0.97 0.0011 17.18);
+        --color_text-main: oklch(0.25 0.1423 274.12);
+    }
+
+    .theme-dark {
+        --color_bg: oklch(0.34 0.0555 288.82);
+        --color_text-main: oklch(0.87 0.0182 300.03);
+    }
+
+    * {
+        --display: initial;
+        --place-items: initial;
+        --grid-column: initial;
+        --grid-row: initial;
+        --position: initial;
+        --width: initial;
+        --height: initial;
+        --border-radius: initial;
+        --border: initial;
+        --box-shadow: initial;
+        --padding: initial;
+        --background-color: initial;
+        --top: initial;
+        --transform: initial;
+        --z-index: initial;
+        --justify-content: initial;
+        --gap: initial;
+        --flex-basis: initial;
+        --background: initial;
+        --overflow: initial;
+        --flex-direction: initial;
+    }
+}
+
+@layer tk1 {
+    [style] {
+        display: var(--display, revert-layer);
+        place-items: var(--place-items, revert-layer);
+        grid-column: var(--grid-column, revert-layer);
+        grid-row: var(--grid-row, revert-layer);
+        position: var(--position, revert-layer);
+        width: var(--_1pi6ijh, var(--width, revert-layer));
+        --_1pi6ijh: var(--width__calc) calc(var(--width) * var(--_grid));
+        height: var(--_1awdfto, var(--height, revert-layer));
+        --_1awdfto: var(--height__calc) calc(var(--height) * var(--_grid));
+        border-radius: var(--border-radius, revert-layer);
+        border: var(--border, revert-layer);
+        box-shadow: var(--box-shadow, revert-layer);
+        padding: var(--_443yf1, var(--padding, revert-layer));
+        --_443yf1: var(--padding__calc) calc(var(--padding) * var(--_grid));
+        transform: var(--transform, revert-layer);
+        z-index: var(--z-index, revert-layer);
+        gap: var(--_tv0n1y, var(--gap, revert-layer));
+        --_tv0n1y: var(--gap__calc) calc(var(--gap) * var(--_grid));
+        background: var(--background, revert-layer);
+        color: var(--color, revert-layer);
+        overflow: var(--overflow, revert-layer);
+    }
+}
+
+@layer tk2 {
+    [style] {
+        font-size: var(--font-size, revert-layer);
+        background-color: var(--background-color, revert-layer);
+        top: var(--_u3oze5, var(--top, revert-layer));
+        --_u3oze5: var(--top__calc) calc(var(--top) * var(--_grid));
+        justify-content: var(--justify-content, revert-layer);
+        flex-basis: var(--_1cztp9a, var(--flex-basis, revert-layer));
+        --_1cztp9a: var(--flex-basis__calc)
+            calc(var(--flex-basis) * var(--_grid));
+        flex-direction: var(--flex-direction, revert-layer);
+    }
+}

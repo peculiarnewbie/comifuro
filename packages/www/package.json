@@ -1,28 +1,31 @@
 {
-	"name": "example-with-tailwindcss",
-	"type": "module",
-	"scripts": {
-		"dev": "vinxi dev",
-		"build": "vinxi build",
-		"start": "vinxi start",
-		"preview": "bun run build && npx wrangler pages dev",
-		"deploy": "bun run build && wrangler pages deploy"
-	},
-	"dependencies": {
-		"@solidjs/router": "^0.15.0",
-		"@solidjs/start": "^1.1.0",
-		"remeda": "^2.21.3",
-		"solid-js": "^1.9.5",
-		"solid-mason": "^0.1.7",
-		"vinxi": "^0.5.3"
-	},
-	"devDependencies": {
-		"@cloudflare/workers-types": "^4.20250507.0",
-		"@tailwindcss/vite": "^4.0.7",
-		"tailwindcss": "^4.0.7",
-		"wrangler": "^4.14.3"
-	},
-	"engines": {
-		"node": ">=22"
-	}
+    "name": "www",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite --port 3000",
+        "start": "vite --port 3000",
+        "build": "vite build && tsc",
+        "serve": "vite preview",
+        "test": "vitest run"
+    },
+    "dependencies": {
+        "@tailwindcss/vite": "^4.1.7",
+        "@tanstack/solid-router": "^1.110.0",
+        "@tanstack/solid-router-devtools": "^1.109.2",
+        "animejs": "^4.0.1",
+        "hono": "^4.7.8",
+        "remeda": "^2.21.6",
+        "solid-js": "^1.9.4",
+        "solid-mason": "^0.1.7",
+        "tailwindcss": "^4.1.7",
+        "zod": "^3.24.3"
+    },
+    "devDependencies": {
+        "@cloudflare/vite-plugin": "^1.2.2",
+        "@tanstack/router-plugin": "^1.109.2",
+        "typescript": "^5.7.2",
+        "vite": "^6.0.11",
+        "vite-plugin-solid": "^2.11.2"
+    }
 }
