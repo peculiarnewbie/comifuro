@@ -1,6 +1,8 @@
 # comifuro
 
-For the record I'm not a weeb
+For the record I'm not a weeb. I scraped some twitter data of people posting comifuro catalogue and i made a frontend for that data
+
+![Demo GIF](./demo.gif)
 
 ## Todo
 
