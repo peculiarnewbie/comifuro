@@ -49,6 +49,11 @@ export const downloadImage = async (image: ElementHandle<any>) => {
     });
 };
 
+export const getTweetIdFromUrl = (url: string): string | null => {
+    const match = url.match(/status\/(\d+)/);
+    return match ? match[1] : null;
+};
+
 export const downloadImagesFromTweet = async (
     page: Page,
     articleDir: string,
@@ -56,6 +61,7 @@ export const downloadImagesFromTweet = async (
 ) => {
     let imageIndex = 0;
     const initialUrl = page.url();
+    const initialTweetId = getTweetIdFromUrl(initialUrl);
 
     while (true) {
         const twitterImagePath = `${downloadDir}twitter-image.jpg`;
@@ -75,8 +81,8 @@ export const downloadImagesFromTweet = async (
 
         await sleep(2500);
 
-        const currentUrl = page.url();
-        if (currentUrl !== initialUrl) {
+        const currentTweetId = getTweetIdFromUrl(page.url());
+        if (currentTweetId && initialTweetId && currentTweetId !== initialTweetId) {
             console.log("Tweet navigation detected, stopping image download");
             break;
         }
@@ -302,12 +308,42 @@ export const processArticles = async (
                 try {
                     const tweetPage = await browser.newPage();
                     await tweetPage.goto(url);
-                    await sleep(3000);
-                    const firstImage = await tweetPage.$(`[aria-label="Image"]`);
-                    if (firstImage) {
-                        await firstImage.click();
-                        await sleep(1000); // Give it a moment to load the full image/carousel
-                    }
+                    await sleep(2000);
+                    await tweetPage.setViewport({
+                        width: 1920,
+                        height: 1000,
+                        deviceScaleFactor: 1,
+                    });
+                    await sleep(1000);
+
+                    // Find and click the correct image for this specific tweet
+                    const currentTweetId = getTweetIdFromUrl(url);
+                    await tweetPage.evaluate((targetTweetId) => {
+                        const images = document.querySelectorAll('[aria-label="Image"]');
+
+                        for (const image of images) {
+                            // Walk up the DOM to find the parent anchor tag
+                            let element = image.parentElement;
+                            while (element && element.tagName !== 'A') {
+                                element = element.parentElement;
+                            }
+
+                            if (element && element.tagName === 'A') {
+                                const href = element.getAttribute('href');
+                                if (href) {
+                                    const match = href.match(/status\/(\d+)/);
+                                    const tweetId = match ? match[1] : null;
+
+                                    if (tweetId === targetTweetId) {
+                                        element.click();
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    }, currentTweetId);
+
+                    await sleep(1000); // Give it a moment to load the full image/carousel                    await downloadImagesFromTweet(tweetPage, articleDir, downloadsDir);
                     await downloadImagesFromTweet(tweetPage, articleDir, downloadsDir);
                     await tweetPage.close();
                     success = true;
