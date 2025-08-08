@@ -111,7 +111,7 @@ export const downloadImagesFromTweet = async (
 
         const jpgPath = `${articleDir}/image-${imageIndex}.jpg`;
         const webpPath = `${articleDir}/image-${imageIndex}.webp`;
-        
+
         await Bun.write(jpgPath, imageFile);
 
         processImageAsync(await imageFile.arrayBuffer(), webpPath).then(async (success) => {
@@ -133,10 +133,10 @@ export const downloadImagesFromTweet = async (
         try {
             await nextButton.click();
             imageIndex++;
-            
+
             await sleep(1000);
-            const newUrl = page.url();
-            if (newUrl !== currentUrl) {
+            const newTweetId = getTweetIdFromUrl(page.url());
+            if (newTweetId && initialTweetId && newTweetId !== initialTweetId) {
                 console.log("Tweet navigation detected after carousel click, stopping");
                 break;
             }
@@ -264,7 +264,9 @@ export const processArticles = async (
 
             if ("error" in userData || "error" in tweetText) continue;
 
-            if (tweetText.text.toLowerCase().includes("wtb")) continue;
+            if (tweetText.text.toLowerCase().includes("wtb")) {
+                console.log("skipping wtb tweet")
+            }
 
             if (processedTweets.has(url)) {
                 if (isFirstRun) {
@@ -300,11 +302,13 @@ export const processArticles = async (
                 try {
                     const tweetPage = await browser.newPage();
                     await tweetPage.goto(url);
-                    await tweetPage.waitForNetworkIdle();
-                    await sleep(2000);
-
+                    await sleep(3000);
+                    const firstImage = await tweetPage.$(`[aria-label="Image"]`);
+                    if (firstImage) {
+                        await firstImage.click();
+                        await sleep(1000); // Give it a moment to load the full image/carousel
+                    }
                     await downloadImagesFromTweet(tweetPage, articleDir, downloadsDir);
-
                     await tweetPage.close();
                     success = true;
 
@@ -314,7 +318,7 @@ export const processArticles = async (
                 } catch (e) {
                     retryCount++;
                     console.error(`Error processing tweet (attempt ${retryCount}/${maxRetries}):`, e);
-                    
+
                     if (retryCount >= maxRetries) {
                         await Bun.write(
                             `${articleDir}/error.json`,
