@@ -150,20 +150,36 @@ async function main() {
         console.log("Connected to existing browser instance");
     } catch (e) {
         console.log("No existing browser found, launching new Chromium instance...");
-        browser = await puppeteer.launch({
-            headless: false,
-            args: [
-                '--remote-debugging-port=9222',
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--disable-gpu'
-            ]
+        
+        const chromiumProcess = Bun.spawn([
+            "chromium",
+            "--remote-debugging-port=9222",
+            "--no-sandbox",
+            "--disable-setuid-sandbox", 
+            "--disable-dev-shm-usage",
+            "--disable-accelerated-2d-canvas",
+            "--no-first-run",
+            "--no-zygote",
+            "--disable-gpu",
+            "--disable-web-security",
+            "--user-data-dir=/tmp/chromium-scraper"
+        ], {
+            stdio: ["ignore", "pipe", "pipe"]
         });
-        console.log("Launched new browser with remote debugging on port 9222");
+
+        console.log("Launched Chromium with PID:", chromiumProcess.pid);
+        
+        // Wait for browser to start up
+        await sleep(3000);
+        
+        // Now connect to it
+        const browserWs = await fetch("http://localhost:9222/json/version");
+        const browserEndpoint = (await browserWs.json()).webSocketDebuggerUrl;
+        browser = await puppeteer.connect({
+            browserWSEndpoint: browserEndpoint,
+        });
+        
+        console.log("Connected to spawned Chromium instance");
     }
 
     const pages = await browser.pages();
