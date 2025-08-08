@@ -33,7 +33,7 @@ const crawlPage = async (
     while (true) {
         if (!articles) process.abort();
 
-        const { currentArticle, index, shouldStop } = await processArticles(
+        const { currentArticle, shouldStop } = await processArticles(
             browser,
             page,
             articles,
@@ -86,13 +86,39 @@ async function main() {
     const processedTweets = await loadProcessedTweets(distDir);
     console.log(`Loaded ${processedTweets.size} previously processed tweets`);
 
-    const browserWs = await fetch("http://localhost:9222/json/version");
-    const browserEndpoint = (await browserWs.json()).webSocketDebuggerUrl;
-    const browser = await puppeteer.connect({
-        browserWSEndpoint: browserEndpoint,
-    });
+    let browser;
+    
+    try {
+        const browserWs = await fetch("http://localhost:9222/json/version");
+        const browserEndpoint = (await browserWs.json()).webSocketDebuggerUrl;
+        browser = await puppeteer.connect({
+            browserWSEndpoint: browserEndpoint,
+        });
+        console.log("Connected to existing browser instance");
+    } catch (e) {
+        console.log("No existing browser found, launching new Chromium instance...");
+        browser = await puppeteer.launch({
+            headless: false,
+            args: [
+                '--remote-debugging-port=9222',
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu'
+            ]
+        });
+        console.log("Launched new browser with remote debugging on port 9222");
+    }
 
-    const [page, _] = await browser.pages();
+    const pages = await browser.pages();
+    let page = pages[0];
+    
+    if (!page) {
+        page = await browser.newPage();
+    }
 
     if (!page) {
         console.error("no page in browser");
@@ -102,7 +128,7 @@ async function main() {
     console.log("crawling latest tweets");
     const url = `https://x.com/search?q=cf21catalogue&src=typed_query&f=live`;
 
-    page.goto(url);
+    await page.goto(url);
     await page.waitForNetworkIdle();
     await sleep(2000);
 
