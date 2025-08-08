@@ -17,7 +17,8 @@ const crawlPage = async (
     page: Page,
     destination: string,
     processedTweets: Set<string>,
-    maxRetries: number = 3
+    maxRetries: number = 3,
+    isFirstRun: boolean = false
 ) => {
     if (!page) process.abort();
     await page.setViewport({
@@ -28,6 +29,8 @@ const crawlPage = async (
 
     let articles = await getCurrentArticlesOnPage(page);
     let offset = 0;
+    let consecutiveEmptyLoads = 0;
+    let lastArticleCount = 0;
     console.log(articles?.length);
 
     while (true) {
@@ -41,10 +44,11 @@ const crawlPage = async (
             destination,
             downloadDir,
             processedTweets,
-            maxRetries
+            maxRetries,
+            isFirstRun
         );
 
-        if (shouldStop) {
+        if (shouldStop && !isFirstRun) {
             console.log("Reached previously processed tweets, stopping");
             break;
         }
@@ -53,9 +57,19 @@ const crawlPage = async (
             return el.innerText;
         });
 
+        // Scroll to load more tweets
+        await page.evaluate(() => {
+            window.scrollTo(0, document.body.scrollHeight);
+        });
+        
+        await sleep(3000); // Wait for new tweets to load
+
         const nextArticles = await getCurrentArticlesOnPage(page);
 
-        if (!nextArticles) process.exit(0);
+        if (!nextArticles) {
+            console.log("No more articles found, ending scrape");
+            break;
+        }
 
         let startIndex = 0;
 
@@ -74,7 +88,44 @@ const crawlPage = async (
 
         console.log("next", articles?.length, offset);
 
-        if (articles.length == 0) break;
+        // Check if we're getting new articles
+        if (articles.length === 0) {
+            consecutiveEmptyLoads++;
+            console.log(`No new articles loaded (${consecutiveEmptyLoads}/3)`);
+            
+            if (consecutiveEmptyLoads >= 3) {
+                console.log("No new tweets loading after multiple attempts, ending scrape");
+                break;
+            }
+            
+            // Try scrolling more aggressively
+            await page.evaluate(() => {
+                window.scrollTo(0, document.body.scrollHeight + 1000);
+            });
+            await sleep(5000);
+            
+            const retryArticles = await getCurrentArticlesOnPage(page);
+            if (retryArticles && retryArticles.length > lastArticleCount) {
+                articles = retryArticles.slice(lastArticleCount);
+                consecutiveEmptyLoads = 0;
+            }
+        } else {
+            consecutiveEmptyLoads = 0;
+        }
+
+        lastArticleCount = nextArticles.length;
+
+        // For first run, check if we've hit the end of search results
+        if (isFirstRun) {
+            const endOfResults = await page.$('text="You\'ve reached the end of your search results"') || 
+                                await page.$('text="Nothing to see here — yet"') ||
+                                await page.$('[data-testid="emptyState"]');
+            
+            if (endOfResults) {
+                console.log("Reached end of search results");
+                break;
+            }
+        }
     }
 };
 
@@ -84,7 +135,9 @@ async function main() {
     await ensureDir(distDir);
 
     const processedTweets = await loadProcessedTweets(distDir);
+    const isFirstRun = processedTweets.size === 0;
     console.log(`Loaded ${processedTweets.size} previously processed tweets`);
+    console.log(`Mode: ${isFirstRun ? "First run - will scrape all tweets" : "Resume mode - will scrape until reaching previous tweets"}`);
 
     let browser;
     
@@ -132,7 +185,7 @@ async function main() {
     await page.waitForNetworkIdle();
     await sleep(2000);
 
-    await crawlPage(browser, page, distDir, processedTweets, maxRetries);
+    await crawlPage(browser, page, distDir, processedTweets, maxRetries, isFirstRun);
 
     await saveProcessedTweets(distDir, processedTweets);
     console.log("done");

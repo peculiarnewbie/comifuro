@@ -245,7 +245,8 @@ export const processArticles = async (
     distDir: string,
     downloadsDir: string,
     processedTweets: Set<string>,
-    maxRetries: number = 3
+    maxRetries: number = 3,
+    isFirstRun: boolean = false
 ) => {
     let currentArticle = articles ? articles[0] : null;
 
@@ -266,8 +267,13 @@ export const processArticles = async (
             if (tweetText.text.toLowerCase().includes("wtb")) continue;
 
             if (processedTweets.has(url)) {
-                console.log("Tweet already processed, stopping");
-                return { currentArticle, index: i, shouldStop: true };
+                if (isFirstRun) {
+                    console.log("Tweet already processed, skipping");
+                    continue;
+                } else {
+                    console.log("Tweet already processed, stopping");
+                    return { currentArticle, index: i, shouldStop: true };
+                }
             }
 
             const articleDir = join(distDir, `twitter-article-${i + offset}`);
