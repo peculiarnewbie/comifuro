@@ -1,17 +1,24 @@
-import puppeteer, { type Page } from "puppeteer";
+import puppeteer, { type Page, type Browser } from "puppeteer";
 import {
     ensureDir,
     findProjectRoot,
     getCurrentArticlesOnPage,
     processArticles,
+    loadProcessedTweets,
+    saveProcessedTweets,
 } from "./daily";
 import { sleep } from "bun";
-import { DateTime } from "luxon";
 
 export const downloadDir = process.env.DOWNLOADS_DIR ?? "";
 export const distDir = `${await findProjectRoot()}/dist/`;
 
-const crawlPage = async (page: Page, destination: string) => {
+const crawlPage = async (
+    browser: Browser,
+    page: Page,
+    destination: string,
+    processedTweets: Set<string>,
+    maxRetries: number = 3
+) => {
     if (!page) process.abort();
     await page.setViewport({
         width: 1920,
@@ -26,13 +33,21 @@ const crawlPage = async (page: Page, destination: string) => {
     while (true) {
         if (!articles) process.abort();
 
-        const { currentArticle, index } = await processArticles(
+        const { currentArticle, index, shouldStop } = await processArticles(
+            browser,
             page,
             articles,
             offset,
             destination,
-            downloadDir
+            downloadDir,
+            processedTweets,
+            maxRetries
         );
+
+        if (shouldStop) {
+            console.log("Reached previously processed tweets, stopping");
+            break;
+        }
 
         const evaluated = await currentArticle?.evaluate((el) => {
             return el.innerText;
@@ -64,7 +79,12 @@ const crawlPage = async (page: Page, destination: string) => {
 };
 
 async function main() {
+    const maxRetries = parseInt(process.env.MAX_RETRIES ?? "3");
+    
     await ensureDir(distDir);
+
+    const processedTweets = await loadProcessedTweets(distDir);
+    console.log(`Loaded ${processedTweets.size} previously processed tweets`);
 
     const browserWs = await fetch("http://localhost:9222/json/version");
     const browserEndpoint = (await browserWs.json()).webSocketDebuggerUrl;
@@ -79,30 +99,16 @@ async function main() {
         process.abort();
     }
 
-    const startDate = "2025-05-14";
-    const endDate = "2025-05-12";
+    console.log("crawling latest tweets");
+    const url = `https://x.com/search?q=cf21catalogue&src=typed_query&f=live`;
 
-    let currentDate = startDate;
+    page.goto(url);
+    await page.waitForNetworkIdle();
+    await sleep(2000);
 
-    while (true) {
-        const previousDate = DateTime.fromFormat(currentDate, "yyyy-MM-dd")
-            .minus({ days: 1 })
-            .toISODate();
-        if (!previousDate) break;
-        console.log("crawling: ", currentDate, previousDate);
-        const url = `https://x.com/search?q=cfxxcatalogue%20until%3A${currentDate}%20since%3A${previousDate}&src=typed_query&f=live`;
+    await crawlPage(browser, page, distDir, processedTweets, maxRetries);
 
-        page.goto(url);
-        await page.waitForNetworkIdle();
-        await sleep(2000);
-
-        await crawlPage(page, `${distDir}${previousDate}/`);
-
-        currentDate = previousDate
-
-        if (currentDate == endDate) break;
-    }
-
+    await saveProcessedTweets(distDir, processedTweets);
     console.log("done");
 }
 
