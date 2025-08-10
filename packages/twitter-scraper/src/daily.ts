@@ -311,7 +311,7 @@ export const processArticles = async (
 
             if (processedTweets.has(url)) {
                 console.log("Tweet already processed, stopping");
-                return { currentArticle, index: i, shouldStop: true };
+                return { currentArticle, shouldStop: true };
             }
 
             if (tweetText.text.toLowerCase().includes("wtb")) {
@@ -368,5 +368,5 @@ export const processArticles = async (
         }
     }
 
-    return { currentArticle, index: articles.length - 1, shouldStop: false };
+    return { currentArticle, shouldStop: false };
 };

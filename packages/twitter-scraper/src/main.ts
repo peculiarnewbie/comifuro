@@ -18,7 +18,6 @@ const crawlPage = async (
     destination: string,
     processedTweets: Set<string>,
     maxRetries: number = 3,
-    isFirstRun: boolean = false
 ) => {
     console.log("set viewport")
     await page.setViewport({
@@ -47,7 +46,7 @@ const crawlPage = async (
 
         offset = offset + articles.length;
 
-        if (shouldStop && !isFirstRun) {
+        if (shouldStop) {
             console.log("Reached previously processed tweets, stopping");
             break;
         }
@@ -165,14 +164,13 @@ async function main() {
     await ensureDir(distDir);
 
     const processedTweets = await loadProcessedTweets(distDir);
-    const isFirstRun = processedTweets.size === 0;
 
     const browser = await getBrowserInstance();
 
     const page = await openLatestTweets(browser)
 
     console.log("start crawling")
-    await crawlPage(browser, page, distDir, processedTweets, maxRetries, isFirstRun);
+    await crawlPage(browser, page, distDir, processedTweets, maxRetries);
 
     await saveProcessedTweets(distDir, processedTweets);
     console.log("done");
