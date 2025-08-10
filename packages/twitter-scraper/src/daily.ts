@@ -49,19 +49,18 @@ export const downloadImage = async (image: ElementHandle<any>) => {
     });
 };
 
-export const getTweetIdFromUrl = (url: string): string | null => {
+export const getTweetIdFromUrl = (url: string): string => {
     const match = url.match(/status\/(\d+)/);
-    return match ? match[1] : null;
+    return match ? match[1] ? match[1] : "" : "";
 };
 
 export const downloadImagesFromTweet = async (
     page: Page,
+    initialTweetId: string,
     articleDir: string,
     downloadDir: string
 ) => {
     let imageIndex = 0;
-    const initialUrl = page.url();
-    const initialTweetId = getTweetIdFromUrl(initialUrl);
 
     while (true) {
         const twitterImagePath = `${downloadDir}twitter-image.jpg`;
@@ -82,7 +81,7 @@ export const downloadImagesFromTweet = async (
         await sleep(2500);
 
         const currentTweetId = getTweetIdFromUrl(page.url());
-        if (currentTweetId && initialTweetId && currentTweetId !== initialTweetId) {
+        if (currentTweetId !== initialTweetId) {
             console.log("Tweet navigation detected, stopping image download");
             break;
         }
@@ -139,13 +138,6 @@ export const downloadImagesFromTweet = async (
         try {
             await nextButton.click();
             imageIndex++;
-
-            await sleep(1000);
-            const newTweetId = getTweetIdFromUrl(page.url());
-            if (newTweetId && initialTweetId && newTweetId !== initialTweetId) {
-                console.log("Tweet navigation detected after carousel click, stopping");
-                break;
-            }
         } catch (e) {
             console.log("Error clicking next button or no more images");
             break;
@@ -172,7 +164,7 @@ export const getCurrentArticlesOnPage = async (page: Page) => {
     return articles;
 };
 
-export const getArticlesData = async (article: ElementHandle<HTMLElement>) => {
+export const getArticleData = async (article: ElementHandle<HTMLElement>) => {
     let userData: { username: string; time: string } | { error: Error };
     try {
         userData = (await article.$eval(
@@ -243,16 +235,63 @@ const processImageAsync = async (input: ArrayBuffer, target: string) => {
     return false;
 };
 
+const initTweetDir = async (index: number, distDir: string, userData: { username: string, time: string }, text: string, url: string) => {
+    const articleDir = join(distDir, `twitter-article-${index}`);
+    await ensureDir(articleDir);
+
+    await Bun.write(
+        `${articleDir}/tweet.json`,
+        JSON.stringify(
+            {
+                user: userData.username,
+                time: userData.time,
+                text: text,
+                url: url,
+            },
+            null,
+            4
+        )
+    );
+
+    return articleDir;
+}
+
+const clickFirstImageOfTweet = async (tweetPage: Page, currentTweetId: string | null) => {
+    await tweetPage.evaluate((targetTweetId) => {
+        const images = document.querySelectorAll('[aria-label="Image"]');
+
+        for (const image of Array.from(images)) {
+            // Walk up the DOM to find the parent anchor tag
+            let element = image.parentElement;
+            while (element && element.tagName !== 'A') {
+                element = element.parentElement;
+            }
+
+            if (element && element.tagName === 'A') {
+                const href = element.getAttribute('href');
+                if (href) {
+                    const match = href.match(/status\/(\d+)/);
+                    const tweetId = match ? match[1] : null;
+
+                    if (tweetId === targetTweetId) {
+                        element.click();
+                        return;
+                    }
+                }
+            }
+        }
+    }, currentTweetId);
+}
+
+
 export const processArticles = async (
     browser: Browser,
-    page: Page,
     articles: ElementHandle<HTMLElement>[],
     offset: number,
     distDir: string,
     downloadsDir: string,
     processedTweets: Set<string>,
     maxRetries: number = 3,
-    isFirstRun: boolean = false
 ) => {
     let currentArticle = articles ? articles[0] : null;
 
@@ -264,47 +303,28 @@ export const processArticles = async (
 
             if (!firstImage) continue;
 
-            const { userData, tweetText, url } = await getArticlesData(
+            const { userData, tweetText, url } = await getArticleData(
                 currentArticle
             );
 
             if ("error" in userData || "error" in tweetText) continue;
 
+            if (processedTweets.has(url)) {
+                console.log("Tweet already processed, stopping");
+                return { currentArticle, index: i, shouldStop: true };
+            }
+
             if (tweetText.text.toLowerCase().includes("wtb")) {
                 console.log("skipping wtb tweet")
+                continue;
             }
 
-            if (processedTweets.has(url)) {
-                if (isFirstRun) {
-                    console.log("Tweet already processed, skipping");
-                    continue;
-                } else {
-                    console.log("Tweet already processed, stopping");
-                    return { currentArticle, index: i, shouldStop: true };
-                }
-            }
-
-            const articleDir = join(distDir, `twitter-article-${i + offset}`);
-            await ensureDir(articleDir);
-
-            await Bun.write(
-                `${articleDir}/tweet.json`,
-                JSON.stringify(
-                    {
-                        user: userData.username,
-                        time: userData.time,
-                        text: tweetText.text,
-                        url: url,
-                    },
-                    null,
-                    4
-                )
-            );
+            const articleDir = await initTweetDir(i + offset, distDir, userData, tweetText.text, url);
 
             let retryCount = 0;
             let success = false;
 
-            while (retryCount < maxRetries && !success) {
+            while (!success) {
                 try {
                     const tweetPage = await browser.newPage();
                     await tweetPage.goto(url);
@@ -316,40 +336,19 @@ export const processArticles = async (
                     });
                     await sleep(1000);
 
-                    // Find and click the correct image for this specific tweet
                     const currentTweetId = getTweetIdFromUrl(url);
-                    await tweetPage.evaluate((targetTweetId) => {
-                        const images = document.querySelectorAll('[aria-label="Image"]');
+                    await clickFirstImageOfTweet(tweetPage, currentTweetId);
 
-                        for (const image of images) {
-                            // Walk up the DOM to find the parent anchor tag
-                            let element = image.parentElement;
-                            while (element && element.tagName !== 'A') {
-                                element = element.parentElement;
-                            }
+                    await sleep(2000);
 
-                            if (element && element.tagName === 'A') {
-                                const href = element.getAttribute('href');
-                                if (href) {
-                                    const match = href.match(/status\/(\d+)/);
-                                    const tweetId = match ? match[1] : null;
+                    await downloadImagesFromTweet(tweetPage, currentTweetId, articleDir, downloadsDir);
 
-                                    if (tweetId === targetTweetId) {
-                                        element.click();
-                                        return;
-                                    }
-                                }
-                            }
-                        }
-                    }, currentTweetId);
-
-                    await sleep(1000); // Give it a moment to load the full image/carousel                    await downloadImagesFromTweet(tweetPage, articleDir, downloadsDir);
-                    await downloadImagesFromTweet(tweetPage, articleDir, downloadsDir);
                     await tweetPage.close();
                     success = true;
 
                     processedTweets.add(url);
                     console.log(`Successfully processed tweet: ${url}`);
+
 
                 } catch (e) {
                     retryCount++;
@@ -360,6 +359,7 @@ export const processArticles = async (
                             `${articleDir}/error.json`,
                             JSON.stringify({ error: e, retries: retryCount }, null, 4)
                         );
+                        break;
                     } else {
                         await sleep(2000);
                     }

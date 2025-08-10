@@ -29,7 +29,6 @@ const crawlPage = async (
 
     let articles = await getCurrentArticlesOnPage(page);
     let offset = 0;
-    let lastArticleCount = 0;
     let currentArticlesCache: ElementHandle<HTMLElement>[] | undefined = []
     console.log("articles length", articles?.length);
 
@@ -38,63 +37,66 @@ const crawlPage = async (
 
         const { currentArticle, shouldStop } = await processArticles(
             browser,
-            page,
             articles,
             offset,
             destination,
             downloadDir,
             processedTweets,
             maxRetries,
-            isFirstRun
         );
+
+        offset = offset + articles.length;
 
         if (shouldStop && !isFirstRun) {
             console.log("Reached previously processed tweets, stopping");
             break;
         }
 
-        // Update offset by the number of articles we just processed
-        offset = offset + articles.length;
+        const { nextArticles, startIndex, shouldBreak } = await scrollAndGetNewArticles(page, currentArticlesCache, currentArticle)
 
-        const evaluated = await currentArticle?.evaluate((el) => {
-            return el.innerText;
-        });
-
-        // Scroll to load more tweets
-        await page.evaluate(() => {
-            window.scrollTo(0, document.body.scrollHeight);
-        });
-
-        await sleep(3000); // Wait for new tweets to load
-
-        const nextArticles = await getCurrentArticlesOnPage(page);
-
-        if (!nextArticles || currentArticlesCache == nextArticles) {
-            console.log("No more articles found, ending scrape");
-            break;
-        }
+        if (shouldBreak) break;
 
         currentArticlesCache = nextArticles
-
-        let startIndex = 0;
-
-        for (let i = 0; i < nextArticles.length; i++) {
-            const currentEval = await nextArticles[i]?.evaluate((el) => {
-                return el.innerText;
-            });
-            if (currentEval == evaluated) {
-                startIndex = i + 1;
-                break;
-            }
-        }
-
         articles = nextArticles.slice(startIndex);
 
         console.log("next", articles?.length, offset);
-
-        lastArticleCount = nextArticles.length;
     }
 };
+
+const scrollAndGetNewArticles = async (page: Page, currentArticlesCache: ElementHandle<HTMLElement>[] | undefined, currentArticle: ElementHandle<HTMLElement> | null | undefined) => {
+
+    await page.evaluate(() => {
+        window.scrollTo(0, document.body.scrollHeight);
+    });
+
+    await sleep(3000);
+
+    const nextArticles = await getCurrentArticlesOnPage(page);
+
+    if (!nextArticles || currentArticlesCache == nextArticles) {
+        console.log("No more articles found, ending scrape");
+        return { nextArticles: [], startIndex: 0, shouldBreak: true }
+    }
+
+    let startIndex = 0;
+
+    const evaluated = await currentArticle?.evaluate((el) => {
+        return el.innerText;
+    });
+
+    for (let i = 0; i < nextArticles.length; i++) {
+        const currentEval = await nextArticles[i]?.evaluate((el) => {
+            return el.innerText;
+        });
+        if (currentEval == evaluated) {
+            startIndex = i + 1;
+            break;
+        }
+    }
+
+    return { nextArticles, startIndex, shouldBreak: false }
+
+}
 
 const getBrowserInstance = async () => {
     try {
