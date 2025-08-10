@@ -1,4 +1,4 @@
-import puppeteer, { type Page, type Browser } from "puppeteer";
+import puppeteer, { type Page, type Browser, ElementHandle } from "puppeteer";
 import {
     ensureDir,
     findProjectRoot,
@@ -20,8 +20,6 @@ const crawlPage = async (
     maxRetries: number = 3,
     isFirstRun: boolean = false
 ) => {
-    if (!page) process.abort();
-
     console.log("set viewport")
     await page.setViewport({
         width: 1920,
@@ -31,8 +29,8 @@ const crawlPage = async (
 
     let articles = await getCurrentArticlesOnPage(page);
     let offset = 0;
-    let consecutiveEmptyLoads = 0;
     let lastArticleCount = 0;
+    let currentArticlesCache: ElementHandle<HTMLElement>[] | undefined = []
     console.log("articles length", articles?.length);
 
     while (true) {
@@ -55,6 +53,9 @@ const crawlPage = async (
             break;
         }
 
+        // Update offset by the number of articles we just processed
+        offset = offset + articles.length;
+
         const evaluated = await currentArticle?.evaluate((el) => {
             return el.innerText;
         });
@@ -68,10 +69,12 @@ const crawlPage = async (
 
         const nextArticles = await getCurrentArticlesOnPage(page);
 
-        if (!nextArticles) {
+        if (!nextArticles || currentArticlesCache == nextArticles) {
             console.log("No more articles found, ending scrape");
             break;
         }
+
+        currentArticlesCache = nextArticles
 
         let startIndex = 0;
 
@@ -86,70 +89,21 @@ const crawlPage = async (
         }
 
         articles = nextArticles.slice(startIndex);
-        offset = offset + startIndex;
 
         console.log("next", articles?.length, offset);
 
-        // Check if we're getting new articles
-        if (articles.length === 0) {
-            consecutiveEmptyLoads++;
-            console.log(`No new articles loaded (${consecutiveEmptyLoads}/3)`);
-
-            if (consecutiveEmptyLoads >= 3) {
-                console.log("No new tweets loading after multiple attempts, ending scrape");
-                break;
-            }
-
-            // Try scrolling more aggressively
-            await page.evaluate(() => {
-                window.scrollTo(0, document.body.scrollHeight + 1000);
-            });
-            await sleep(5000);
-
-            const retryArticles = await getCurrentArticlesOnPage(page);
-            if (retryArticles && retryArticles.length > lastArticleCount) {
-                articles = retryArticles.slice(lastArticleCount);
-                consecutiveEmptyLoads = 0;
-            }
-        } else {
-            consecutiveEmptyLoads = 0;
-        }
-
         lastArticleCount = nextArticles.length;
-
-        // For first run, check if we've hit the end of search results
-        if (isFirstRun) {
-            const endOfResults = await page.$('text="You\'ve reached the end of your search results"') ||
-                await page.$('text="Nothing to see here — yet"') ||
-                await page.$('[data-testid="emptyState"]');
-
-            if (endOfResults) {
-                console.log("Reached end of search results");
-                break;
-            }
-        }
     }
 };
 
-async function main() {
-    const maxRetries = parseInt(process.env.MAX_RETRIES ?? "3");
-
-    await ensureDir(distDir);
-
-    const processedTweets = await loadProcessedTweets(distDir);
-    const isFirstRun = processedTweets.size === 0;
-    console.log(`Loaded ${processedTweets.size} previously processed tweets`);
-    console.log(`Mode: ${isFirstRun ? "First run - will scrape all tweets" : "Resume mode - will scrape until reaching previous tweets"}`);
-
-    let browser;
-
+const getBrowserInstance = async () => {
     try {
         const browserWs = await fetch("http://localhost:9222/json/version");
         const browserEndpoint = (await browserWs.json()).webSocketDebuggerUrl;
-        browser = await puppeteer.connect({
+        console.log("Connected to existing browser instance");
+        return await puppeteer.connect({
             browserWSEndpoint: browserEndpoint,
         });
-        console.log("Connected to existing browser instance");
     } catch (e) {
         console.log("No existing browser found, launching new Chromium instance...");
 
@@ -170,19 +124,18 @@ async function main() {
 
         console.log("Launched Chromium with PID:", chromiumProcess.pid);
 
-        // Wait for browser to start up
         await sleep(3000);
 
-        // Now connect to it
         const browserWs = await fetch("http://localhost:9222/json/version");
         const browserEndpoint = (await browserWs.json()).webSocketDebuggerUrl;
-        browser = await puppeteer.connect({
+        return await puppeteer.connect({
             browserWSEndpoint: browserEndpoint,
         });
-
-        console.log("Connected to spawned Chromium instance");
     }
 
+}
+
+const openLatestTweets = async (browser: Browser) => {
     const pages = await browser.pages();
     let page = pages[0];
 
@@ -200,6 +153,21 @@ async function main() {
 
     await page.goto(url);
     await sleep(2000);
+
+    return page
+}
+
+async function main() {
+    const maxRetries = parseInt(process.env.MAX_RETRIES ?? "3");
+
+    await ensureDir(distDir);
+
+    const processedTweets = await loadProcessedTweets(distDir);
+    const isFirstRun = processedTweets.size === 0;
+
+    const browser = await getBrowserInstance();
+
+    const page = await openLatestTweets(browser)
 
     console.log("start crawling")
     await crawlPage(browser, page, distDir, processedTweets, maxRetries, isFirstRun);
