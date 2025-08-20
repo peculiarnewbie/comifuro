@@ -11,8 +11,15 @@
   },
   "dependencies": {
     "@types/luxon": "^3.6.2",
+    "drizzle-orm": "^0.29.0",
+    "drizzle-kit": "^0.20.0",
     "luxon": "^3.6.1",
     "puppeteer": "^24.6.1",
     "sharp": "^0.34.1"
+  },
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "bun run drizzle/migrate.ts",
+    "import-tweets": "bun run src/import-tweets.ts"
   }
 }

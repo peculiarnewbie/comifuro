@@ -64,9 +64,16 @@ const crawlPage = async (
 
 const scrollAndGetNewArticles = async (page: Page, currentArticlesCache: ElementHandle<HTMLElement>[] | undefined, currentArticle: ElementHandle<HTMLElement> | null | undefined) => {
 
-    await page.evaluate(() => {
-        window.scrollTo(0, document.body.scrollHeight);
-    });
+    // await page.evaluate(() => {
+    //     window.scrollTo(0, document.body.scrollHeight);
+    // });
+
+    currentArticle?.evaluate((el) => {
+        el.scrollIntoView({
+            behavior: "smooth",
+            block: 'start',
+        });
+    })
 
     await sleep(3000);
 
