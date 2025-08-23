@@ -118,19 +118,11 @@ async function processTweetFolder(folderPath: string): Promise<void> {
             return;
         }
 
-        // Check if tweet already exists
-        const existing = await tweetsOperations.getTweet(bunSqlite, tweetId);
-        if (existing) {
-            console.log(
-                `Skipping ${folderPath}: Tweet ${tweetId} already exists in database`
-            );
-            return;
-        }
-
         const imageMask = await generateImageMask(folderPath);
         const timestamp = isoToDate(tweetData.time);
 
-        await tweetsOperations.insertTweet(bunSqlite, {
+        // Upsert tweet: insert or update existing
+        await tweetsOperations.upsertTweet(bunSqlite, {
             id: tweetId,
             user: tweetData.user,
             timestamp,
@@ -138,7 +130,7 @@ async function processTweetFolder(folderPath: string): Promise<void> {
             imageMask,
         });
 
-        console.log(`Imported tweet ${tweetId} from ${folderPath}`);
+        console.log(`Upserted tweet ${tweetId} from ${folderPath}`);
     } catch (error) {
         console.error(`Error processing ${folderPath}:`, error);
     }

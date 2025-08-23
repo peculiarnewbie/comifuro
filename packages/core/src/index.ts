@@ -32,6 +32,20 @@ export namespace tweetsOperations {
         return await db.insert(tweets).values(tweet).returning();
     };
 
+    export const upsertTweet = async (
+        db: DrizzleD1Database<typeof schema> | BunSQLiteDatabase<typeof schema>,
+        tweet: tweetsTypes.TweetInsert
+    ) => {
+        return await db
+            .insert(tweets)
+            .values(tweet)
+            .onConflictDoUpdate({
+                target: tweets.id,
+                set: tweet,
+            })
+            .returning();
+    };
+
     export const selectTweets = async (
         db: DrizzleD1Database<typeof schema> | BunSQLiteDatabase<typeof schema>,
         opt?: {
