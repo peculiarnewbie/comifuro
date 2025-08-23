@@ -1,11 +1,9 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { DateTime } from "luxon";
-import {
-    tweetsOperations,
-    getBunSqlite,
-    runBunMigrations,
-} from "@comifuro/core";
+import { tweetsOperations } from "@comifuro/core/index";
+import { getBunSqlite } from "@comifuro/core/bunSqlite";
+import { runBunMigrations } from "@comifuro/core/migrate";
 import { fileURLToPath } from "node:url";
 
 const IMPORTS_FILE = "imports.json";

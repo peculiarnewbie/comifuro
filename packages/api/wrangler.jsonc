@@ -29,6 +29,13 @@
             "database_id": "38c664e4-1a62-4942-849b-b493e76a97de",
         },
     ],
+    "routes": [
+        {
+            "pattern": "api.cf.peculiarnewbie.com",
+            "custom_domain": true,
+        },
+    ],
+
     // "ai": {
     //   "binding": "AI"
     // },

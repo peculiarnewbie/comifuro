@@ -1,10 +1,6 @@
-export * from "./schema";
-export * from "./db";
-export * from "./migrate";
 import { DrizzleD1Database } from "drizzle-orm/d1";
 import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
-import { tweets } from "./schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import * as schema from "./schema";
 
 export namespace tweetsTypes {
@@ -19,8 +15,8 @@ export namespace tweetsOperations {
     ) => {
         const tweet = await db
             .select()
-            .from(tweets)
-            .where(eq(tweets.id, id))
+            .from(schema.tweets)
+            .where(eq(schema.tweets.id, id))
             .limit(1);
         return tweet[0];
     };
@@ -29,7 +25,7 @@ export namespace tweetsOperations {
         db: DrizzleD1Database<typeof schema> | BunSQLiteDatabase<typeof schema>,
         tweet: tweetsTypes.TweetInsert
     ) => {
-        return await db.insert(tweets).values(tweet).returning();
+        return await db.insert(schema.tweets).values(tweet).returning();
     };
 
     export const upsertTweet = async (
@@ -37,11 +33,35 @@ export namespace tweetsOperations {
         tweet: tweetsTypes.TweetInsert
     ) => {
         return await db
-            .insert(tweets)
+            .insert(schema.tweets)
             .values(tweet)
             .onConflictDoUpdate({
-                target: tweets.id,
+                target: schema.tweets.id,
                 set: tweet,
+            })
+            .returning();
+    };
+
+    export const upsertMultipleTweets = async (
+        db: DrizzleD1Database<typeof schema> | BunSQLiteDatabase<typeof schema>,
+        tweetsInsert: tweetsTypes.TweetInsert[]
+    ) => {
+        console.log("upsertMultipleTweets", tweetsInsert);
+        return await db
+            .insert(schema.tweets)
+            .values(tweetsInsert)
+            .onConflictDoUpdate({
+                target: schema.tweets.id,
+                set: {
+                    user: sql.raw(`excluded.${schema.tweets.user.name}`),
+                    timestamp: sql.raw(
+                        `excluded.${schema.tweets.timestamp.name}`
+                    ),
+                    text: sql.raw(`excluded.${schema.tweets.text.name}`),
+                    imageMask: sql.raw(
+                        `excluded.${schema.tweets.imageMask.name}`
+                    ),
+                },
             })
             .returning();
     };
@@ -54,6 +74,10 @@ export namespace tweetsOperations {
         }
     ) => {
         const { offset = 0, limit = 100 } = opt || {};
-        return await db.select().from(tweets).limit(limit).offset(offset);
+        return await db
+            .select()
+            .from(schema.tweets)
+            .limit(limit)
+            .offset(offset);
     };
 }
