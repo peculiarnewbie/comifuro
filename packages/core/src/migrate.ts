@@ -3,7 +3,7 @@ import { db } from './db';
 
 function runMigrations() {
   console.log('Running migrations...');
-  migrate(db, { migrationsFolder: './drizzle/migrations' });
+  migrate(db, { migrationsFolder: './migrations' });
   console.log('Migrations completed!');
 }
 

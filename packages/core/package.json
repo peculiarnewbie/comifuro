@@ -1,0 +1,12 @@
+{
+  "name": "@comifuro/core",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "drizzle-orm": "^0.29.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.20.0"
+  }
+}

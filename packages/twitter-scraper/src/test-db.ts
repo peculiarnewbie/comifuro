@@ -1,5 +1,4 @@
-import { db } from '../drizzle/db';
-import { tweets } from '../drizzle/schema';
+import { db, tweets } from '@comifuro/core';
 
 async function testDatabase() {
   console.log('Testing database connection...');

@@ -1,9 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { DateTime } from 'luxon';
-import { db } from '../drizzle/db';
-import { tweets } from '../drizzle/schema';
-import { eq } from 'drizzle-orm';
+import { db, tweets, eq } from '@comifuro/core';
 
 const IMPORTS_FILE = 'imports.json';
 
@@ -156,7 +154,7 @@ async function ensureDatabaseReady() {
     console.log('Database tables not found, running migrations...');
     try {
       // Run the migration script
-      const migrationProcess = Bun.spawn(['bun', 'run', 'drizzle/migrate.ts'], {
+      const migrationProcess = Bun.spawn(['bun', 'run', '../core/src/migrate.ts'], {
         cwd: process.cwd(),
         stdio: ['ignore', 'pipe', 'pipe']
       });
