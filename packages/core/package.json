@@ -2,11 +2,11 @@
   "name": "@comifuro/core",
   "version": "1.0.0",
   "main": "src/index.ts",
-  "types": "src/index.ts",
   "dependencies": {
-    "drizzle-orm": "^0.29.0"
+    "drizzle-orm": "^0.44.4"
   },
+  "types": "src/index.ts",
   "devDependencies": {
-    "drizzle-kit": "^0.20.0"
+    "drizzle-kit": "^0.31.4"
   }
 }

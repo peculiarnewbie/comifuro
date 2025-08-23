@@ -19,16 +19,16 @@
         {
             "binding": "R2",
             "bucket_name": "comifuro",
-            "preview_bucket_name": "comifuro-preview"
-        }
-    ]
-    // "d1_databases": [
-    //   {
-    //     "binding": "MY_DB",
-    //     "database_name": "my-database",
-    //     "database_id": ""
-    //   }
-    // ],
+            "preview_bucket_name": "comifuro-preview",
+        },
+    ],
+    "d1_databases": [
+        {
+            "binding": "DB",
+            "database_name": "comifuro",
+            "database_id": "38c664e4-1a62-4942-849b-b493e76a97de",
+        },
+    ],
     // "ai": {
     //   "binding": "AI"
     // },

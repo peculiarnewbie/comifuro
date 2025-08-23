@@ -9,14 +9,14 @@
     "dependencies": {
         "@comifuro/core": "workspace:*",
         "@types/luxon": "^3.6.2",
-        "drizzle-orm": "^0.29.0",
+        "drizzle-orm": "^0.44.4",
         "luxon": "^3.6.1",
         "puppeteer": "^24.6.1",
         "sharp": "^0.34.1"
     },
     "devDependencies": {
         "@types/bun": "latest",
-        "drizzle-kit": "^0.20.0"
+        "drizzle-kit": "^0.31.4"
     },
     "scripts": {
         "db:generate": "cd ../core && drizzle-kit generate",
