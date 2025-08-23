@@ -21,6 +21,7 @@
     "scripts": {
         "db:generate": "cd ../core && drizzle-kit generate",
         "db:migrate": "cd ../core && bun run src/migrate.ts",
-        "import-tweets": "bun run src/import-tweets.ts"
+        "import-tweets": "bun run src/import-tweets.ts",
+        "sync-to-d1": "bun run src/sync-to-d1.ts"
     }
 }

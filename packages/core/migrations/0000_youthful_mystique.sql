@@ -6,6 +6,7 @@ CREATE TABLE `tweets` (
 	`image_mask` integer DEFAULT 0 NOT NULL
 );
 --> statement-breakpoint
+CREATE INDEX `user_idx` ON `tweets` (`user`);--> statement-breakpoint
 CREATE TABLE `user_post_relations` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,

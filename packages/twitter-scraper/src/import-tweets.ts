@@ -30,7 +30,8 @@ function getTweetIdFromUrl(url: string): string {
     return match ? match[1] || "" : "";
 }
 
-const bunSqlitePath = process.cwd() + "/tweets.db";
+const dbUrl = new URL("../tweets.sqlite", import.meta.url);
+const bunSqlitePath = fileURLToPath(dbUrl);
 const bunSqlite = getBunSqlite(bunSqlitePath);
 
 /**
