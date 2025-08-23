@@ -26,6 +26,12 @@ app.get("/", (c) => c.text("Hello Hono!"))
         if (password !== c.env.PASSWORD)
             return c.json({ error: "unauthed" }, 403);
         const key = c.req.param("key");
+        let decodedKey: string;
+        try {
+            decodedKey = decodeURIComponent(key);
+        } catch (error) {
+            return c.json({ error: "Invalid key encoding" }, 400);
+        }
         const data = await c.req.formData();
         const file = data.get("image");
         if (!file || typeof file === "string") {
@@ -34,7 +40,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
 
         const r2 = c.env.R2;
         //@ts-expect-error
-        await r2.put(key.replaceAll("_", "/"), file);
+        await r2.put(decodedKey, file);
 
         c.header("Content-Type", "image/webp");
         return c.json({ ok: true });

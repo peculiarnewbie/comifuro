@@ -75,7 +75,7 @@ interface Tweet {
         });
 
         // Wait for new tweets to load.
-        await page.waitForTimeout(3000);
+        await Bun.sleep(3000);
     }
 
     // When you're done, you could disconnect:

@@ -1,64 +1,28 @@
 import { readdir, readFile } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { join } from "node:path";
 import { DateTime } from "luxon";
 import { tweetsOperations } from "@comifuro/core/index";
 import { getBunSqlite } from "@comifuro/core/bunSqlite";
 import { runBunMigrations } from "@comifuro/core/migrate";
 import { fileURLToPath } from "node:url";
+import type { TweetData, ImportRecord } from "./lib/types";
+import { getTweetIdFromUrl } from "./lib/utils";
+import { loadImportsJson, saveImportsJson, generateImageMask } from "./lib/fileUtils";
 
-const IMPORTS_FILE = "imports.json";
 
-interface TweetData {
-    user: string;
-    time: string;
-    text: string;
-    url: string;
-}
-
-interface ImportRecord {
-    dateFolder: string;
-    importedAt: string;
-}
-
-/**
- * Extract tweet ID from Twitter URL
- */
-function getTweetIdFromUrl(url: string): string {
-    const match = url.match(/status\/(\d+)/);
-    return match ? match[1] || "" : "";
-}
 
 const dbUrl = new URL("../tweets.sqlite", import.meta.url);
 const bunSqlitePath = fileURLToPath(dbUrl);
 const bunSqlite = getBunSqlite(bunSqlitePath);
 
-/**
- * Generate bitmask for images 0-4 based on which image files exist
- */
-async function generateImageMask(tweetDir: string): Promise<number> {
-    let mask = 0;
-    for (let i = 0; i < 5; i++) {
-        try {
-            await readFile(join(tweetDir, `image-${i}.webp`));
-            mask |= 1 << i;
-        } catch {
-            // Image doesn't exist, bit remains 0
-        }
-    }
-    return mask;
-}
+
 
 /**
  * Load previously imported date folders
  */
 async function loadImportedDateFolders(): Promise<Set<string>> {
-    try {
-        const data = await readFile(IMPORTS_FILE, "utf-8");
-        const records: ImportRecord[] = JSON.parse(data);
-        return new Set(records.map((record) => record.dateFolder));
-    } catch {
-        return new Set();
-    }
+    const records = await loadImportsJson();
+    return new Set(records.map((record) => record.dateFolder));
 }
 
 /**
@@ -79,7 +43,7 @@ async function saveImportedDateFolders(dateFolders: string[]): Promise<void> {
         ...newRecords,
     ];
 
-    await Bun.write(IMPORTS_FILE, JSON.stringify(allRecords, null, 2));
+    await saveImportsJson(allRecords);
 }
 
 /**
