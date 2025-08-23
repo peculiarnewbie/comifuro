@@ -1,12 +1,18 @@
-import { migrate } from 'drizzle-orm/bun-sqlite/migrator';
-import { db } from './db';
+import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { getBunSqlite } from "./db";
+import { fileURLToPath } from "node:url";
 
-function runMigrations() {
-  console.log('Running migrations...');
-  migrate(db, { migrationsFolder: './migrations' });
-  console.log('Migrations completed!');
+const migrationsFolder = fileURLToPath(
+    new URL("../migrations/", import.meta.url)
+);
+
+export function runBunMigrations(dbPath: string) {
+    const db = getBunSqlite(dbPath);
+    console.log("Running migrations...", migrationsFolder, "to", dbPath);
+    migrate(db, { migrationsFolder: migrationsFolder });
+    console.log("Migrations completed!");
 }
 
 if (import.meta.main) {
-  runMigrations();
+    runBunMigrations(process.cwd() + "/db.sqlite");
 }
