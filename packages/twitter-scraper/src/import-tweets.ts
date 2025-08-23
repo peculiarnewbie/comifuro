@@ -178,6 +178,7 @@ async function importTweets() {
         // Get all date folders
         const dateFolders = (await readdir(backupDir, { withFileTypes: true }))
             .filter((e) => e.isDirectory())
+            .filter((e) => !e.name.includes("twitter-article-"))
             .map((e) => e.name);
         console.log(
             `Found ${dateFolders.length} date folders: ${dateFolders.join(", ")}`
