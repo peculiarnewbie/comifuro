@@ -134,14 +134,14 @@ async function main() {
     // Get newer local tweets
     const newer = lastTimestamp
         ? await db
-              .select()
-              .from(schema.tweets)
-              .where(gt(schema.tweets.timestamp, new Date(lastTimestamp)))
-              .orderBy(desc(schema.tweets.timestamp))
+            .select()
+            .from(schema.tweets)
+            .where(gt(schema.tweets.timestamp, new Date(lastTimestamp)))
+            .orderBy(desc(schema.tweets.timestamp))
         : await db
-              .select()
-              .from(schema.tweets)
-              .orderBy(desc(schema.tweets.timestamp));
+            .select()
+            .from(schema.tweets)
+            .orderBy(desc(schema.tweets.timestamp));
 
     console.log(`Found ${newer.length} tweets to sync`);
     if (newer.length === 0) {
@@ -173,6 +173,8 @@ async function main() {
         console.log("No folders need image uploads.");
         return;
     }
+
+    console.log("folderToUploads", foldersToUpload);
 
     console.log(
         `Found ${foldersToUpload.length} folders that need image uploads`

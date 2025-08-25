@@ -29,17 +29,14 @@ async function loadImportedDateFolders(): Promise<Set<string>> {
  * Save imported date folders
  */
 async function saveImportedDateFolders(dateFolders: string[]): Promise<void> {
-    const existing = await loadImportedDateFolders();
+    const existing = await loadImportsJson();
     const newRecords: ImportRecord[] = dateFolders.map((dateFolder) => ({
         dateFolder,
         importedAt: new Date().toISOString(),
     }));
 
     const allRecords = [
-        ...Array.from(existing).map((dateFolder) => ({
-            dateFolder,
-            importedAt: new Date().toISOString(),
-        })),
+        ...existing,
         ...newRecords,
     ];
 
