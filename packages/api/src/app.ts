@@ -1,15 +1,26 @@
-import { drizzle } from "drizzle-orm/d1";
+import { drizzle, DrizzleD1Database } from "drizzle-orm/d1";
 import { Context, Elysia, t } from "elysia";
-import { env } from "cloudflare:workers";
+// import { env } from "cloudflare:workers";
 import * as schema from "@comifuro/core/schema";
 import { desc } from "drizzle-orm";
 import { tweetsOperations, tweetsTypes } from "@comifuro/core";
+import { openapi } from "@elysiajs/openapi";
+import { fromTypes } from "@elysiajs/openapi/gen";
+import openapiJson from "./elysia-documentation.json";
+
+const env = process.env;
 
 function getDb() {
+    //@ts-expect-error
     return drizzle(env.DB, { schema: schema });
 }
 
 const app = new Elysia({ aot: false })
+    .use(
+        openapi({
+            customSchema: openapiJson,
+        })
+    )
     .get("/", (ctx) => "Hello Elysia")
     .post(
         "/upload/:key",
@@ -29,7 +40,8 @@ const app = new Elysia({ aot: false })
                 return status(400, { error: "No image file provided" });
             }
 
-            const r2 = env.R2;
+            //@ts-expect-error
+            const r2 = env.R2 as R2Bucket;
             await r2.put(decodedKey, file);
 
             set.headers = { "Content-Type": "image/webp" };
