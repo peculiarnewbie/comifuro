@@ -9,9 +9,9 @@
         "drizzle-kit": "^0.31.4"
     },
     "exports": {
+        ".": "./src/index.ts",
         "./bunSqlite": "./src/db.ts",
         "./schema": "./src/schema.ts",
-        "./migrate": "./src/migrate.ts",
-        "./index": "./src/index.ts"
+        "./migrate": "./src/migrate.ts"
     }
 }

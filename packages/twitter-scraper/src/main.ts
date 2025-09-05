@@ -160,7 +160,6 @@ const openLatestTweets = async (browser: Browser) => {
     const url = `https://x.com/search?q=cf21catalogue&src=typed_query&f=live`;
 
     await page.goto(url);
-    await sleep(2000);
 
     return page
 }
@@ -175,6 +174,8 @@ async function main() {
     const browser = await getBrowserInstance();
 
     const page = await openLatestTweets(browser)
+
+    await Bun.sleep(5000)
 
     console.log("start crawling")
     await crawlPage(browser, page, distDir, processedTweets, maxRetries);

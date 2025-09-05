@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@comifuro/core/schema";
 import { z } from "zod";
 import { desc, sql } from "drizzle-orm";
-import { tweetsOperations, tweetsTypes } from "@comifuro/core/index";
+import { tweetsOperations, tweetsTypes } from "@comifuro/core";
 
 type Bindings = {
     R2: R2Bucket;
