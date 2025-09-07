@@ -6,7 +6,6 @@
     },
     "dependencies": {
         "@comifuro/core": "workspace:*",
-        "@elysiajs/openapi": "/home/bolt/git/web/elysia-openapi",
         "drizzle-orm": "^0.44.5",
         "elysia": "latest",
         "typedi": "^0.10.0"

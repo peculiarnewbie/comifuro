@@ -4,9 +4,6 @@ import { Context, Elysia, t } from "elysia";
 import * as schema from "@comifuro/core/schema";
 import { desc } from "drizzle-orm";
 import { tweetsOperations, tweetsTypes } from "@comifuro/core";
-import { openapi } from "@elysiajs/openapi";
-import { fromTypes } from "@elysiajs/openapi/gen";
-import openapiJson from "./elysia-documentation.json";
 
 const env = process.env;
 
@@ -16,11 +13,6 @@ function getDb() {
 }
 
 const app = new Elysia({ aot: false })
-    .use(
-        openapi({
-            customSchema: openapiJson,
-        })
-    )
     .get("/", (ctx) => "Hello Elysia")
     .post(
         "/upload/:key",
