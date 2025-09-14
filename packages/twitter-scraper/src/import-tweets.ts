@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DateTime } from "luxon";
-import { tweetsOperations } from "@comifuro/core/index";
+import { tweetsOperations } from "@comifuro/core";
 import { getBunSqlite } from "@comifuro/core/bunSqlite";
 import { runBunMigrations } from "@comifuro/core/migrate";
 import { fileURLToPath } from "node:url";
