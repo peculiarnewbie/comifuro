@@ -9,7 +9,7 @@
         "drizzle-orm": "^0.44.5",
         "elysia": "latest",
         "typedi": "^0.10.0",
-        "wrangler": "^4.34.0"
+        "wrangler": "^4.36.0"
     },
     "devDependencies": {
         "bun-types": "latest"

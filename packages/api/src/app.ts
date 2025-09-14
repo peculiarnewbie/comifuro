@@ -75,6 +75,7 @@ const app = new Elysia({ aot: false })
                 .select()
                 .from(schema.tweets)
                 .limit(limit)
+                .orderBy(desc(schema.tweets.timestamp))
                 .offset(offset);
             return rows;
         },
@@ -85,6 +86,19 @@ const app = new Elysia({ aot: false })
             }),
         }
     )
+    .get("/tweets/full", async ({ set }) => {
+        const db = getDb();
+        const rows = await db
+            .select()
+            .from(schema.tweets)
+            .orderBy(desc(schema.tweets.timestamp));
+
+        set.headers["Content-Type"] = "application/json; charset=utf-8";
+        set.headers["Cache-Control"] =
+            "public, s-maxage=3600, stale-while-revalidate=30";
+
+        return rows;
+    })
     .post(
         "/tweets/upsert",
         async ({ headers, body, status }) => {
