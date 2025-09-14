@@ -82,17 +82,32 @@ const app = new Elysia({ aot: false })
             }),
         }
     )
-    .get("/tweets/full", async ({ set }) => {
+    .get("/tweets/full", async ({ request }) => {
+        //@ts-expect-error cf worker specific
+        const cache = caches.default;
+        const cacheKey = new Request(request.url.toString(), {
+            headers: { Accept: "application/json" },
+        });
+
+        let res = await cache.match(cacheKey);
+        if (res) return res;
+
         const db = getDb();
         const rows = await db
             .select()
             .from(schema.tweets)
             .orderBy(desc(schema.tweets.timestamp));
 
-        set.headers["Cache-Control"] = "max-age=3600";
-        set.headers["Cache-Tag"] = "tweets-full";
+        res = new Response(JSON.stringify(rows), {
+            headers: {
+                "Content-Type": "application/json; charset=utf-8",
+                "Cache-Control": "public, s-maxage=7200",
+            },
+        });
 
-        return rows;
+        await cache.put(cacheKey, res.clone());
+
+        return res;
     })
     .post(
         "/tweets/upsert",
