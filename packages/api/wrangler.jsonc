@@ -3,6 +3,7 @@
     "name": "api-comifuro",
     "main": "src/index.ts",
     "compatibility_date": "2025-05-07",
+    "compatibility_flags": ["nodejs_compat"],
     // "vars": {
     //   "MY_VAR": "my-variable"
     // },
@@ -35,8 +36,8 @@
     // "ai": {
     //   "binding": "AI"
     // },
-    // "observability": {
-    //   "enabled": true,
-    //   "head_sampling_rate": 1
-    // }
+    "observability": {
+        "enabled": true,
+        "head_sampling_rate": 1,
+    },
 }
