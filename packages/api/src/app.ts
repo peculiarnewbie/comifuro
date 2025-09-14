@@ -1,14 +1,11 @@
 import { drizzle, DrizzleD1Database } from "drizzle-orm/d1";
 import { Context, Elysia, t } from "elysia";
-// import { env } from "cloudflare:workers";
+import { env } from "cloudflare:workers";
 import * as schema from "@comifuro/core/schema";
 import { desc } from "drizzle-orm";
 import { tweetsOperations, tweetsTypes } from "@comifuro/core";
 
-const env = process.env;
-
 function getDb() {
-    //@ts-expect-error
     return drizzle(env.DB, { schema: schema });
 }
 
@@ -32,7 +29,6 @@ const app = new Elysia({ aot: false })
                 return status(400, { error: "No image file provided" });
             }
 
-            //@ts-expect-error
             const r2 = env.R2 as R2Bucket;
             await r2.put(decodedKey, file);
 
@@ -93,9 +89,8 @@ const app = new Elysia({ aot: false })
             .from(schema.tweets)
             .orderBy(desc(schema.tweets.timestamp));
 
-        set.headers["Content-Type"] = "application/json; charset=utf-8";
-        set.headers["Cache-Control"] =
-            "public, s-maxage=3600, stale-while-revalidate=30";
+        set.headers["Cache-Control"] = "max-age=3600";
+        set.headers["Cache-Tag"] = "tweets-full";
 
         return rows;
     })
