@@ -1,6 +1,5 @@
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { Database } from "bun:sqlite";
-import type { tweetsTypes } from "@comifuro/core/index";
 import * as schema from "@comifuro/core/schema";
 import { desc, gt } from "drizzle-orm";
 import { readFile, readdir } from "node:fs/promises";
@@ -22,14 +21,14 @@ if (!PASSWORD) {
     process.exit(1);
 }
 
-async function getD1LastTweet(): Promise<tweetsTypes.TweetSelect | null> {
+async function getD1LastTweet(): Promise<any | null> {
     const res = await fetch(`${API_BASE}/tweets/last`);
     if (!res.ok)
         throw new Error(`Failed to fetch last tweet from D1: ${res.status}`);
     return await res.json();
 }
 
-async function upsertBatch(tweets: tweetsTypes.TweetInsert[]): Promise<number> {
+async function upsertBatch(tweets: any[]): Promise<number> {
     const res = await fetch(`${API_BASE}/tweets/upsert`, {
         method: "POST",
         headers: {
@@ -134,34 +133,36 @@ async function main() {
     // Get newer local tweets
     const newer = lastTimestamp
         ? await db
-            .select()
-            .from(schema.tweets)
-            .where(gt(schema.tweets.timestamp, new Date(lastTimestamp)))
-            .orderBy(desc(schema.tweets.timestamp))
+              .select()
+              .from(schema.tweets)
+              .where(gt(schema.tweets.timestamp, new Date(lastTimestamp)))
+              .orderBy(desc(schema.tweets.timestamp))
         : await db
-            .select()
-            .from(schema.tweets)
-            .orderBy(desc(schema.tweets.timestamp));
+              .select()
+              .from(schema.tweets)
+              .orderBy(desc(schema.tweets.timestamp));
 
     console.log(`Found ${newer.length} tweets to sync`);
     if (newer.length === 0) {
         console.log("Nothing to sync.");
     } else {
+        await upsertBatch(newer);
         // Send in batches of 20
-        let total = 0;
-        for (let i = 0; i < newer.length; i += 20) {
-            const chunk = newer.slice(i, i + 20).map((t) => ({
-                id: t.id,
-                user: t.user,
-                timestamp: t.timestamp,
-                text: t.text,
-                imageMask: t.imageMask ?? 0,
-            }));
-            const count = await upsertBatch(chunk);
-            total += count;
-            console.log(`Upserted batch ${i / 20 + 1}: ${count} rows`);
-        }
-        console.log(`Sync complete. Upserted ${total} tweets.`);
+        // let total = 0;
+        // for (let i = 0; i < newer.length; i += 20) {
+        //     const chunk = newer.slice(i, i + 20).map((t: any) => ({
+        //         id: t.id,
+        //         user: t.user,
+        //         timestamp: t.timestamp,
+        //         text: t.text,
+        //         imageMask: t.imageMask ?? 0,
+        //     }));
+        //     console.log("chunk", chunk);
+        //     const count = await upsertBatch(chunk);
+        //     total += count;
+        //     console.log(`Upserted batch ${i / 20 + 1}: ${count} rows`);
+        // }
+        console.log(`Sync complete. Upserted ${newer.length} tweets.`);
     }
 
     // Handle image uploads for date folders that haven't had images uploaded yet

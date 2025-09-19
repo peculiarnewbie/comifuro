@@ -7,15 +7,15 @@ import { runBunMigrations } from "@comifuro/core/migrate";
 import { fileURLToPath } from "node:url";
 import type { TweetData, ImportRecord } from "./lib/types";
 import { getTweetIdFromUrl } from "./lib/utils";
-import { loadImportsJson, saveImportsJson, generateImageMask } from "./lib/fileUtils";
-
-
+import {
+    loadImportsJson,
+    saveImportsJson,
+    generateImageMask,
+} from "./lib/fileUtils";
 
 const dbUrl = new URL("../tweets.sqlite", import.meta.url);
 const bunSqlitePath = fileURLToPath(dbUrl);
 const bunSqlite = getBunSqlite(bunSqlitePath);
-
-
 
 /**
  * Load previously imported date folders
@@ -35,10 +35,7 @@ async function saveImportedDateFolders(dateFolders: string[]): Promise<void> {
         importedAt: new Date().toISOString(),
     }));
 
-    const allRecords = [
-        ...existing,
-        ...newRecords,
-    ];
+    const allRecords = [...existing, ...newRecords];
 
     await saveImportsJson(allRecords);
 }
@@ -55,7 +52,7 @@ function isoToDate(isoString: string): Date {
  * Find the backup directory with tweet data
  */
 async function findBackupDir(): Promise<string> {
-    const url = new URL("../dist/", import.meta.url);
+    const url = new URL(`../dist/`, import.meta.url);
     return fileURLToPath(url);
 }
 

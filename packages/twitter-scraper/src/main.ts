@@ -10,6 +10,7 @@ import {
 import { sleep } from "bun";
 
 export const downloadDir = process.env.DOWNLOADS_DIR ?? "";
+const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
 export const distDir = `${await findProjectRoot()}/dist/`;
 
 const crawlPage = async (
@@ -17,9 +18,9 @@ const crawlPage = async (
     page: Page,
     destination: string,
     processedTweets: Set<string>,
-    maxRetries: number = 3,
+    maxRetries: number = 3
 ) => {
-    console.log("set viewport")
+    console.log("set viewport");
     await page.setViewport({
         width: 1920,
         height: 1000,
@@ -28,7 +29,7 @@ const crawlPage = async (
 
     let articles = await getCurrentArticlesOnPage(page);
     let offset = 0;
-    let currentArticlesCache: ElementHandle<HTMLElement>[] | undefined = []
+    let currentArticlesCache: ElementHandle<HTMLElement>[] | undefined = [];
     console.log("articles length", articles?.length);
 
     while (true) {
@@ -41,7 +42,7 @@ const crawlPage = async (
             destination,
             downloadDir,
             processedTweets,
-            maxRetries,
+            maxRetries
         );
 
         offset = offset + articles.length;
@@ -51,19 +52,27 @@ const crawlPage = async (
             break;
         }
 
-        const { nextArticles, startIndex, shouldBreak } = await scrollAndGetNewArticles(page, currentArticlesCache, currentArticle)
+        const { nextArticles, startIndex, shouldBreak } =
+            await scrollAndGetNewArticles(
+                page,
+                currentArticlesCache,
+                currentArticle
+            );
 
         if (shouldBreak) break;
 
-        currentArticlesCache = nextArticles
+        currentArticlesCache = nextArticles;
         articles = nextArticles.slice(startIndex);
 
         console.log("next", articles?.length, offset);
     }
 };
 
-const scrollAndGetNewArticles = async (page: Page, currentArticlesCache: ElementHandle<HTMLElement>[] | undefined, currentArticle: ElementHandle<HTMLElement> | null | undefined) => {
-
+const scrollAndGetNewArticles = async (
+    page: Page,
+    currentArticlesCache: ElementHandle<HTMLElement>[] | undefined,
+    currentArticle: ElementHandle<HTMLElement> | null | undefined
+) => {
     // await page.evaluate(() => {
     //     window.scrollTo(0, document.body.scrollHeight);
     // });
@@ -71,9 +80,9 @@ const scrollAndGetNewArticles = async (page: Page, currentArticlesCache: Element
     currentArticle?.evaluate((el) => {
         el.scrollIntoView({
             behavior: "smooth",
-            block: 'start',
+            block: "start",
         });
-    })
+    });
 
     await sleep(3000);
 
@@ -81,7 +90,7 @@ const scrollAndGetNewArticles = async (page: Page, currentArticlesCache: Element
 
     if (!nextArticles || currentArticlesCache == nextArticles) {
         console.log("No more articles found, ending scrape");
-        return { nextArticles: [], startIndex: 0, shouldBreak: true }
+        return { nextArticles: [], startIndex: 0, shouldBreak: true };
     }
 
     let startIndex = 0;
@@ -100,9 +109,8 @@ const scrollAndGetNewArticles = async (page: Page, currentArticlesCache: Element
         }
     }
 
-    return { nextArticles, startIndex, shouldBreak: false }
-
-}
+    return { nextArticles, startIndex, shouldBreak: false };
+};
 
 const getBrowserInstance = async () => {
     try {
@@ -113,22 +121,27 @@ const getBrowserInstance = async () => {
             browserWSEndpoint: browserEndpoint,
         });
     } catch (e) {
-        console.log("No existing browser found, launching new Chromium instance...");
+        console.log(
+            "No existing browser found, launching new Chromium instance..."
+        );
 
-        const chromiumProcess = Bun.spawn([
-            "chromium",
-            "--remote-debugging-port=9222",
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-accelerated-2d-canvas",
-            "--no-first-run",
-            "--no-zygote",
-            "--disable-gpu",
-            "--disable-web-security",
-        ], {
-            stdio: ["ignore", "pipe", "pipe"]
-        });
+        const chromiumProcess = Bun.spawn(
+            [
+                "chromium",
+                "--remote-debugging-port=9222",
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-accelerated-2d-canvas",
+                "--no-first-run",
+                "--no-zygote",
+                "--disable-gpu",
+                "--disable-web-security",
+            ],
+            {
+                stdio: ["ignore", "pipe", "pipe"],
+            }
+        );
 
         console.log("Launched Chromium with PID:", chromiumProcess.pid);
 
@@ -140,8 +153,7 @@ const getBrowserInstance = async () => {
             browserWSEndpoint: browserEndpoint,
         });
     }
-
-}
+};
 
 const openLatestTweets = async (browser: Browser) => {
     const pages = await browser.pages();
@@ -161,8 +173,8 @@ const openLatestTweets = async (browser: Browser) => {
 
     await page.goto(url);
 
-    return page
-}
+    return page;
+};
 
 async function main() {
     const maxRetries = parseInt(process.env.MAX_RETRIES ?? "3");
@@ -173,15 +185,22 @@ async function main() {
 
     const browser = await getBrowserInstance();
 
-    const page = await openLatestTweets(browser)
+    const page = await openLatestTweets(browser);
 
-    await Bun.sleep(5000)
+    await Bun.sleep(5000);
 
-    console.log("start crawling")
-    await crawlPage(browser, page, distDir, processedTweets, maxRetries);
+    console.log("start crawling");
+    await crawlPage(
+        browser,
+        page,
+        `${distDir}${today}/`,
+        processedTweets,
+        maxRetries
+    );
 
     await saveProcessedTweets(distDir, processedTweets);
     console.log("done");
+    return;
 }
 
 if (import.meta.main) {
