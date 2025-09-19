@@ -84,7 +84,6 @@ app.get("/", (c) => c.text("Hello Hono!"))
                     imageMask: z.number().int().nonnegative(),
                 })
             )
-            .max(20)
             .safeParse(body);
         const db = getDb(c);
         if (!parsed.success) {

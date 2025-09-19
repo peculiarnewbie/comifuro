@@ -3,7 +3,7 @@ import { relations } from "drizzle-orm";
 
 // Define mark values as const array
 const MarkValues = ["bookmarked", "ignored"] as const;
-export type MarkType = (typeof MarkValues)[number];
+type MarkType = (typeof MarkValues)[number];
 
 // Users table
 export const users = sqliteTable("users", {

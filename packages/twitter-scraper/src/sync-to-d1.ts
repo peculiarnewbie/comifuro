@@ -1,12 +1,14 @@
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { Database } from "bun:sqlite";
 import * as schema from "@comifuro/core/schema";
+import type { TweetSelect } from "@comifuro/core/types";
 import { desc, gt } from "drizzle-orm";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { ImportRecord } from "./lib/types";
 import { getTweetIdFromUrl } from "./lib/utils";
 import { fileExists, loadImportsJson, saveImportsJson } from "./lib/fileUtils";
+import { DateTime } from "luxon";
 
 const LOCAL_DB_PATH = process.cwd() + "/tweets.sqlite";
 const API_BASE = process.env.D1_API_BASE || ""; // e.g. https://api-comifuro.your.workers.dev
@@ -131,7 +133,7 @@ async function main() {
     console.log("D1 last timestamp:", lastTimestamp || "none");
 
     // Get newer local tweets
-    const newer = lastTimestamp
+    const newer: TweetSelect[] = lastTimestamp
         ? await db
               .select()
               .from(schema.tweets)
@@ -146,7 +148,13 @@ async function main() {
     if (newer.length === 0) {
         console.log("Nothing to sync.");
     } else {
-        await upsertBatch(newer);
+        const transformed = newer.map((x) => {
+            return {
+                ...x,
+                timestamp: DateTime.fromJSDate(x.timestamp).toMillis(),
+            };
+        });
+        await upsertBatch(transformed);
         // Send in batches of 20
         // let total = 0;
         // for (let i = 0; i < newer.length; i += 20) {

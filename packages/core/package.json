@@ -12,6 +12,7 @@
         ".": "./src/index.ts",
         "./bunSqlite": "./src/db.ts",
         "./schema": "./src/schema.ts",
-        "./migrate": "./src/migrate.ts"
+        "./migrate": "./src/migrate.ts",
+        "./types": "./src/types.ts"
     }
 }
