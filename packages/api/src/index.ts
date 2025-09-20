@@ -7,6 +7,7 @@ import { desc, sql } from "drizzle-orm";
 import { tweetsOperations, tweetsTypes } from "@comifuro/core";
 import { TweetSelect } from "@comifuro/core/types";
 import { DateTime } from "luxon";
+import { cors } from "hono/cors";
 
 type Bindings = {
     R2: R2Bucket;
@@ -21,6 +22,26 @@ const app = new Hono<{ Bindings: Bindings }>();
 function getDb(c: Context) {
     return drizzle(c.env.DB, { schema: schema });
 }
+
+app.use(
+    "*",
+    cors({
+        origin: (origin) => {
+            const allowed = [
+                "http://localhost:5173",
+                "http://localhost:3000",
+                "https://cf.peculiarnewbie.com",
+            ];
+            if (!origin) return "";
+            return allowed.includes(origin) ? origin : "";
+        },
+        allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allowHeaders: ["Content-Type", "Authorization"],
+        exposeHeaders: ["Content-Length"],
+        maxAge: 86400,
+        credentials: true,
+    })
+);
 
 app.get("/", (c) => c.text("Hello Hono!"))
     .post("/upload/:key", async (c) => {
