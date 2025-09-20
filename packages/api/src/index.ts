@@ -5,6 +5,8 @@ import * as schema from "@comifuro/core/schema";
 import { z } from "zod";
 import { desc, sql } from "drizzle-orm";
 import { tweetsOperations, tweetsTypes } from "@comifuro/core";
+import { TweetSelect } from "@comifuro/core/types";
+import { DateTime } from "luxon";
 
 type Bindings = {
     R2: R2Bucket;
@@ -130,6 +132,46 @@ app.get("/", (c) => c.text("Hello Hono!"))
             body: JSON.stringify({ purge_everything: true }),
         });
         return res as any;
+    })
+    .get("/replicache/pull", async (c) => {
+        const temp = await import("./replicache-temp.json", {
+            with: { type: "json" },
+        });
+        console.log(temp);
+        const ops = temp.default.map((t) => {
+            const { id, ...rest } = t;
+            return {
+                op: "put",
+                key: id,
+                value: rest,
+            };
+        });
+        const res = {
+            lastMutationIDChanges: {},
+            cookie: 42,
+            patch: [{ op: "clear" }, ...ops],
+        };
+        return c.json(res);
+    })
+    .post("/replicache/pull", async (c) => {
+        const temp = await import("./replicache-temp.json", {
+            with: { type: "json" },
+        });
+        console.log(temp);
+        const ops = temp.default.map((t) => {
+            const { id, ...rest } = t;
+            return {
+                op: "put",
+                key: id,
+                value: rest,
+            };
+        });
+        const res = {
+            lastMutationIDChanges: {},
+            cookie: 42,
+            patch: [{ op: "clear" }, ...ops],
+        };
+        return c.json(res);
     });
 
 export default app;
