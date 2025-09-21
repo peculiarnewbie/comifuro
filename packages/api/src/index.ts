@@ -3,7 +3,7 @@ import { R2Bucket, D1Database } from "@cloudflare/workers-types";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@comifuro/core/schema";
 import { z } from "zod";
-import { desc, sql } from "drizzle-orm";
+import { desc, gt, sql } from "drizzle-orm";
 import { tweetsOperations, tweetsTypes } from "@comifuro/core";
 import { TweetSelect } from "@comifuro/core/types";
 import { DateTime } from "luxon";
@@ -181,8 +181,18 @@ app.get("/", (c) => c.text("Hello Hono!"))
     .post("/replicache/pull", async (c) => {
         const limit = Number(c.req.query("limit") ?? 100);
 
+        const { cookie, clientGroupId } = await c.req.json();
+
+        const lastTweetTimestamp: Date =
+            cookie.lastTweetTimestamp ?? new Date(0);
+
         const db = getDb(c);
-        const rows = await db.select().from(schema.tweets).limit(limit);
+        const rows = await db
+            .select()
+            .from(schema.tweets)
+            .orderBy(schema.tweets.timestamp)
+            .where(gt(schema.tweets.timestamp, lastTweetTimestamp))
+            .limit(limit);
         const ops = rows.map((t) => {
             const { id, ...rest } = t;
             return {

@@ -128,11 +128,24 @@ function Tweets(props: { tweets: Tweet[] }) {
                                     }}
                                 >
                                     <div>Row {virtualRow.index}</div>
-                                    <div>
-                                        {JSON.stringify(
-                                            props.tweets[virtualRow.index]
+                                    <Show when={props.tweets[virtualRow.index]}>
+                                        {(tweet) => (
+                                            <div>
+                                                <p>User: {tweet().user}</p>
+                                                <p>
+                                                    Timestamp:{" "}
+                                                    {tweet().timestamp}
+                                                </p>
+                                                <p>Text: {tweet().text}</p>
+                                                <p>
+                                                    pictures:{" "}
+                                                    {maskToIndices(
+                                                        tweet().imageMask
+                                                    ).join(", ")}
+                                                </p>
+                                            </div>
                                         )}
-                                    </div>
+                                    </Show>
                                 </div>
                             </div>
                         ))}
@@ -141,4 +154,12 @@ function Tweets(props: { tweets: Tweet[] }) {
             </div>
         </div>
     );
+}
+
+export function maskToIndices(mask: number, maxBits = 5): number[] {
+    const indices: number[] = [];
+    for (let i = 0; i < maxBits; i++) {
+        if ((mask & (1 << i)) !== 0) indices.push(i);
+    }
+    return indices;
 }

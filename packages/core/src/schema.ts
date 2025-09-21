@@ -27,7 +27,10 @@ export const tweets = sqliteTable(
         text: text("text").notNull(),
         imageMask: integer("image_mask").notNull().default(0),
     },
-    (table) => [index("user_idx").on(table.user)]
+    (table) => [
+        index("user_idx").on(table.user),
+        index("timestamp_idx").on(table.timestamp),
+    ]
 );
 
 export const userPostRelations = sqliteTable("user_post_relations", {
@@ -70,3 +73,8 @@ export const userPostRelationsRelations = relations(
         }),
     })
 );
+
+export const replicacheSpaces = sqliteTable("replicache_spaces", {
+    id: text("id").primaryKey(),
+    version: integer("version").notNull(),
+});
