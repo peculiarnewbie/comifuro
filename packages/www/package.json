@@ -16,6 +16,7 @@
         "@tailwindcss/vite": "^4.1.7",
         "@tanstack/solid-router": "^1.110.0",
         "@tanstack/solid-router-devtools": "^1.109.2",
+        "@tanstack/solid-virtual": "^3.13.12",
         "animejs": "^4.0.1",
         "hono": "^4.7.8",
         "remeda": "^2.21.6",

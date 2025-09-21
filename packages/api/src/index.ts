@@ -36,7 +36,11 @@ app.use(
             return allowed.includes(origin) ? origin : "";
         },
         allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allowHeaders: ["Content-Type", "Authorization"],
+        allowHeaders: [
+            "Content-Type",
+            "Authorization",
+            "X-Replicache-RequestID",
+        ],
         exposeHeaders: ["Content-Length"],
         maxAge: 86400,
         credentials: true,
@@ -175,11 +179,11 @@ app.get("/", (c) => c.text("Hello Hono!"))
         return c.json(res);
     })
     .post("/replicache/pull", async (c) => {
-        const temp = await import("./replicache-temp.json", {
-            with: { type: "json" },
-        });
-        console.log(temp);
-        const ops = temp.default.map((t) => {
+        const limit = Number(c.req.query("limit") ?? 100);
+
+        const db = getDb(c);
+        const rows = await db.select().from(schema.tweets).limit(limit);
+        const ops = rows.map((t) => {
             const { id, ...rest } = t;
             return {
                 op: "put",
