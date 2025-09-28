@@ -10,6 +10,8 @@
         "test": "vitest run"
     },
     "dependencies": {
+        "@cloudflare/workers-types": "^4.20250927.0",
+        "@comifuro/core": "workspace:*",
         "@elysiajs/openapi": "^1.4.11",
         "@solid-primitives/masonry": "^0.1.1",
         "@solid-primitives/media": "^2.3.1",
@@ -21,13 +23,13 @@
         "animejs": "^4.0.1",
         "drizzle-orm": "^0.44.5",
         "elysia": "1.4.7",
+        "hono": "^4.9.9",
         "remeda": "^2.21.6",
         "replicache": "^15.3.0",
         "solid-js": "^1.9.4",
         "solid-mason": "^0.1.7",
         "tailwindcss": "^4.1.7",
-        "zod": "^3.24.3",
-        "@comifuro/core": "workspace:*"
+        "zod": "^3.24.3"
     },
     "devDependencies": {
         "@cloudflare/vite-plugin": "^1.2.2",

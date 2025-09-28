@@ -1,15 +1,18 @@
 {
     "name": "cf",
     "compatibility_date": "2025-09-27",
+    "main": "./src/worker/index.ts",
     "assets": {
         "directory": "./dist/",
         "not_found_handling": "single-page-application",
+        "binding": "ASSETS",
+        "run_worker_first": ["/api/*"],
     },
     "d1_databases": [
         {
             "binding": "DB",
             "database_name": "comifuro",
-            "database_id": "8df5cca6-bcc3-47e0-b017-e2803e8e0aad",
+            "database_id": "38c664e4-1a62-4942-849b-b493e76a97de",
         },
     ],
     "r2_buckets": [

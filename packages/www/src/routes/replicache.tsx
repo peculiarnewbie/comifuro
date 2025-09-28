@@ -1,10 +1,7 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import { createSignal, For, onMount, Show } from "solid-js";
-import { Replicache, type WriteTransaction } from "replicache";
-import {
-    createVirtualizer,
-    createWindowVirtualizer,
-} from "@tanstack/solid-virtual";
+import { createSignal, onMount, Show } from "solid-js";
+import { Replicache } from "replicache";
+import { createVirtualizer } from "@tanstack/solid-virtual";
 
 export const Route = createFileRoute("/replicache")({
     component: RouteComponent,
@@ -12,6 +9,7 @@ export const Route = createFileRoute("/replicache")({
 
 function listen(rep: Replicache) {
     // TODO: listen to changes on server
+    console.log(rep);
 }
 
 type Tweet = {

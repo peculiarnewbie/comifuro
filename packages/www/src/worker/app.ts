@@ -8,8 +8,9 @@ const getDb = (db: D1Database) => {
 };
 
 export const createRoutes = (app: Elysia, d1: D1Database, bucket: R2Bucket) => {
+    console.log(bucket);
     const res = app
-        .get("/api", () => "Hello Cloudflare Worker!")
+        .get("/api/", () => "Hello Cloudflare Worker!")
         .get("/api/tweets", async ({ request }) => {
             const url = new URL(request.url);
             const offset = Number(url.searchParams.get("offset") ?? 0) || 0;

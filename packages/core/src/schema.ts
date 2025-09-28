@@ -8,7 +8,7 @@ import {
 import { relations } from "drizzle-orm";
 
 const MarkValues = ["bookmarked", "ignored"] as const;
-type MarkType = (typeof MarkValues)[number];
+// type MarkType = (typeof MarkValues)[number];
 
 export const users = sqliteTable("users", {
     id: text("id").primaryKey(),

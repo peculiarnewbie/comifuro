@@ -1,21 +1,12 @@
 {
-    "include": [
-        "**/*.ts",
-        "**/*.tsx"
-    ],
+    "include": ["**/*.ts", "**/*.tsx"],
     "compilerOptions": {
         "target": "ES2022",
         "jsx": "preserve",
         "jsxImportSource": "solid-js",
         "module": "ESNext",
-        "lib": [
-            "ES2022",
-            "DOM",
-            "DOM.Iterable"
-        ],
-        "types": [
-            "vite/client"
-        ],
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "types": ["vite/client"],
         /* Bundler mode */
         "moduleResolution": "bundler",
         "allowImportingTsExtensions": true,
@@ -27,6 +18,6 @@
         "noUnusedLocals": true,
         "noUnusedParameters": true,
         "noFallthroughCasesInSwitch": true,
-        "noUncheckedSideEffectImports": true,
+        "noUncheckedSideEffectImports": true
     }
 }
