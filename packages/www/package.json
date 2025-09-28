@@ -10,6 +10,7 @@
         "test": "vitest run"
     },
     "dependencies": {
+        "@elysiajs/openapi": "^1.4.11",
         "@solid-primitives/masonry": "^0.1.1",
         "@solid-primitives/media": "^2.3.1",
         "@solid-primitives/resize-observer": "^2.1.1",
@@ -18,19 +19,22 @@
         "@tanstack/solid-router-devtools": "^1.109.2",
         "@tanstack/solid-virtual": "^3.13.12",
         "animejs": "^4.0.1",
-        "hono": "^4.7.8",
+        "drizzle-orm": "^0.44.5",
+        "elysia": "1.4.7",
         "remeda": "^2.21.6",
         "replicache": "^15.3.0",
         "solid-js": "^1.9.4",
         "solid-mason": "^0.1.7",
         "tailwindcss": "^4.1.7",
-        "zod": "^3.24.3"
+        "zod": "^3.24.3",
+        "@comifuro/core": "workspace:*"
     },
     "devDependencies": {
         "@cloudflare/vite-plugin": "^1.2.2",
         "@tanstack/router-plugin": "^1.109.2",
         "typescript": "^5.7.2",
         "vite": "^6.0.11",
+        "wrangler": "catalog:",
         "vite-plugin-solid": "^2.11.2"
     }
 }

@@ -1,5 +1,8 @@
 {
     "name": "comifuro",
+    "catalog": {
+        "wrangler": "^4.40.2"
+    },
     "workspaces": [
         "packages/*"
     ]

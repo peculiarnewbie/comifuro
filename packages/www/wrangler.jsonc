@@ -1,7 +1,22 @@
 {
     "name": "cf",
-    "compatibility_date": "2025-05-02",
+    "compatibility_date": "2025-09-27",
     "assets": {
+        "directory": "./dist/",
         "not_found_handling": "single-page-application",
     },
+    "d1_databases": [
+        {
+            "binding": "DB",
+            "database_name": "comifuro",
+            "database_id": "8df5cca6-bcc3-47e0-b017-e2803e8e0aad",
+        },
+    ],
+    "r2_buckets": [
+        {
+            "binding": "BUCKET",
+            "bucket_name": "comifuro",
+            "preview_bucket_name": "comifuro-preview",
+        },
+    ],
 }
