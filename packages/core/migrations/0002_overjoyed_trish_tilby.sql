@@ -1,0 +1,1 @@
+ALTER TABLE `user_to_tweet` ADD `last_modified_version` integer DEFAULT 0 NOT NULL;

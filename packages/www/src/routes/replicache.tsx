@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/solid-router";
 import { createSignal, onMount, Show } from "solid-js";
-import { Replicache } from "replicache";
+import { Replicache, type WriteTransaction } from "replicache";
 import { createVirtualizer } from "@tanstack/solid-virtual";
 
 export const Route = createFileRoute("/replicache")({
@@ -19,16 +19,42 @@ type Tweet = {
     imageMask: number;
 };
 
+const getApiHost = (url: string) => {
+    if (url.startsWith("http://localhost")) return "http://localhost:8787";
+    return "https://api.cf.peculiarnewbie.com";
+};
+
+const createReplicache = (apiHost: string) => {
+    return new Replicache({
+        name: "tweets",
+        pullURL: `${apiHost}/replicache/pull`,
+        pushURL: `${apiHost}/replicache/push`,
+        logLevel: "debug",
+        mutators: {
+            async markTweet(
+                tx: WriteTransaction,
+                { id, mark, user }: { id: string; mark: string; user?: string }
+            ) {
+                await tx.set(`message/${id}`, {
+                    mark,
+                    user,
+                });
+            },
+        },
+    });
+};
+
+type MyReplicache = ReturnType<typeof createReplicache>;
+
 function RouteComponent() {
-    const [r, setR] = createSignal<Replicache<any> | null>(null);
+    const [r, setR] = createSignal<MyReplicache | null>(null);
     const [tweets, setTweets] = createSignal<(Tweet & { id: string })[]>([]);
 
     onMount(async () => {
-        const replicache = new Replicache({
-            name: "tweets",
-            pullURL: "https://api.cf.peculiarnewbie.com/replicache/pull",
-            logLevel: "debug",
-        });
+        const apiHost = getApiHost(window.location.href);
+
+        const replicache = createReplicache(apiHost);
+
         setR(replicache);
         listen(replicache);
 
@@ -57,13 +83,13 @@ function RouteComponent() {
     return (
         <div>
             <Show when={tweets().length > 0}>
-                <Tweets tweets={tweets()} />
+                <Tweets tweets={tweets()} r={r()} />
             </Show>
         </div>
     );
 }
 
-function Tweets(props: { tweets: Tweet[] }) {
+function Tweets(props: { tweets: Tweet[]; r: MyReplicache | null }) {
     let parentRef!: HTMLDivElement;
 
     const virtual = createVirtualizer({
@@ -126,6 +152,30 @@ function Tweets(props: { tweets: Tweet[] }) {
                                     }}
                                 >
                                     <div>Row {virtualRow.index}</div>
+                                    <button
+                                        class="cursor-pointer"
+                                        onclick={async () => {
+                                            await props.r?.mutate.markTweet({
+                                                id: "sup",
+                                                user: "test",
+                                                mark: "ignore",
+                                            });
+                                        }}
+                                    >
+                                        mark ignore
+                                    </button>
+                                    <button
+                                        class="cursor-pointer"
+                                        onclick={async () => {
+                                            await props.r?.mutate.markTweet({
+                                                id: "sup",
+                                                user: "test",
+                                                mark: "bookmark",
+                                            });
+                                        }}
+                                    >
+                                        mark bookmark
+                                    </button>
                                     <Show when={props.tweets[virtualRow.index]}>
                                         {(tweet) => (
                                             <div>

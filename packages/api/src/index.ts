@@ -1,11 +1,19 @@
 import { Context, Hono } from "hono";
 import { R2Bucket, D1Database } from "@cloudflare/workers-types";
-import { drizzle } from "drizzle-orm/d1";
-import * as schema from "@comifuro/core/schema";
+import { drizzle, DrizzleD1Database } from "drizzle-orm/d1";
+import {
+    tweets,
+    replicacheClientGroups,
+    replicacheClients,
+} from "@comifuro/core/schema";
 import { z } from "zod";
-import { desc, gt, sql } from "drizzle-orm";
+import { desc, eq, gt, sql } from "drizzle-orm";
 import { tweetsOperations, tweetsTypes } from "@comifuro/core";
-import { TweetSelect } from "@comifuro/core/types";
+import {
+    ReplicacheClientGroupSelect,
+    ReplicacheClientSelect,
+    TweetSelect,
+} from "@comifuro/core/types";
 import { DateTime } from "luxon";
 import { cors } from "hono/cors";
 
@@ -20,7 +28,7 @@ type Bindings = {
 const app = new Hono<{ Bindings: Bindings }>();
 
 function getDb(c: Context) {
-    return drizzle(c.env.DB, { schema: schema });
+    return drizzle(c.env.DB);
 }
 
 app.use(
@@ -76,8 +84,8 @@ app.get("/", (c) => c.text("Hello Hono!"))
         const db = getDb(c);
         const rows = await db
             .select()
-            .from(schema.tweets)
-            .orderBy(desc(schema.tweets.timestamp))
+            .from(tweets)
+            .orderBy(desc(tweets.timestamp))
             .limit(1);
         return c.json(rows[0] ?? null);
     })
@@ -89,11 +97,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
             Number(url.searchParams.get("limit") ?? 100) || 100
         );
         const db = getDb(c);
-        const rows = await db
-            .select()
-            .from(schema.tweets)
-            .limit(limit)
-            .offset(offset);
+        const rows = await db.select().from(tweets).limit(limit).offset(offset);
         return c.json(rows);
     })
     .post("/tweets/upsert", async (c) => {
@@ -158,40 +162,49 @@ app.get("/", (c) => c.text("Hello Hono!"))
         });
         return res as any;
     })
-    .get("/replicache/pull", async (c) => {
-        const temp = await import("./replicache-temp.json", {
-            with: { type: "json" },
-        });
-        console.log(temp);
-        const ops = temp.default.map((t) => {
-            const { id, ...rest } = t;
-            return {
-                op: "put",
-                key: id,
-                value: rest,
-            };
-        });
-        const res = {
-            lastMutationIDChanges: {},
-            cookie: 42,
-            patch: [{ op: "clear" }, ...ops],
-        };
-        return c.json(res);
-    })
+    // .get("/replicache/pull", async (c) => {
+    //     const temp = await import("./replicache-temp.json", {
+    //         with: { type: "json" },
+    //     });
+    //     console.log(temp);
+    //     const ops = temp.default.map((t) => {
+    //         const { id, ...rest } = t;
+    //         return {
+    //             op: "put",
+    //             key: id,
+    //             value: rest,
+    //         };
+    //     });
+    //     const res = {
+    //         lastMutationIDChanges: {},
+    //         cookie: 42,
+    //         patch: [{ op: "clear" }, ...ops],
+    //     };
+    //     return c.json(res);
+    // })
     .post("/replicache/pull", async (c) => {
         const limit = Number(c.req.query("limit") ?? 100);
 
-        const { cookie, clientGroupId } = await c.req.json();
+        const body = await c.req.json();
 
-        const lastTweetTimestamp: Date =
-            cookie.lastTweetTimestamp ?? new Date(0);
+        console.log({ body: JSON.stringify(body) });
+
+        const { cookie, clientGroupID } = body;
+
+        const lastTweetTimestamp: number | null = cookie;
+
+        console.log({ cookie: JSON.stringify(cookie), lastTweetTimestamp });
 
         const db = getDb(c);
+        let clientGroup = await getClientGroup(clientGroupID, db);
+
+        //TODO: check if user owns client group
+
         const rows = await db
             .select()
-            .from(schema.tweets)
-            .orderBy(schema.tweets.timestamp)
-            .where(gt(schema.tweets.timestamp, lastTweetTimestamp))
+            .from(tweets)
+            .orderBy(tweets.timestamp)
+            .where(gt(tweets.timestamp, new Date(lastTweetTimestamp ?? 0)))
             .limit(limit);
         const ops = rows.map((t) => {
             const { id, ...rest } = t;
@@ -201,12 +214,98 @@ app.get("/", (c) => c.text("Hello Hono!"))
                 value: rest,
             };
         });
+
+        const preOps = [];
+        if (!lastTweetTimestamp) {
+            console.log("clearing");
+            preOps.push({
+                op: "clear",
+            });
+        }
         const res = {
             lastMutationIDChanges: {},
-            cookie: 42,
-            patch: [{ op: "clear" }, ...ops],
+            cookie: rows[rows.length - 1].timestamp.getTime(),
+            patch: [...preOps, ...ops],
         };
+        console.log({
+            first: rows[0].timestamp.getTime(),
+            last: rows[rows.length - 1].timestamp.getTime(),
+        });
+        console.log({ rows });
         return c.json(res);
+    })
+    .post("/replicache/push", async (c) => {
+        let errorMode = false;
+        type ReplicachePushBody = {
+            profileID: string;
+            clientGroupID: string;
+            mutations: {
+                id: number;
+                name: string;
+                args: any;
+                timestamp: number;
+                clientID: string;
+            }[];
+            pushVersion: number;
+            schemaVersion: string;
+        };
+        const body: ReplicachePushBody = await c.req.json();
+        console.log(JSON.stringify(body));
+        console.log("profile id:", body.profileID);
+        console.log("client group id:", body.clientGroupID);
+        console.log(
+            "last mutation:",
+            JSON.stringify(body.mutations[body.mutations.length - 1])
+        );
+
+        const db = getDb(c);
+        let clientGroup = await getClientGroup(body.clientGroupID, db);
+
+        for (const mutation of body.mutations) {
+            let nextMutationID = 0;
+
+            let client: ReplicacheClientSelect | null = null;
+            const clientRes = await db
+                .select()
+                .from(replicacheClients)
+                .where(eq(replicacheClients.id, mutation.clientID))
+                .limit(1);
+
+            if (clientRes.length === 0) {
+                client = {
+                    id: mutation.clientID,
+                    clientGroupId: body.clientGroupID,
+                    lastMutationId: 0,
+                    lastModifiedVersion: 0,
+                };
+            } else {
+                client = clientRes[0];
+            }
+        }
+
+        // TODO: check if user owns client group
+        // if it isn't found, register client group to user, link to user if they're logged in
+
+        // TODO: verify clientGroupID owns mutation.clientId
+
+        return c.json(body);
     });
+
+const getClientGroup = async (clientGroupID: string, db: DrizzleD1Database) => {
+    const clientGroupRes = await db
+        .select()
+        .from(replicacheClientGroups)
+        .where(eq(replicacheClientGroups.id, clientGroupID))
+        .limit(1);
+
+    if (clientGroupRes.length === 0) {
+        return {
+            id: clientGroupID,
+            userId: null,
+        };
+    } else {
+        return clientGroupRes[0];
+    }
+};
 
 export default app;

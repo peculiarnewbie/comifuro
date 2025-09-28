@@ -57,6 +57,9 @@ export const userToTweet = sqliteTable(
         updatedAt: integer("updated_at", { mode: "timestamp_ms" })
             .notNull()
             .$defaultFn(() => new Date()),
+        lastModifiedVersion: integer("last_modified_version")
+            .notNull()
+            .default(0),
     },
     (t) => [primaryKey({ columns: [t.userId, t.tweetId] })]
 );

@@ -43,7 +43,7 @@ export namespace tweetsOperations {
     };
 
     export const upsertMultipleTweets = async (
-        db: DrizzleD1Database<typeof schema> | BunSQLiteDatabase<typeof schema>,
+        db: DrizzleD1Database | BunSQLiteDatabase<typeof schema>,
         tweetsInsert: tweetsTypes.TweetInsert[]
     ) => {
         console.log("upsertMultipleTweets", tweetsInsert);
