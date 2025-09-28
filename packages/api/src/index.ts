@@ -191,7 +191,14 @@ app.get("/", (c) => c.text("Hello Hono!"))
 
         const { cookie, clientGroupID } = body;
 
-        const lastTweetTimestamp: number | null = cookie;
+        const parsedCookie = JSON.parse(cookie) as {
+            lastTweetTimestamp?: number;
+            version?: number;
+        };
+
+        const lastTweetTimestamp: number | undefined =
+            parsedCookie?.lastTweetTimestamp;
+        const version: number | undefined = parsedCookie?.version;
 
         console.log({ cookie: JSON.stringify(cookie), lastTweetTimestamp });
 
@@ -224,7 +231,10 @@ app.get("/", (c) => c.text("Hello Hono!"))
         }
         const res = {
             lastMutationIDChanges: {},
-            cookie: rows[rows.length - 1].timestamp.getTime(),
+            cookie: JSON.stringify({
+                lastTweetTimestamp: rows[rows.length - 1].timestamp.getTime(),
+                version,
+            }),
             patch: [...preOps, ...ops],
         };
         console.log({
