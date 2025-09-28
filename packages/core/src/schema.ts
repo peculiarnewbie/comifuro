@@ -1,11 +1,15 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import {
+    sqliteTable,
+    text,
+    integer,
+    index,
+    primaryKey,
+} from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
-// Define mark values as const array
 const MarkValues = ["bookmarked", "ignored"] as const;
 type MarkType = (typeof MarkValues)[number];
 
-// Users table
 export const users = sqliteTable("users", {
     id: text("id").primaryKey(),
     username: text("username").notNull().unique(),
@@ -16,6 +20,7 @@ export const users = sqliteTable("users", {
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
         .notNull()
         .$defaultFn(() => new Date()),
+    version: integer("version").notNull(),
 });
 
 export const tweets = sqliteTable(
@@ -33,48 +38,58 @@ export const tweets = sqliteTable(
     ]
 );
 
-export const userPostRelations = sqliteTable("user_post_relations", {
-    id: text("id").primaryKey(),
-    userId: text("user_id")
-        .notNull()
-        .references(() => users.id),
-    tweetId: text("tweet_id")
-        .notNull()
-        .references(() => tweets.id),
-    mark: text("mark", { enum: MarkValues }).notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-        .notNull()
-        .$defaultFn(() => new Date()),
-    deleted: integer("deleted", { mode: "boolean" }).notNull().default(false),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-        .notNull()
-        .$defaultFn(() => new Date()),
-});
+export const userToTweet = sqliteTable(
+    "user_to_tweet",
+    {
+        userId: text("user_id")
+            .notNull()
+            .references(() => users.id),
+        tweetId: text("tweet_id")
+            .notNull()
+            .references(() => tweets.id),
+        mark: text("mark", { enum: MarkValues }).notNull(),
+        createdAt: integer("created_at", { mode: "timestamp_ms" })
+            .notNull()
+            .$defaultFn(() => new Date()),
+        deleted: integer("deleted", { mode: "boolean" })
+            .notNull()
+            .default(false),
+        updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+            .notNull()
+            .$defaultFn(() => new Date()),
+    },
+    (t) => [primaryKey({ columns: [t.userId, t.tweetId] })]
+);
 
-// Define relations
 export const usersRelations = relations(users, ({ many }) => ({
-    userPostRelations: many(userPostRelations),
+    userPostRelations: many(userToTweet),
 }));
 
 export const tweetsRelations = relations(tweets, ({ many }) => ({
-    userPostRelations: many(userPostRelations),
+    userPostRelations: many(userToTweet),
 }));
 
-export const userPostRelationsRelations = relations(
-    userPostRelations,
-    ({ one }) => ({
-        user: one(users, {
-            fields: [userPostRelations.userId],
-            references: [users.id],
-        }),
-        tweet: one(tweets, {
-            fields: [userPostRelations.tweetId],
-            references: [tweets.id],
-        }),
-    })
-);
+export const userPostRelations = relations(userToTweet, ({ one }) => ({
+    user: one(users, {
+        fields: [userToTweet.userId],
+        references: [users.id],
+    }),
+    tweet: one(tweets, {
+        fields: [userToTweet.tweetId],
+        references: [tweets.id],
+    }),
+}));
 
-export const replicacheSpaces = sqliteTable("replicache_spaces", {
+export const replicacheClientGroups = sqliteTable("replicache_client_groups", {
     id: text("id").primaryKey(),
-    version: integer("version").notNull(),
+    userId: text("user_id").references(() => users.id),
+});
+
+export const replicacheClients = sqliteTable("replicache_clients", {
+    id: text("id").primaryKey(),
+    clientGroupId: text("client_group_id").references(
+        () => replicacheClientGroups.id
+    ),
+    lastMutationId: integer("last_mutation_id").notNull().default(0),
+    lastModifiedVersion: integer("last_modified_version").notNull().default(0),
 });
