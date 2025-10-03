@@ -242,20 +242,28 @@ app.get("/", (c) => c.text("Hello Hono!"))
                 }
             } else {
                 console.log("there are older tweets");
-                const oldest = oldestTweetTimestamp ?? Date.now();
+                if (!oldestTweetTimestamp) {
+                    oldestTweetTimestamp = Date.now();
+                }
                 tweetsRows = await db
                     .select()
                     .from(tweets)
                     .orderBy(desc(tweets.timestamp))
-                    .where(lt(tweets.timestamp, new Date(oldest)))
+                    .where(lt(tweets.timestamp, new Date(oldestTweetTimestamp)))
                     .limit(limit);
                 if (tweetsRows.length === 0) {
                     donePullingTweet = true;
                     console.log("done pulling");
                 } else {
                     const lastTweet = tweetsRows[tweetsRows.length - 1];
+                    console.log(
+                        "pulling more",
+                        tweetsRows.length,
+                        lastTweet.timestamp.getTime()
+                    );
                     oldestTweetTimestamp = lastTweet.timestamp.getTime();
                     donePullingTweet = false;
+                    console.log("Updated oldestTweetTimestamp to:", oldestTweetTimestamp);
                 }
             }
         }
@@ -269,6 +277,12 @@ app.get("/", (c) => c.text("Hello Hono!"))
             };
         });
 
+        console.log("Response cookie values:", {
+            newestTweetTimestamp,
+            oldestTweetTimestamp,
+            donePullingTweet,
+            version: version ?? 1,
+        });
         const res = {
             lastMutationIDChanges: {},
             cookie: JSON.stringify({
