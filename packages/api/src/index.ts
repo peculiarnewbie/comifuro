@@ -7,14 +7,9 @@ import {
     replicacheClients,
 } from "@comifuro/core/schema";
 import { z } from "zod";
-import { desc, eq, gt, sql } from "drizzle-orm";
+import { desc, eq, gt, lt } from "drizzle-orm";
 import { tweetsOperations, tweetsTypes } from "@comifuro/core";
-import {
-    ReplicacheClientGroupSelect,
-    ReplicacheClientSelect,
-    TweetSelect,
-} from "@comifuro/core/types";
-import { DateTime } from "luxon";
+import { ReplicacheClientSelect, TweetSelect } from "@comifuro/core/types";
 import { cors } from "hono/cors";
 
 type Bindings = {
@@ -162,28 +157,8 @@ app.get("/", (c) => c.text("Hello Hono!"))
         });
         return res as any;
     })
-    // .get("/replicache/pull", async (c) => {
-    //     const temp = await import("./replicache-temp.json", {
-    //         with: { type: "json" },
-    //     });
-    //     console.log(temp);
-    //     const ops = temp.default.map((t) => {
-    //         const { id, ...rest } = t;
-    //         return {
-    //             op: "put",
-    //             key: id,
-    //             value: rest,
-    //         };
-    //     });
-    //     const res = {
-    //         lastMutationIDChanges: {},
-    //         cookie: 42,
-    //         patch: [{ op: "clear" }, ...ops],
-    //     };
-    //     return c.json(res);
-    // })
     .post("/replicache/pull", async (c) => {
-        const limit = Number(c.req.query("limit") ?? 100);
+        const limit = Number(c.req.query("limit") ?? 500);
 
         const body = await c.req.json();
 
@@ -191,29 +166,101 @@ app.get("/", (c) => c.text("Hello Hono!"))
 
         const { cookie, clientGroupID } = body;
 
-        const parsedCookie = JSON.parse(cookie) as {
-            lastTweetTimestamp?: number;
+        console.log("cookie", cookie);
+
+        type PullCookie = {
+            newestTweetTimestamp?: number;
+            oldestTweetTimestamp?: number;
             version?: number;
+            donePullingTweet?: boolean;
         };
 
-        const lastTweetTimestamp: number | undefined =
-            parsedCookie?.lastTweetTimestamp;
-        const version: number | undefined = parsedCookie?.version;
+        // change to pull from newest first, but caching both the newest tweets and oldest pulled tweets
+        let parsedCookie = {} as PullCookie;
 
-        console.log({ cookie: JSON.stringify(cookie), lastTweetTimestamp });
+        if (cookie) {
+            parsedCookie = JSON.parse(cookie) as PullCookie;
+        }
+
+        let newestTweetTimestamp = parsedCookie?.newestTweetTimestamp;
+        let oldestTweetTimestamp = parsedCookie?.oldestTweetTimestamp;
+        let version = parsedCookie?.version;
+        let donePullingTweet = parsedCookie?.donePullingTweet;
+
+        const preOps = [];
 
         const db = getDb(c);
         let clientGroup = await getClientGroup(clientGroupID, db);
 
         //TODO: check if user owns client group
 
-        const rows = await db
-            .select()
-            .from(tweets)
-            .orderBy(tweets.timestamp)
-            .where(gt(tweets.timestamp, new Date(lastTweetTimestamp ?? 0)))
-            .limit(limit);
-        const ops = rows.map((t) => {
+        let tweetsRows = [] as TweetSelect[];
+        if (!newestTweetTimestamp) {
+            console.log("new init");
+            tweetsRows = await db
+                .select()
+                .from(tweets)
+                .orderBy(desc(tweets.timestamp))
+                .limit(limit);
+
+            const firstTweet = tweetsRows[0];
+            const lastTweet = tweetsRows[tweetsRows.length - 1];
+            if (firstTweet) {
+                newestTweetTimestamp = firstTweet.timestamp.getTime();
+                oldestTweetTimestamp = lastTweet.timestamp.getTime();
+                donePullingTweet = false;
+                console.log("clearing");
+                preOps.push({
+                    op: "clear",
+                });
+            }
+        } else {
+            const newestTweet = (
+                await db
+                    .select()
+                    .from(tweets)
+                    .orderBy(desc(tweets.timestamp))
+                    .limit(1)
+            )[0];
+
+            if (newestTweet.timestamp.getTime() > newestTweetTimestamp) {
+                console.log("there are newer tweets");
+                tweetsRows = (
+                    await db
+                        .select()
+                        .from(tweets)
+                        .where(
+                            gt(tweets.timestamp, new Date(newestTweetTimestamp))
+                        )
+                        .orderBy(tweets.timestamp)
+                        .limit(limit)
+                ).toReversed();
+                const firstTweet = tweetsRows[0];
+                if (firstTweet) {
+                    newestTweetTimestamp = firstTweet.timestamp.getTime();
+                    donePullingTweet = false;
+                }
+            } else {
+                console.log("there are older tweets");
+                const oldest = oldestTweetTimestamp ?? Date.now();
+                tweetsRows = await db
+                    .select()
+                    .from(tweets)
+                    .orderBy(desc(tweets.timestamp))
+                    .where(lt(tweets.timestamp, new Date(oldest)))
+                    .limit(limit);
+                if (tweetsRows.length === 0) {
+                    donePullingTweet = true;
+                    console.log("done pulling");
+                } else {
+                    const lastTweet = tweetsRows[tweetsRows.length - 1];
+                    oldestTweetTimestamp = lastTweet.timestamp.getTime();
+                    donePullingTweet = false;
+                }
+            }
+        }
+
+        const ops = tweetsRows.map((t) => {
             const { id, ...rest } = t;
             return {
                 op: "put",
@@ -222,26 +269,21 @@ app.get("/", (c) => c.text("Hello Hono!"))
             };
         });
 
-        const preOps = [];
-        if (!lastTweetTimestamp) {
-            console.log("clearing");
-            preOps.push({
-                op: "clear",
-            });
-        }
         const res = {
             lastMutationIDChanges: {},
             cookie: JSON.stringify({
-                lastTweetTimestamp: rows[rows.length - 1].timestamp.getTime(),
-                version,
-            }),
+                newestTweetTimestamp,
+                oldestTweetTimestamp,
+                donePullingTweet,
+                version: version ?? 1,
+            } satisfies PullCookie),
             patch: [...preOps, ...ops],
         };
         console.log({
-            first: rows[0].timestamp.getTime(),
-            last: rows[rows.length - 1].timestamp.getTime(),
+            first: tweetsRows[0].timestamp.getTime(),
+            last: tweetsRows[tweetsRows.length - 1].timestamp.getTime(),
         });
-        console.log({ rows });
+        console.log({ rows: tweetsRows });
         return c.json(res);
     })
     .post("/replicache/push", async (c) => {
