@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import { createSignal, onMount, Show } from "solid-js";
+import { createEffect, createSignal, onMount, Show } from "solid-js";
 import { Replicache, type WriteTransaction } from "replicache";
 import { createVirtualizer } from "@tanstack/solid-virtual";
 
@@ -69,6 +69,10 @@ function RouteComponent() {
                         setTweets(
                             list.map(([id, tweet]) => ({ ...tweet, id }))
                         );
+                        if (list.length > 0) {
+                            console.log("pulling more");
+                            rep.pull();
+                        }
                     },
                 }
             );
@@ -80,6 +84,7 @@ function RouteComponent() {
             void r()?.close();
         };
     });
+
     return (
         <div>
             <Show when={tweets().length > 0}>

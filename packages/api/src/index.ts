@@ -158,34 +158,32 @@ app.get("/", (c) => c.text("Hello Hono!"))
         return res as any;
     })
     .post("/replicache/pull", async (c) => {
-        const limit = Number(c.req.query("limit") ?? 500);
+        const limit = Number(c.req.query("limit") ?? 100);
 
         const body = await c.req.json();
 
-        console.log({ body: JSON.stringify(body) });
-
-        const { cookie, clientGroupID } = body;
-
-        console.log("cookie", cookie);
+        console.log(JSON.stringify(body));
 
         type PullCookie = {
             newestTweetTimestamp?: number;
             oldestTweetTimestamp?: number;
-            version?: number;
+            order?: number;
             donePullingTweet?: boolean;
         };
 
+        const { cookie, clientGroupID } = body as {
+            cookie: PullCookie;
+            clientGroupID: string;
+        };
+
+        console.log("cookie", cookie);
+
         // change to pull from newest first, but caching both the newest tweets and oldest pulled tweets
-        let parsedCookie = {} as PullCookie;
 
-        if (cookie) {
-            parsedCookie = JSON.parse(cookie) as PullCookie;
-        }
-
-        let newestTweetTimestamp = parsedCookie?.newestTweetTimestamp;
-        let oldestTweetTimestamp = parsedCookie?.oldestTweetTimestamp;
-        let version = parsedCookie?.version;
-        let donePullingTweet = parsedCookie?.donePullingTweet;
+        let newestTweetTimestamp = cookie?.newestTweetTimestamp;
+        let oldestTweetTimestamp = cookie?.oldestTweetTimestamp;
+        let order = cookie?.order;
+        let donePullingTweet = cookie?.donePullingTweet;
 
         const preOps = [];
 
@@ -263,7 +261,10 @@ app.get("/", (c) => c.text("Hello Hono!"))
                     );
                     oldestTweetTimestamp = lastTweet.timestamp.getTime();
                     donePullingTweet = false;
-                    console.log("Updated oldestTweetTimestamp to:", oldestTweetTimestamp);
+                    console.log(
+                        "Updated oldestTweetTimestamp to:",
+                        oldestTweetTimestamp
+                    );
                 }
             }
         }
@@ -277,20 +278,24 @@ app.get("/", (c) => c.text("Hello Hono!"))
             };
         });
 
-        console.log("Response cookie values:", {
+        let newOrder = 1;
+        if (donePullingTweet) {
+            newOrder = 1000;
+        } else if (order) {
+            newOrder = order + 1;
+        }
+
+        const newCookie = {
             newestTweetTimestamp,
             oldestTweetTimestamp,
             donePullingTweet,
-            version: version ?? 1,
-        });
+            order: newOrder,
+        } satisfies PullCookie;
+
+        console.log("Response cookie values:", newCookie);
         const res = {
             lastMutationIDChanges: {},
-            cookie: JSON.stringify({
-                newestTweetTimestamp,
-                oldestTweetTimestamp,
-                donePullingTweet,
-                version: version ?? 1,
-            } satisfies PullCookie),
+            cookie: newCookie,
             patch: [...preOps, ...ops],
         };
         console.log({
