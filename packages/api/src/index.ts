@@ -158,7 +158,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
         return res as any;
     })
     .post("/replicache/pull", async (c) => {
-        const limit = Number(c.req.query("limit") ?? 100);
+        const limit = Number(c.req.query("limit") ?? 200);
 
         const body = await c.req.json();
 
@@ -269,19 +269,22 @@ app.get("/", (c) => c.text("Hello Hono!"))
             }
         }
 
-        const ops = tweetsRows.map((t) => {
-            const { id, ...rest } = t;
-            return {
-                op: "put",
-                key: id,
-                value: rest,
-            };
-        });
+        const ops =
+            tweetsRows.length > 0
+                ? tweetsRows.map((t) => {
+                      const { id, ...rest } = t;
+                      return {
+                          op: "put",
+                          key: id,
+                          value: rest,
+                      };
+                  })
+                : [];
 
-        let newOrder = 1;
-        if (donePullingTweet) {
-            newOrder = 1000;
-        } else if (order) {
+        let newOrder: number | undefined;
+        if (!order) {
+            newOrder = 1;
+        } else if (!donePullingTweet) {
             newOrder = order + 1;
         }
 
@@ -289,20 +292,14 @@ app.get("/", (c) => c.text("Hello Hono!"))
             newestTweetTimestamp,
             oldestTweetTimestamp,
             donePullingTweet,
-            order: newOrder,
+            order: newOrder ?? order,
         } satisfies PullCookie;
-
         console.log("Response cookie values:", newCookie);
         const res = {
             lastMutationIDChanges: {},
             cookie: newCookie,
             patch: [...preOps, ...ops],
         };
-        console.log({
-            first: tweetsRows[0].timestamp.getTime(),
-            last: tweetsRows[tweetsRows.length - 1].timestamp.getTime(),
-        });
-        console.log({ rows: tweetsRows });
         return c.json(res);
     })
     .post("/replicache/push", async (c) => {

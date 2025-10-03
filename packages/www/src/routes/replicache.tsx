@@ -1,7 +1,18 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import { createEffect, createSignal, onMount, Show } from "solid-js";
+import {
+    createEffect,
+    createMemo,
+    createSignal,
+    For,
+    onMount,
+    Show,
+} from "solid-js";
 import { Replicache, type WriteTransaction } from "replicache";
-import { createVirtualizer } from "@tanstack/solid-virtual";
+import {
+    createVirtualizer,
+    createWindowVirtualizer,
+    type VirtualItem,
+} from "@tanstack/solid-virtual";
 
 export const Route = createFileRoute("/replicache")({
     component: RouteComponent,
@@ -66,11 +77,13 @@ function RouteComponent() {
                     (await tx.scan().entries().toArray()) as [string, Tweet][],
                 {
                     onData: (list) => {
+                        const currentTweetLength = tweets().length;
                         setTweets(
-                            list.map(([id, tweet]) => ({ ...tweet, id }))
+                            list
+                                .map(([id, tweet]) => ({ ...tweet, id }))
+                                .reverse()
                         );
-                        if (list.length > 0) {
-                            console.log("pulling more");
+                        if (list.length > currentTweetLength) {
                             rep.pull();
                         }
                     },
@@ -88,30 +101,38 @@ function RouteComponent() {
     return (
         <div>
             <Show when={tweets().length > 0}>
-                <Tweets tweets={tweets()} r={r()} />
+                <Tweets tweets={tweets()} replicache={r()} />
             </Show>
         </div>
     );
 }
 
-function Tweets(props: { tweets: Tweet[]; r: MyReplicache | null }) {
+function Tweets(props: { tweets: Tweet[]; replicache: MyReplicache | null }) {
     let parentRef!: HTMLDivElement;
 
-    const virtual = createVirtualizer({
-        count: props.tweets.length,
-        estimateSize: () => 210,
-        getScrollElement: () => parentRef,
-        overscan: 5,
+    const virtual = createMemo(() => {
+        console.log("creating virtualizer", props.tweets.length);
+        return createWindowVirtualizer({
+            count: props.tweets.length,
+            estimateSize: () => 210,
+            overscan: 5,
+        });
     });
 
-    const items = virtual.getVirtualItems();
-
-    onMount(() => {
-        console.log("tweets", props.tweets.length);
-    });
+    const items = () => virtual().getVirtualItems();
 
     return (
         <div>
+            <p>tweets total: {props.tweets.length}</p>
+            <p>first tweet: {JSON.stringify(props.tweets[0])}</p>
+            <p>
+                last tweet:{" "}
+                {JSON.stringify(props.tweets[props.tweets.length - 1])}
+            </p>
+            <p>__________________-aaaaaaaaaaaaaaaaaaaa-________________</p>
+            <p>tweets total: {items.length}</p>
+            <p>first tweet: {JSON.stringify(items()[0])}</p>
+            <p>last tweet: {JSON.stringify(items()[items().length - 1])}</p>
             <div
                 ref={parentRef}
                 class="List"
@@ -122,7 +143,7 @@ function Tweets(props: { tweets: Tweet[]; r: MyReplicache | null }) {
             >
                 <div
                     style={{
-                        height: `${virtual.getTotalSize()}px`,
+                        height: `${virtual().getTotalSize()}px`,
                         width: "100%",
                         position: "relative",
                     }}
@@ -133,75 +154,85 @@ function Tweets(props: { tweets: Tweet[]; r: MyReplicache | null }) {
                             top: 0,
                             left: 0,
                             width: "100%",
-                            transform: `translateY(${items[0] ? items[0].start : 0}px)`,
+                            transform: `translateY(${items()[0] ? items()[0].start : 0}px)`,
                         }}
                     >
-                        {items.map((virtualRow) => (
-                            <div
-                                data-index={virtualRow.index}
-                                ref={(el) =>
-                                    queueMicrotask(() =>
-                                        virtual.measureElement(el)
-                                    )
-                                }
-                                class={
-                                    virtualRow.index % 2
-                                        ? "ListItemOdd"
-                                        : "ListItemEven"
-                                }
-                            >
+                        <For each={items()}>
+                            {(virtualRow) => (
                                 <div
-                                    style={{
-                                        padding: "10px 0",
-                                        height: "200px",
-                                    }}
+                                    data-index={virtualRow.index}
+                                    ref={(el) =>
+                                        queueMicrotask(() =>
+                                            virtual().measureElement(el)
+                                        )
+                                    }
+                                    class={
+                                        virtualRow.index % 2
+                                            ? "ListItemOdd"
+                                            : "ListItemEven"
+                                    }
                                 >
-                                    <div>Row {virtualRow.index}</div>
-                                    <button
-                                        class="cursor-pointer"
-                                        onclick={async () => {
-                                            await props.r?.mutate.markTweet({
-                                                id: "sup",
-                                                user: "test",
-                                                mark: "ignore",
-                                            });
+                                    <div
+                                        style={{
+                                            padding: "10px 0",
+                                            height: "200px",
                                         }}
                                     >
-                                        mark ignore
-                                    </button>
-                                    <button
-                                        class="cursor-pointer"
-                                        onclick={async () => {
-                                            await props.r?.mutate.markTweet({
-                                                id: "sup",
-                                                user: "test",
-                                                mark: "bookmark",
-                                            });
-                                        }}
-                                    >
-                                        mark bookmark
-                                    </button>
-                                    <Show when={props.tweets[virtualRow.index]}>
-                                        {(tweet) => (
-                                            <div>
-                                                <p>User: {tweet().user}</p>
-                                                <p>
-                                                    Timestamp:{" "}
-                                                    {tweet().timestamp}
-                                                </p>
-                                                <p>Text: {tweet().text}</p>
-                                                <p>
-                                                    pictures:{" "}
-                                                    {maskToIndices(
-                                                        tweet().imageMask
-                                                    ).join(", ")}
-                                                </p>
-                                            </div>
-                                        )}
-                                    </Show>
+                                        <div>Row {virtualRow.index}</div>
+                                        <button
+                                            class="cursor-pointer"
+                                            onclick={async () => {
+                                                await props.replicache?.mutate.markTweet(
+                                                    {
+                                                        id: "sup",
+                                                        user: "test",
+                                                        mark: "ignore",
+                                                    }
+                                                );
+                                            }}
+                                        >
+                                            mark ignore
+                                        </button>
+                                        <button
+                                            class="cursor-pointer"
+                                            onclick={async () => {
+                                                await props.replicache?.mutate.markTweet(
+                                                    {
+                                                        id: "sup",
+                                                        user: "test",
+                                                        mark: "bookmark",
+                                                    }
+                                                );
+                                            }}
+                                        >
+                                            mark bookmark
+                                        </button>
+                                        <Show
+                                            when={
+                                                props.tweets[virtualRow.index]
+                                            }
+                                        >
+                                            {(tweet) => (
+                                                <div>
+                                                    <p>User: {tweet().user}</p>
+                                                    <p>
+                                                        Timestamp:{" "}
+                                                        {tweet().timestamp}
+                                                    </p>
+                                                    <p>Text: {tweet().text}</p>
+                                                    <p>
+                                                        pictures:{" "}
+                                                        {maskToIndices(
+                                                            tweet().imageMask
+                                                        ).join(", ")}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </Show>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            )}
+                        </For>
                     </div>
                 </div>
             </div>
