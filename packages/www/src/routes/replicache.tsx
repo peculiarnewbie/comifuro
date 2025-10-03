@@ -1,18 +1,8 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import {
-    createEffect,
-    createMemo,
-    createSignal,
-    For,
-    onMount,
-    Show,
-} from "solid-js";
+import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { Replicache, type WriteTransaction } from "replicache";
-import {
-    createVirtualizer,
-    createWindowVirtualizer,
-    type VirtualItem,
-} from "@tanstack/solid-virtual";
+import { createWindowVirtualizer } from "@tanstack/solid-virtual";
+import MiniSearch, { type SearchResult } from "minisearch";
 
 export const Route = createFileRoute("/replicache")({
     component: RouteComponent,
@@ -60,6 +50,9 @@ type MyReplicache = ReturnType<typeof createReplicache>;
 function RouteComponent() {
     const [r, setR] = createSignal<MyReplicache | null>(null);
     const [tweets, setTweets] = createSignal<(Tweet & { id: string })[]>([]);
+    const [filtered, setFiltered] = createSignal<SearchResult[]>([]);
+    const [searchValue, setSearchValue] = createSignal("");
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     onMount(async () => {
         const apiHost = getApiHost(window.location.href);
@@ -98,23 +91,68 @@ function RouteComponent() {
         };
     });
 
+    const filterTweets = (filter: string) => {
+        if (!filter) {
+            //@ts-expect-error
+            setFiltered(tweets());
+            return;
+        }
+        let miniSearch = new MiniSearch({
+            fields: ["user", "text"], // fields to index for full-text search
+            storeFields: ["user", "text", "timestamp", "imageMask", "id"], // fields to return with search results
+        });
+        miniSearch.addAll(tweets());
+        let results = miniSearch.search(filter, {
+            prefix: true,
+        });
+        setFiltered(results);
+    };
+
+    const handleSearchInput = (value: string) => {
+        setSearchValue(value);
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            filterTweets(value);
+        }, 100);
+    };
+
     return (
         <div>
+            <p>total tweets: {tweets().length}</p>
+            <p>filtered: {filtered().length}</p>
+            <div>
+                search:
+                <input
+                    class="p-1 rounded border"
+                    type="text"
+                    value={searchValue()}
+                    oninput={(e) => handleSearchInput(e.target.value)}
+                />
+            </div>
             <Show when={tweets().length > 0}>
-                <Tweets tweets={tweets()} replicache={r()} />
+                <Tweets
+                    tweets={
+                        //@ts-expect-error
+                        filtered() as (Tweet & { id: string })[]
+                    }
+                    replicache={r()}
+                />
             </Show>
         </div>
     );
 }
 
-function Tweets(props: { tweets: Tweet[]; replicache: MyReplicache | null }) {
+function Tweets(props: {
+    tweets: (Tweet & { id: string })[];
+    replicache: MyReplicache | null;
+}) {
     let parentRef!: HTMLDivElement;
 
     const virtual = createMemo(() => {
         console.log("creating virtualizer", props.tweets.length);
         return createWindowVirtualizer({
             count: props.tweets.length,
-            estimateSize: () => 210,
+            estimateSize: () => 410,
             overscan: 5,
         });
     });
@@ -123,16 +161,6 @@ function Tweets(props: { tweets: Tweet[]; replicache: MyReplicache | null }) {
 
     return (
         <div>
-            <p>tweets total: {props.tweets.length}</p>
-            <p>first tweet: {JSON.stringify(props.tweets[0])}</p>
-            <p>
-                last tweet:{" "}
-                {JSON.stringify(props.tweets[props.tweets.length - 1])}
-            </p>
-            <p>__________________-aaaaaaaaaaaaaaaaaaaa-________________</p>
-            <p>tweets total: {items.length}</p>
-            <p>first tweet: {JSON.stringify(items()[0])}</p>
-            <p>last tweet: {JSON.stringify(items()[items().length - 1])}</p>
             <div
                 ref={parentRef}
                 class="List"
@@ -175,10 +203,10 @@ function Tweets(props: { tweets: Tweet[]; replicache: MyReplicache | null }) {
                                     <div
                                         style={{
                                             padding: "10px 0",
-                                            height: "200px",
+                                            height: "390px",
                                         }}
                                     >
-                                        <div>Row {virtualRow.index}</div>
+                                        {/* <div>Row {virtualRow.index}</div>
                                         <button
                                             class="cursor-pointer"
                                             onclick={async () => {
@@ -206,7 +234,7 @@ function Tweets(props: { tweets: Tweet[]; replicache: MyReplicache | null }) {
                                             }}
                                         >
                                             mark bookmark
-                                        </button>
+                                        </button> */}
                                         <Show
                                             when={
                                                 props.tweets[virtualRow.index]
@@ -220,12 +248,27 @@ function Tweets(props: { tweets: Tweet[]; replicache: MyReplicache | null }) {
                                                         {tweet().timestamp}
                                                     </p>
                                                     <p>Text: {tweet().text}</p>
-                                                    <p>
+                                                    <div>
                                                         pictures:{" "}
-                                                        {maskToIndices(
-                                                            tweet().imageMask
-                                                        ).join(", ")}
-                                                    </p>
+                                                        <div class="flex h-[200px] w-full overflow-hidden">
+                                                            {maskToIndices(
+                                                                tweet()
+                                                                    .imageMask
+                                                            ).map((x) => (
+                                                                <img
+                                                                    class="h-full w-auto object-contain"
+                                                                    src={`https://r2.comifuro.peculiarnewbie.com/${tweet().id}/${x}.webp`}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                    <a
+                                                        href={`https://x.com/${tweet().user}/status/${tweet().id}`}
+                                                        target="_blank"
+                                                        class="text-blue-400"
+                                                    >
+                                                        view on twitter
+                                                    </a>
                                                 </div>
                                             )}
                                         </Show>
