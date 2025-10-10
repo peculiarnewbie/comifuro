@@ -1,204 +1,66 @@
-import puppeteer, { type Page, type Browser, ElementHandle } from "puppeteer";
+import { exists } from "node:fs/promises";
+import { join, dirname } from "path";
+import { ensureDir } from "./lib/ensure-dir";
 import {
-    ensureDir,
-    findProjectRoot,
-    getCurrentArticlesOnPage,
-    processArticles,
     loadProcessedTweets,
     saveProcessedTweets,
-} from "./daily";
-import { sleep } from "bun";
+} from "./lib/deprecate/processed-tweets";
+import { crawlPage, getBrowserInstance, openLatestTweets } from "./lib/browser";
+import { DateTime } from "luxon";
 
-export const downloadDir = process.env.DOWNLOADS_DIR ?? "";
-const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
-export const distDir = `${await findProjectRoot()}/dist/`;
-
-const crawlPage = async (
-    browser: Browser,
-    page: Page,
-    destination: string,
-    processedTweets: Set<string>,
-    maxRetries: number = 3
-) => {
-    console.log("set viewport");
-    await page.setViewport({
-        width: 1920,
-        height: 1000,
-        deviceScaleFactor: 1,
-    });
-
-    let articles = await getCurrentArticlesOnPage(page);
-    let offset = 0;
-    let currentArticlesCache: ElementHandle<HTMLElement>[] | undefined = [];
-    console.log("articles length", articles?.length);
+const findProjectRoot = async (
+    startDir: string = process.cwd()
+): Promise<string | null> => {
+    let currentDir = startDir;
 
     while (true) {
-        if (!articles) process.abort();
-
-        const { currentArticle, shouldStop } = await processArticles(
-            browser,
-            articles,
-            offset,
-            destination,
-            downloadDir,
-            processedTweets,
-            maxRetries
-        );
-
-        offset = offset + articles.length;
-
-        if (shouldStop) {
-            console.log("Reached previously processed tweets, stopping");
-            break;
+        if (
+            (await exists(join(currentDir, "package.json"))) ||
+            (await exists(join(currentDir, ".git")))
+        ) {
+            return currentDir.replaceAll("\\", "/");
         }
 
-        const { nextArticles, startIndex, shouldBreak } =
-            await scrollAndGetNewArticles(
-                page,
-                currentArticlesCache,
-                currentArticle
-            );
+        const parentDir = dirname(currentDir);
 
-        if (shouldBreak) break;
-
-        currentArticlesCache = nextArticles;
-        articles = nextArticles.slice(startIndex);
-
-        console.log("next", articles?.length, offset);
-    }
-};
-
-const scrollAndGetNewArticles = async (
-    page: Page,
-    currentArticlesCache: ElementHandle<HTMLElement>[] | undefined,
-    currentArticle: ElementHandle<HTMLElement> | null | undefined
-) => {
-    // await page.evaluate(() => {
-    //     window.scrollTo(0, document.body.scrollHeight);
-    // });
-
-    currentArticle?.evaluate((el) => {
-        el.scrollIntoView({
-            behavior: "smooth",
-            block: "start",
-        });
-    });
-
-    await sleep(3000);
-
-    const nextArticles = await getCurrentArticlesOnPage(page);
-
-    if (!nextArticles || currentArticlesCache == nextArticles) {
-        console.log("No more articles found, ending scrape");
-        return { nextArticles: [], startIndex: 0, shouldBreak: true };
-    }
-
-    let startIndex = 0;
-
-    const evaluated = await currentArticle?.evaluate((el) => {
-        return el.innerText;
-    });
-
-    for (let i = 0; i < nextArticles.length; i++) {
-        const currentEval = await nextArticles[i]?.evaluate((el) => {
-            return el.innerText;
-        });
-        if (currentEval == evaluated) {
-            startIndex = i + 1;
-            break;
+        if (parentDir === currentDir) {
+            return null;
         }
-    }
 
-    return { nextArticles, startIndex, shouldBreak: false };
-};
-
-const getBrowserInstance = async () => {
-    try {
-        const browserWs = await fetch("http://localhost:9222/json/version");
-        const browserEndpoint = (await browserWs.json()).webSocketDebuggerUrl;
-        console.log("Connected to existing browser instance");
-        return await puppeteer.connect({
-            browserWSEndpoint: browserEndpoint,
-        });
-    } catch (e) {
-        console.log(
-            "No existing browser found, launching new Chromium instance..."
-        );
-
-        const chromiumProcess = Bun.spawn(
-            [
-                "chromium",
-                "--remote-debugging-port=9222",
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-accelerated-2d-canvas",
-                "--no-first-run",
-                "--no-zygote",
-                "--disable-gpu",
-                "--disable-web-security",
-            ],
-            {
-                stdio: ["ignore", "pipe", "pipe"],
-            }
-        );
-
-        console.log("Launched Chromium with PID:", chromiumProcess.pid);
-
-        await sleep(3000);
-
-        const browserWs = await fetch("http://localhost:9222/json/version");
-        const browserEndpoint = (await browserWs.json()).webSocketDebuggerUrl;
-        return await puppeteer.connect({
-            browserWSEndpoint: browserEndpoint,
-        });
+        currentDir = parentDir;
     }
 };
 
-const openLatestTweets = async (browser: Browser) => {
-    const pages = await browser.pages();
-    let page = pages[0];
-
-    if (!page) {
-        page = await browser.newPage();
-    }
-
-    if (!page) {
-        console.error("no page in browser");
-        process.abort();
-    }
-
-    console.log("navigate to latest tweet");
-    const url = `https://x.com/search?q=cf21catalogue&src=typed_query&f=live`;
-
-    await page.goto(url);
-
-    return page;
-};
+const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
+const distDir = `${await findProjectRoot()}/dist/`;
+export const getDistDir = () => distDir;
 
 async function main() {
     const maxRetries = parseInt(process.env.MAX_RETRIES ?? "3");
 
     await ensureDir(distDir);
 
-    const processedTweets = await loadProcessedTweets(distDir);
-
     const browser = await getBrowserInstance();
 
-    const page = await openLatestTweets(browser);
+    // const page = await openLatestTweets(browser, "cf21");
+    const page = (await browser.pages())[0];
+    if (!page) {
+        console.error("no browser page");
+        process.abort();
+    }
 
     await Bun.sleep(5000);
 
-    console.log("start crawling");
+    const arg = Bun.argv[2];
+
+    console.log("start crawling until", arg);
     await crawlPage(
         browser,
         page,
-        `${distDir}${today}/`,
-        processedTweets,
-        maxRetries
+        maxRetries,
+        arg ? DateTime.fromISO(arg).toMillis() : undefined
     );
 
-    await saveProcessedTweets(distDir, processedTweets);
     console.log("done");
     return;
 }

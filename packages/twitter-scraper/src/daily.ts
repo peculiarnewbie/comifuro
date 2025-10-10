@@ -1,68 +1,34 @@
 import { ElementHandle, Page, Browser } from "puppeteer";
-import { mkdir, exists, access } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import sharp from "sharp";
+import { ensureDir } from "./lib/ensure-dir";
+import { downloadImage } from "./lib/browser";
+import { getDistDir } from "./main";
+import { fileURLToPath } from "node:url";
+import { getBunSqlite } from "@comifuro/core/bunSqlite";
+import type { TweetData } from "./lib/types";
+import { tweetsOperations } from "@comifuro/core";
+import { DateTime } from "luxon";
 
-export const findProjectRoot = async (
-    startDir: string = process.cwd()
-): Promise<string | null> => {
-    let currentDir = startDir;
-
-    while (true) {
-        if (
-            (await exists(join(currentDir, "package.json"))) ||
-            (await exists(join(currentDir, ".git")))
-        ) {
-            return currentDir.replaceAll("\\", "/");
-        }
-
-        const parentDir = dirname(currentDir);
-
-        if (parentDir === currentDir) {
-            return null;
-        }
-
-        currentDir = parentDir;
-    }
-};
-
-export const sleep = async (ms: number) => {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-};
-
-export const downloadImage = async (image: ElementHandle<any>) => {
-    await image.evaluate(async (node) => {
-        if (node.getAttribute("alt") === "placeholder") return;
-        const imgSrc = node.getAttribute("src");
-        const document = node.ownerDocument;
-        const response = await fetch(imgSrc, { mode: "cors" });
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "twitter-image.jpg";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    });
-};
+const dbUrl = new URL("../tweets.sqlite", import.meta.url);
+const bunSqlitePath = fileURLToPath(dbUrl);
+const bunSqlite = getBunSqlite(bunSqlitePath);
 
 export const getTweetIdFromUrl = (url: string): string => {
     const match = url.match(/status\/(\d+)/);
-    return match ? match[1] ? match[1] : "" : "";
+    return match ? (match[1] ? match[1] : "") : "";
 };
 
 export const downloadImagesFromTweet = async (
     page: Page,
     initialTweetId: string,
-    articleDir: string,
-    downloadDir: string
+    articleDir: string
 ) => {
     let imageIndex = 0;
+    const images: number[] = [];
 
     while (true) {
+        const downloadDir = process.env.DOWNLOADS_DIR;
         const twitterImagePath = `${downloadDir}twitter-image.jpg`;
         let imageFile = Bun.file(twitterImagePath);
         if (await imageFile.exists()) {
@@ -71,14 +37,14 @@ export const downloadImagesFromTweet = async (
                     await imageFile.delete();
                 } catch (e) {
                     console.log("error deleting", e);
-                    await sleep(1000);
+                    await Bun.sleep(1000);
                     continue;
                 }
                 break;
             }
         }
 
-        await sleep(2500);
+        await Bun.sleep(2500); // wait for image to load
 
         const currentTweetId = getTweetIdFromUrl(page.url());
         if (currentTweetId !== initialTweetId) {
@@ -99,18 +65,24 @@ export const downloadImagesFromTweet = async (
                 imageIndex++;
                 continue;
             }
-        } else image = await page.$(`[aria-label="Image"] img`);
+        } else {
+            console.log("no carousel");
+            image = await page.$(`[aria-label="Image"] img`);
+        }
 
-        if (!image) break;
+        if (!image) {
+            console.error("navigation to image failed");
+            break;
+        }
 
         await downloadImage(image);
         let limit = 4;
         let i = 0;
-        await sleep(500);
+        await Bun.sleep(500);
         imageFile = Bun.file(twitterImagePath);
         while (!(await imageFile.exists()) && i < limit) {
             imageFile = Bun.file(twitterImagePath);
-            await sleep(1000);
+            await Bun.sleep(1000);
             i++;
         }
 
@@ -119,15 +91,21 @@ export const downloadImagesFromTweet = async (
 
         await Bun.write(jpgPath, imageFile);
 
-        processImageAsync(await imageFile.arrayBuffer(), webpPath).then(async (success) => {
-            if (success) {
-                try {
-                    await Bun.file(jpgPath).delete();
-                } catch (e) {
-                    console.log("Error deleting JPG after conversion:", e);
-                }
+        const webpRes = await processImageAsync(
+            await imageFile.arrayBuffer(),
+            webpPath
+        );
+
+        console.log("conversion res", webpRes);
+        if (webpRes) {
+            try {
+                console.log("pushing image index", imageIndex);
+                images.push(imageIndex);
+                await Bun.file(jpgPath).delete();
+            } catch (e) {
+                console.log("Error deleting JPG after conversion:", e);
             }
-        });
+        }
 
         const nextButton = await page.$(`[data-testid="Carousel-NavRight"]`);
         if (!nextButton) {
@@ -143,25 +121,8 @@ export const downloadImagesFromTweet = async (
             break;
         }
     }
-};
 
-export const ensureDir = async (dir: string) => {
-    try {
-        await access(dir);
-    } catch {
-        try {
-            await mkdir(dir, { recursive: true });
-            console.log(`Directory created`, dir);
-        } catch {
-            return "";
-        }
-    }
-};
-
-export const getCurrentArticlesOnPage = async (page: Page) => {
-    const timeline = await page.$("[aria-label='Timeline: Search timeline']");
-    const articles = await timeline?.$$(`article[tabindex="0"]`);
-    return articles;
+    return images;
 };
 
 export const getArticleData = async (article: ElementHandle<HTMLElement>) => {
@@ -207,21 +168,6 @@ export const getArticleData = async (article: ElementHandle<HTMLElement>) => {
     return { userData, tweetText, url };
 };
 
-export const loadProcessedTweets = async (distDir: string): Promise<Set<string>> => {
-    const stateFile = join(distDir, "processed_tweets.json");
-    try {
-        const data = await Bun.file(stateFile).json();
-        return new Set(data);
-    } catch {
-        return new Set();
-    }
-};
-
-export const saveProcessedTweets = async (distDir: string, processedTweets: Set<string>) => {
-    const stateFile = join(distDir, "processed_tweets.json");
-    await Bun.write(stateFile, JSON.stringify([...processedTweets], null, 2));
-};
-
 const processImageAsync = async (input: ArrayBuffer, target: string) => {
     try {
         await sharp(input)
@@ -235,91 +181,150 @@ const processImageAsync = async (input: ArrayBuffer, target: string) => {
     return false;
 };
 
-const initTweetDir = async (index: number, distDir: string, userData: { username: string, time: string }, text: string, url: string) => {
-    const articleDir = join(distDir, `twitter-article-${index}`);
+const initTweetDir = async (tweet: TweetData) => {
+    const distDir = getDistDir();
+    const articleDir = join(distDir, tweet.id);
     await ensureDir(articleDir);
 
-    await Bun.write(
-        `${articleDir}/tweet.json`,
-        JSON.stringify(
-            {
-                user: userData.username,
-                time: userData.time,
-                text: text,
-                url: url,
-            },
-            null,
-            4
-        )
-    );
+    await Bun.write(`${articleDir}/tweet.json`, JSON.stringify(tweet, null, 4));
 
     return articleDir;
-}
+};
 
-const clickFirstImageOfTweet = async (tweetPage: Page, currentTweetId: string | null) => {
+const clickFirstImageOfTweet = async (
+    tweetPage: Page,
+    currentTweetId: string | null
+) => {
     await tweetPage.evaluate((targetTweetId) => {
-        const images = document.querySelectorAll('[aria-label="Image"]');
-
+        if (!targetTweetId) return;
+        const images =
+            document.querySelectorAll<HTMLAnchorElement>('a[href*="photo/1"]');
+        const arr = Array.from(images);
         for (const image of Array.from(images)) {
-            // Walk up the DOM to find the parent anchor tag
-            let element = image.parentElement;
-            while (element && element.tagName !== 'A') {
-                element = element.parentElement;
-            }
-
-            if (element && element.tagName === 'A') {
-                const href = element.getAttribute('href');
-                if (href) {
-                    const match = href.match(/status\/(\d+)/);
-                    const tweetId = match ? match[1] : null;
-
-                    if (tweetId === targetTweetId) {
-                        element.click();
-                        return;
-                    }
-                }
+            if (image.href.includes(targetTweetId)) {
+                image.click();
             }
         }
-    }, currentTweetId);
-}
 
+        // for (const image of Array.from(images)) {
+        //     // Walk up the DOM to find the parent anchor tag
+        //     let element = image.parentElement;
+        //     while (element && element.tagName !== "A") {
+        //         element = element.parentElement;
+        //     }
+
+        //     if (element && element.tagName === "A") {
+        //         const href = element.getAttribute("href");
+        //         if (href) {
+        //             const match = href.match(/status\/(\d+)/);
+        //             const tweetId = match ? match[1] : null;
+
+        //             if (tweetId === targetTweetId) {
+        //                 image.click();
+        //                 return;
+        //             }
+        //         }
+        //     }
+        // }
+    }, currentTweetId);
+};
+
+const insertTweetToDb = async (tweet: TweetData, images: number[]) => {
+    const dt = DateTime.fromISO(tweet.time);
+    const timestamp = dt.toJSDate();
+
+    if (images.length === 0) {
+        console.log("no images found, skipping");
+        return;
+    }
+
+    let mask = 0;
+    for (let i = 0; i < images.length; i++) {
+        const val = images[i];
+        if (val !== undefined) mask |= 1 << val;
+    }
+
+    await tweetsOperations.upsertTweet(bunSqlite, {
+        id: tweet.id,
+        user: tweet.user,
+        timestamp,
+        text: tweet.text,
+        imageMask: mask,
+    });
+};
 
 export const processArticles = async (
     browser: Browser,
     articles: ElementHandle<HTMLElement>[],
-    offset: number,
-    distDir: string,
-    downloadsDir: string,
-    processedTweets: Set<string>,
     maxRetries: number = 3,
+    timeLimit?: number
 ) => {
     let currentArticle = articles ? articles[0] : null;
 
     for (let i = 0; i < articles.length; i++) {
         console.log("processing article", i);
         currentArticle = articles[i];
+        // TODO:  gotta check if the image is inside a quote and skip
         if (currentArticle) {
-            let firstImage = await currentArticle.$(`[aria-label="Image"]`);
+            let firstImage = await currentArticle.$(`a[href*="photo"]`);
 
-            if (!firstImage) continue;
-
-            const { userData, tweetText, url } = await getArticleData(
-                currentArticle
-            );
-
-            if ("error" in userData || "error" in tweetText) continue;
-
-            if (processedTweets.has(url)) {
-                console.log("Tweet already processed, stopping");
-                return { currentArticle, shouldStop: true };
-            }
-
-            if (tweetText.text.toLowerCase().includes("wtb")) {
-                console.log("skipping wtb tweet")
+            if (!firstImage) {
+                console.log(i, "no image, skipping");
                 continue;
             }
 
-            const articleDir = await initTweetDir(i + offset, distDir, userData, tweetText.text, url);
+            let quote = await currentArticle.$$(`time`);
+            if (quote.length > 1) {
+                console.log(i, "is a quote tweet, skipping");
+                continue;
+            }
+
+            await Bun.sleep(5000); // 429 lol
+
+            const { userData, tweetText, url } =
+                await getArticleData(currentArticle);
+            const tweetId = getTweetIdFromUrl(url);
+
+            if ("error" in userData || "error" in tweetText) continue;
+
+            const tweetData = {
+                user: userData.username,
+                time: userData.time,
+                text: tweetText.text,
+                id: tweetId,
+            } as TweetData;
+
+            if (timeLimit) {
+                const dt = DateTime.fromISO(tweetData.time).toMillis();
+                if (dt < timeLimit) {
+                    console.log(
+                        tweetData.time,
+                        "tweet is older than limit, stopping",
+                        dt
+                    );
+                    return { currentArticle, shouldStop: true };
+                }
+            } else {
+                const tweetFromDb = await tweetsOperations.getTweet(
+                    bunSqlite,
+                    tweetData.id
+                );
+
+                // re-process if no image yet
+                if (tweetFromDb && tweetFromDb.imageMask) {
+                    console.log(
+                        `Tweet ${tweetData.id} already processed, stopping"`
+                    );
+                    return { currentArticle, shouldStop: true };
+                }
+            }
+
+            if (tweetText.text.toLowerCase().includes("wtb")) {
+                console.log("skipping wtb tweet");
+                continue;
+            }
+
+            const articleDir = await initTweetDir(tweetData);
 
             let retryCount = 0;
             let success = false;
@@ -328,40 +333,48 @@ export const processArticles = async (
                 try {
                     const tweetPage = await browser.newPage();
                     await tweetPage.goto(url);
-                    await sleep(2000);
+                    await Bun.sleep(2000);
                     await tweetPage.setViewport({
-                        width: 1920,
+                        width: 1000,
                         height: 1000,
                         deviceScaleFactor: 1,
                     });
-                    await sleep(1000);
+                    await Bun.sleep(1000);
 
-                    const currentTweetId = getTweetIdFromUrl(url);
-                    await clickFirstImageOfTweet(tweetPage, currentTweetId);
+                    await clickFirstImageOfTweet(tweetPage, tweetData.id);
 
-                    await sleep(2000);
+                    await Bun.sleep(2000);
 
-                    await downloadImagesFromTweet(tweetPage, currentTweetId, articleDir, downloadsDir);
+                    const images = await downloadImagesFromTweet(
+                        tweetPage,
+                        tweetData.id,
+                        articleDir
+                    );
 
                     await tweetPage.close();
                     success = true;
 
-                    processedTweets.add(url);
+                    insertTweetToDb(tweetData, images);
                     console.log(`Successfully processed tweet: ${url}`);
-
-
                 } catch (e) {
                     retryCount++;
-                    console.error(`Error processing tweet (attempt ${retryCount}/${maxRetries}):`, e);
+                    console.error(
+                        `Error processing tweet (attempt ${retryCount}/${maxRetries}):`,
+                        e
+                    );
 
                     if (retryCount >= maxRetries) {
                         await Bun.write(
                             `${articleDir}/error.json`,
-                            JSON.stringify({ error: e, retries: retryCount }, null, 4)
+                            JSON.stringify(
+                                { error: e, retries: retryCount },
+                                null,
+                                4
+                            )
                         );
                         break;
                     } else {
-                        await sleep(2000);
+                        await Bun.sleep(2000);
                     }
                 }
             }

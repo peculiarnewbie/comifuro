@@ -66,7 +66,7 @@ async function processTweetFolder(folderPath: string): Promise<void> {
         const tweetData: TweetData = JSON.parse(
             await readFile(tweetJsonPath, "utf-8")
         );
-        const tweetId = getTweetIdFromUrl(tweetData.url);
+        const tweetId = tweetData.id;
 
         if (!tweetId) {
             console.warn(

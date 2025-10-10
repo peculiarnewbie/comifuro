@@ -1,15 +1,5 @@
 # twitter-scraper
 
-To install dependencies:
-
-```bash
-bun install
-```
-
-To run:
-
-```bash
-bun run index.ts
-```
-
-This project was created using `bun init` in bun v1.2.9. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
+todo:
+- fix image mask data because i treated image index 0 as falsy
+- refetch images for tweets that actually has no image files

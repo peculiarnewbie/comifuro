@@ -8,5 +8,5 @@ export interface TweetData {
     user: string;
     time: string;
     text: string;
-    url: string;
+    id: string;
 }
