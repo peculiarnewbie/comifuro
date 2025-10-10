@@ -236,7 +236,7 @@ async function main() {
                 const imagePath = resolve(tweetDir, image);
                 const imageNumber = parseInt(image.replace("image-", ""));
                 console.log("uploading image", imageNumber);
-                await uploadImage(tweet.id, imagePath, 0);
+                await uploadImage(tweet.id, imagePath, imageNumber);
             }
             await Bun.write(resolve(tweetDir, "uploaded"), "");
             newlyUploded.push(tweet);

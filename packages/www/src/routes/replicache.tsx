@@ -74,6 +74,7 @@ function RouteComponent() {
                         setTweets(
                             list
                                 .map(([id, tweet]) => ({ ...tweet, id }))
+                                .filter((t) => t.imageMask !== 0)
                                 .reverse()
                         );
                         if (list.length > currentTweetLength) {
