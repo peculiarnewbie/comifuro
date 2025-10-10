@@ -31,10 +31,13 @@ export const tweets = sqliteTable(
         timestamp: integer("timestamp", { mode: "timestamp_ms" }).notNull(),
         text: text("text").notNull(),
         imageMask: integer("image_mask").notNull().default(0),
+        updatedAt: integer("updated_at", { mode: "timestamp_ms" }),
+        deleted: integer("deleted", { mode: "boolean" }),
     },
     (table) => [
         index("user_idx").on(table.user),
-        index("timestamp_idx").on(table.timestamp),
+        index("deleted_idx").on(table.deleted),
+        index("updated_at_idx").on(table.updatedAt),
     ]
 );
 

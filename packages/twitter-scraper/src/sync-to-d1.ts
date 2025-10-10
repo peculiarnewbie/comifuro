@@ -4,11 +4,12 @@ import * as schema from "@comifuro/core/schema";
 import type { TweetSelect } from "@comifuro/core/types";
 import { desc, gt } from "drizzle-orm";
 import { readFile, readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { ImportRecord } from "./lib/types";
 import { getTweetIdFromUrl } from "./lib/utils";
 import { fileExists, loadImportsJson, saveImportsJson } from "./lib/fileUtils";
 import { DateTime } from "luxon";
+import { readdirSync } from "node:fs";
 
 const LOCAL_DB_PATH = process.cwd() + "/tweets.sqlite";
 const API_BASE = process.env.D1_API_BASE || ""; // e.g. https://api-comifuro.your.workers.dev
@@ -120,7 +121,7 @@ async function processDateFolderForImages(dateFolder: string): Promise<void> {
     }
 }
 
-async function main() {
+async function oldMain() {
     console.log("Starting sync to D1...");
 
     // Open local DB
@@ -208,6 +209,56 @@ async function main() {
     await saveImportsJson(imports);
     console.log(
         `Image upload process complete. Updated ${foldersToUpload.length} folders.`
+    );
+}
+
+async function main() {
+    // Open local DB
+    const sqlite = new Database(LOCAL_DB_PATH);
+    const db = drizzle(sqlite, { schema: schema });
+
+    const all = Bun.argv[2] === "-all"; //TODO: function to only sync newer tweets
+
+    const tweets = (await db.select().from(schema.tweets)) as TweetSelect[];
+
+    const distDir = resolve(import.meta.dir, "../dist/");
+
+    const transformed = tweets.map((x) => {
+        return {
+            ...x,
+            timestamp: DateTime.fromJSDate(x.timestamp).toMillis(),
+        };
+    });
+
+    console.log("upserting", transformed.length, "tweets");
+    await upsertBatch(transformed);
+
+    const failed = [];
+    for (const tweet of tweets) {
+        try {
+            console.log("uploading images tweet", tweet.id);
+            const tweetDir = resolve(distDir, tweet.id);
+            const files = readdirSync(tweetDir);
+            if (files.includes("uploaded")) continue;
+            console.log("files", files);
+            const images = files.filter((f) => f.startsWith("image-"));
+            if (images.length === 0) continue;
+            for (const image of images) {
+                const imagePath = resolve(tweetDir, image);
+                const imageNumber = parseInt(image.replace("image-", ""));
+                console.log("uploading image", imageNumber);
+                await uploadImage(tweet.id, imagePath, 0);
+            }
+            await Bun.write(resolve(tweetDir, "uploaded"), "");
+        } catch (e) {
+            console.error("failed to upload images", e);
+            failed.push(tweet);
+        }
+    }
+    console.log("failed", failed);
+    await Bun.write(
+        resolve(distDir, `../${DateTime.now().toMillis()}-failed.json`),
+        JSON.stringify(failed, null, 4)
     );
 }
 
