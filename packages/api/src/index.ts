@@ -22,6 +22,8 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>();
 
+const currentSchemaVersion = 1;
+
 function getDb(c: Context) {
     return drizzle(c.env.DB);
 }
@@ -158,7 +160,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
         return res as any;
     })
     .post("/replicache/pull", async (c) => {
-        const limit = Number(c.req.query("limit") ?? 200);
+        const limit = Number(c.req.query("limit") ?? 500);
 
         const body = await c.req.json();
 
@@ -169,6 +171,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
             oldestTweetTimestamp?: number;
             order?: number;
             donePullingTweet?: boolean;
+            schemaVersion?: number;
         };
 
         const { cookie, clientGroupID } = body as {
@@ -187,10 +190,19 @@ app.get("/", (c) => c.text("Hello Hono!"))
 
         const preOps = [];
 
+        // TODO: create a migration function
+        if (!body.schemaVersion) {
+            console.log("no schema version, resetting");
+            preOps.push({
+                op: "clear",
+            });
+        }
+
         const db = getDb(c);
         let clientGroup = await getClientGroup(clientGroupID, db);
 
         //TODO: check if user owns client group
+        //TODO: handle deletion
 
         let tweetsRows = [] as TweetSelect[];
         if (!newestTweetTimestamp) {
@@ -293,6 +305,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
             oldestTweetTimestamp,
             donePullingTweet,
             order: newOrder ?? order,
+            schemaVersion: currentSchemaVersion,
         } satisfies PullCookie;
         console.log("Response cookie values:", newCookie);
         const res = {
