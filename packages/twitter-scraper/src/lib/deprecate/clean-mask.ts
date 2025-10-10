@@ -33,6 +33,11 @@ for (const tweet of zeroMask) {
 
     const dirents = await readdir(tweetDir, { withFileTypes: true });
     const files = dirents.filter((d) => d.isFile());
+    if (files.some((f) => f.name === "uploaded")) {
+        const uploadedFile = Bun.file(resolve(tweetDir, "uploaded"));
+        await uploadedFile.delete();
+        console.log("deleted uploaded file", tweet.id);
+    }
     if (files.length === 2 && files.some((f) => f.name === "image-0.webp")) {
         console.log("has image", tweet.id);
         hasImage.push(tweet);

@@ -217,23 +217,12 @@ async function main() {
     const sqlite = new Database(LOCAL_DB_PATH);
     const db = drizzle(sqlite, { schema: schema });
 
-    const all = Bun.argv[2] === "-all"; //TODO: function to only sync newer tweets
-
     const tweets = (await db.select().from(schema.tweets)) as TweetSelect[];
 
     const distDir = resolve(import.meta.dir, "../dist/");
 
-    const transformed = tweets.map((x) => {
-        return {
-            ...x,
-            timestamp: DateTime.fromJSDate(x.timestamp).toMillis(),
-        };
-    });
-
-    console.log("upserting", transformed.length, "tweets");
-    await upsertBatch(transformed);
-
     const failed = [];
+    const newlyUploded = [];
     for (const tweet of tweets) {
         try {
             console.log("uploading images tweet", tweet.id);
@@ -250,14 +239,26 @@ async function main() {
                 await uploadImage(tweet.id, imagePath, 0);
             }
             await Bun.write(resolve(tweetDir, "uploaded"), "");
+            newlyUploded.push(tweet);
         } catch (e) {
             console.error("failed to upload images", e);
             failed.push(tweet);
         }
     }
+
+    const transformed = newlyUploded.map((x) => {
+        return {
+            ...x,
+            timestamp: DateTime.fromJSDate(x.timestamp).toMillis(),
+        };
+    });
+
+    console.log("upserting", transformed.length, "tweets");
+    await upsertBatch(transformed);
+
     console.log("failed", failed);
     await Bun.write(
-        resolve(distDir, `../${DateTime.now().toMillis()}-failed.json`),
+        resolve(distDir, `./${DateTime.now().toMillis()}-failed.json`),
         JSON.stringify(failed, null, 4)
     );
 }
