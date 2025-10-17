@@ -8,9 +8,9 @@ export const Route = createFileRoute("/replicache")({
     component: RouteComponent,
 });
 
-function listen(rep: Replicache) {
+function listen(tweetsReplicache: Replicache, marksReplicache: Replicache) {
     // TODO: listen to changes on server
-    console.log(rep);
+    console.log(tweetsReplicache, marksReplicache);
 }
 
 type Tweet = {
@@ -25,9 +25,17 @@ const getApiHost = (url: string) => {
     return "https://api.cf.peculiarnewbie.com";
 };
 
-const createReplicache = (apiHost: string) => {
+const createTweetsReplicache = (apiHost: string) => {
     return new Replicache({
         name: "tweets",
+        pullURL: `${apiHost}/replicache/tweets/pull`,
+        logLevel: "debug",
+    });
+};
+
+const createMarksReplicache = (apiHost: string) => {
+    return new Replicache({
+        name: "marks",
         pullURL: `${apiHost}/replicache/pull`,
         pushURL: `${apiHost}/replicache/push`,
         logLevel: "debug",
@@ -45,10 +53,14 @@ const createReplicache = (apiHost: string) => {
     });
 };
 
-type MyReplicache = ReturnType<typeof createReplicache>;
+type TweetsReplicache = ReturnType<typeof createTweetsReplicache>;
+type MarksReplicache = ReturnType<typeof createMarksReplicache>;
 
 function RouteComponent() {
-    const [r, setR] = createSignal<MyReplicache | null>(null);
+    const [tweetsReplicache, setTweetsReplicache] =
+        createSignal<TweetsReplicache | null>(null);
+    const [marksReplicache, setMarksReplicache] =
+        createSignal<MarksReplicache | null>(null);
     const [tweets, setTweets] = createSignal<(Tweet & { id: string })[]>([]);
     const [filtered, setFiltered] = createSignal<SearchResult[]>([]);
     const [searchValue, setSearchValue] = createSignal("");
@@ -57,15 +69,18 @@ function RouteComponent() {
     onMount(async () => {
         const apiHost = getApiHost(window.location.href);
 
-        const replicache = createReplicache(apiHost);
+        const tReplicache = createTweetsReplicache(apiHost);
+        const mReplicache = createMarksReplicache(apiHost);
 
-        setR(replicache);
-        listen(replicache);
+        setTweetsReplicache(tReplicache);
+        setMarksReplicache(mReplicache);
+        listen(tReplicache, mReplicache);
 
-        const rep = r();
+        const tRep = tweetsReplicache();
+        const mRep = marksReplicache();
 
-        if (rep) {
-            rep.subscribe(
+        if (tRep) {
+            tRep.subscribe(
                 async (tx) =>
                     (await tx.scan().entries().toArray()) as [string, Tweet][],
                 {
@@ -78,7 +93,7 @@ function RouteComponent() {
                                 .reverse(),
                         );
                         if (list.length > currentTweetLength) {
-                            rep.pull();
+                            tRep.pull();
                         }
                     },
                 },
@@ -88,7 +103,7 @@ function RouteComponent() {
         }
 
         return () => {
-            void r()?.close();
+            void tweetsReplicache()?.close();
         };
     });
 
@@ -136,7 +151,7 @@ function RouteComponent() {
                         //@ts-expect-error
                         filtered() as (Tweet & { id: string })[]
                     }
-                    replicache={r()}
+                    replicache={tweetsReplicache()}
                 />
             </Show>
         </div>
@@ -145,7 +160,7 @@ function RouteComponent() {
 
 function Tweets(props: {
     tweets: (Tweet & { id: string })[];
-    replicache: MyReplicache | null;
+    replicache: TweetsReplicache | null;
 }) {
     let parentRef!: HTMLDivElement;
 
