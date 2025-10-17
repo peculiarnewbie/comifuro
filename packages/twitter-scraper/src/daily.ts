@@ -9,6 +9,7 @@ import { getBunSqlite } from "@comifuro/core/bunSqlite";
 import type { TweetData } from "./lib/types";
 import { tweetsOperations } from "@comifuro/core";
 import { DateTime } from "luxon";
+import { readdirSync } from "node:fs";
 
 const dbUrl = new URL("../tweets.sqlite", import.meta.url);
 const bunSqlitePath = fileURLToPath(dbUrl);
@@ -25,11 +26,11 @@ export const downloadImagesFromTweet = async (
     articleDir: string
 ) => {
     let imageIndex = 0;
-    const images: number[] = [];
+
+    const downloadDir = process.env.DOWNLOADS_DIR;
+    const twitterImagePath = `${downloadDir}twitter-image.jpg`;
 
     while (true) {
-        const downloadDir = process.env.DOWNLOADS_DIR;
-        const twitterImagePath = `${downloadDir}twitter-image.jpg`;
         let imageFile = Bun.file(twitterImagePath);
         if (await imageFile.exists()) {
             while (true) {
@@ -100,7 +101,6 @@ export const downloadImagesFromTweet = async (
         if (webpRes) {
             try {
                 console.log("pushing image index", imageIndex);
-                images.push(imageIndex);
                 await Bun.file(jpgPath).delete();
             } catch (e) {
                 console.log("Error deleting JPG after conversion:", e);
@@ -122,6 +122,9 @@ export const downloadImagesFromTweet = async (
         }
     }
 
+    const images = readdirSync(articleDir)
+        .filter((f) => f.startsWith("image-"))
+        .map((f) => parseInt(f.replace("image-", "")));
     return images;
 };
 

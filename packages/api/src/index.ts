@@ -82,7 +82,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
         const rows = await db
             .select()
             .from(tweets)
-            .orderBy(desc(tweets.timestamp))
+            .orderBy(desc(tweets.id))
             .limit(1);
         return c.json(rows[0] ?? null);
     })

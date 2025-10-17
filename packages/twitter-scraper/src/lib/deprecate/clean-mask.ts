@@ -1,6 +1,7 @@
 import { tweetsOperations } from "@comifuro/core";
 import { getBunSqlite } from "@comifuro/core/bunSqlite";
 import { fileURLToPath } from "bun";
+import { readdirSync } from "fs";
 import { readdir } from "fs/promises";
 import { resolve } from "path";
 
@@ -9,71 +10,115 @@ console.log(dbUrl);
 const bunSqlitePath = fileURLToPath(dbUrl);
 const bunSqlite = getBunSqlite(bunSqlitePath);
 
-const tweets = await tweetsOperations.selectTweets(bunSqlite, {
-    limit: 100000,
-});
+const zeroMasks = async () => {
+    const tweets = await tweetsOperations.selectTweets(bunSqlite, {
+        limit: 100000,
+    });
 
-const zeroMask = tweets.filter((t) => t.imageMask === 0);
+    const zeroMask = tweets.filter((t) => t.imageMask === 0);
 
-console.log("tweets", zeroMask.length);
+    console.log("tweets", zeroMask.length);
 
-const distDir = resolve(import.meta.dir, "../../../dist");
+    const distDir = resolve(import.meta.dir, "../../../dist");
 
-console.log("distDir", distDir);
+    console.log("distDir", distDir);
 
-let hasImage = [];
-let noImage = [];
-let hasMoreImage = [];
-for (const tweet of zeroMask) {
-    const tweetDir = resolve(distDir, tweet.id);
-    const jsonPath = resolve(tweetDir, "tweet.json");
-    const imagePath = resolve(tweetDir, "image-0.webp");
+    let hasImage = [];
+    let noImage = [];
+    let hasMoreImage = [];
+    for (const tweet of zeroMask) {
+        const tweetDir = resolve(distDir, tweet.id);
+        const jsonPath = resolve(tweetDir, "tweet.json");
+        const imagePath = resolve(tweetDir, "image-0.webp");
 
-    if (!(await Bun.file(jsonPath).exists())) continue;
+        if (!(await Bun.file(jsonPath).exists())) continue;
 
-    const dirents = await readdir(tweetDir, { withFileTypes: true });
-    const files = dirents.filter((d) => d.isFile());
-    if (files.some((f) => f.name === "uploaded")) {
-        const uploadedFile = Bun.file(resolve(tweetDir, "uploaded"));
-        await uploadedFile.delete();
-        console.log("deleted uploaded file", tweet.id);
+        const dirents = await readdir(tweetDir, { withFileTypes: true });
+        const files = dirents.filter((d) => d.isFile());
+        if (files.some((f) => f.name === "uploaded")) {
+            const uploadedFile = Bun.file(resolve(tweetDir, "uploaded"));
+            await uploadedFile.delete();
+            console.log("deleted uploaded file", tweet.id);
+        }
+        if (
+            files.length === 2 &&
+            files.some((f) => f.name === "image-0.webp")
+        ) {
+            console.log("has image", tweet.id);
+            hasImage.push(tweet);
+            tweetsOperations.upsertTweet(bunSqlite, {
+                id: tweet.id,
+                user: tweet.user,
+                timestamp: tweet.timestamp,
+                text: tweet.text,
+                imageMask: 1,
+            });
+        } else if (files.length > 2) {
+            console.log("has more image", tweet.id);
+            hasMoreImage.push(tweet);
+            const newIndexes = files
+                .map((f) => f.name)
+                .filter((f) => f.startsWith("image-"))
+                .map((f) => parseInt(f.replace("image-", "")));
+
+            let newMask = 0;
+            for (let i = 0; i < newIndexes.length; i++) {
+                newMask |= 1 << newIndexes[i]!;
+            }
+            tweetsOperations.upsertTweet(bunSqlite, {
+                id: tweet.id,
+                user: tweet.user,
+                timestamp: tweet.timestamp,
+                text: tweet.text,
+                imageMask: newMask,
+            });
+        } else {
+            noImage.push(tweet);
+        }
     }
-    if (files.length === 2 && files.some((f) => f.name === "image-0.webp")) {
-        console.log("has image", tweet.id);
-        hasImage.push(tweet);
-        tweetsOperations.upsertTweet(bunSqlite, {
-            id: tweet.id,
-            user: tweet.user,
-            timestamp: tweet.timestamp,
-            text: tweet.text,
-            imageMask: 1,
-        });
-    } else if (files.length > 2) {
-        console.log("has more image", tweet.id);
-        hasMoreImage.push(tweet);
-        const newIndexes = files
-            .map((f) => f.name)
+
+    console.log("hasImage", hasImage.length);
+    console.log("noImage", noImage.length);
+    console.log("hasMoreImage", hasMoreImage.length);
+};
+
+const fixmasks = async () => {
+    const tweets = await tweetsOperations.selectTweets(bunSqlite, {
+        limit: 100000,
+    });
+    const distDir = resolve(import.meta.dir, "../../../dist");
+
+    let brokenMasks = 0;
+    let i = 0;
+    for (const tweet of tweets) {
+        const articleDir = resolve(distDir, tweet.id);
+
+        const images = readdirSync(articleDir)
             .filter((f) => f.startsWith("image-"))
             .map((f) => parseInt(f.replace("image-", "")));
 
-        let newMask = 0;
-        for (let i = 0; i < newIndexes.length; i++) {
-            newMask |= 1 << newIndexes[i]!;
+        let mask = 0;
+        for (let i = 0; i < images.length; i++) {
+            const val = images[i];
+            if (val !== undefined) mask |= 1 << val;
         }
-        tweetsOperations.upsertTweet(bunSqlite, {
-            id: tweet.id,
-            user: tweet.user,
-            timestamp: tweet.timestamp,
-            text: tweet.text,
-            imageMask: newMask,
-        });
-    } else {
-        noImage.push(tweet);
-    }
-}
 
-console.log("hasImage", hasImage.length);
-console.log("noImage", noImage.length);
-console.log("hasMoreImage", hasMoreImage.length);
+        if (tweet.imageMask !== mask) {
+            brokenMasks++;
+            console.log("broken mask", tweet.id, tweet.imageMask, mask);
+            await tweetsOperations.upsertTweet(bunSqlite, {
+                id: tweet.id,
+                user: tweet.user,
+                timestamp: tweet.timestamp,
+                text: tweet.text,
+                imageMask: mask,
+            });
+        }
+    }
+    console.log("brokenMasks", brokenMasks);
+};
+
+// await fixmasks();
+await zeroMasks();
 
 export {};

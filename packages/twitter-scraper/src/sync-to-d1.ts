@@ -217,7 +217,22 @@ async function main() {
     const sqlite = new Database(LOCAL_DB_PATH);
     const db = drizzle(sqlite, { schema: schema });
 
-    const tweets = (await db.select().from(schema.tweets)) as TweetSelect[];
+    // const tweets = (await db.select().from(schema.tweets)) as TweetSelect[];
+    const latestInD1Res = await fetch(`${API_BASE}/tweets/last`);
+    const latestInD1 = await latestInD1Res.json();
+    const tweets = await db
+        .select()
+        .from(schema.tweets)
+        .where(gt(schema.tweets.id, latestInD1.id))
+        .orderBy(desc(schema.tweets.id));
+
+    console.log(
+        "syncing",
+        tweets.length,
+        "tweets, from",
+        //@ts-expect-error
+        tweets[tweets.length - 1].id
+    );
 
     const distDir = resolve(import.meta.dir, "../dist/");
 
@@ -228,7 +243,7 @@ async function main() {
             console.log("uploading images tweet", tweet.id);
             const tweetDir = resolve(distDir, tweet.id);
             const files = readdirSync(tweetDir);
-            if (files.includes("uploaded")) continue;
+            // if (files.includes("uploaded")) continue;
             console.log("files", files);
             const images = files.filter((f) => f.startsWith("image-"));
             if (images.length === 0) continue;
