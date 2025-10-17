@@ -7,7 +7,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
-const MarkValues = ["bookmarked", "ignored"] as const;
+const MarkValues = ["bookmarked", "ignored", "deleted"] as const;
 // type MarkType = (typeof MarkValues)[number];
 
 export const users = sqliteTable("users", {
@@ -38,7 +38,7 @@ export const tweets = sqliteTable(
         index("user_idx").on(table.user),
         index("deleted_idx").on(table.deleted),
         index("updated_at_idx").on(table.updatedAt),
-    ]
+    ],
 );
 
 export const userToTweet = sqliteTable(
@@ -63,8 +63,12 @@ export const userToTweet = sqliteTable(
         lastModifiedVersion: integer("last_modified_version")
             .notNull()
             .default(0),
+        tags: text("tags", { mode: "json" }).$type<string[]>(),
     },
-    (t) => [primaryKey({ columns: [t.userId, t.tweetId] })]
+    (t) => [
+        primaryKey({ columns: [t.userId, t.tweetId] }),
+        index("user_with_version_idx").on(t.userId, t.lastModifiedVersion),
+    ],
 );
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -86,16 +90,17 @@ export const userPostRelations = relations(userToTweet, ({ one }) => ({
     }),
 }));
 
-export const replicacheClientGroups = sqliteTable("replicache_client_groups", {
-    id: text("id").primaryKey(),
-    userId: text("user_id").references(() => users.id),
-});
-
-export const replicacheClients = sqliteTable("replicache_clients", {
-    id: text("id").primaryKey(),
-    clientGroupId: text("client_group_id").references(
-        () => replicacheClientGroups.id
-    ),
-    lastMutationId: integer("last_mutation_id").notNull().default(0),
-    lastModifiedVersion: integer("last_modified_version").notNull().default(0),
-});
+export const replicacheClients = sqliteTable(
+    "replicache_clients",
+    {
+        id: text("id").primaryKey(),
+        userId: text("user_id")
+            .notNull()
+            .references(() => users.id),
+        lastMutationId: integer("last_mutation_id").notNull().default(0),
+        lastModifiedVersion: integer("last_modified_version")
+            .notNull()
+            .default(0),
+    },
+    (t) => [index("user_with_mutation_idx").on(t.userId, t.lastMutationId)],
+);

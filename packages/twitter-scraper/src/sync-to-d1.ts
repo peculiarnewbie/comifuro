@@ -52,7 +52,7 @@ async function upsertBatch(tweets: any[]): Promise<number> {
 async function uploadImage(
     tweetId: string,
     imagePath: string,
-    imageNumber: number
+    imageNumber: number,
 ): Promise<void> {
     const key = `${tweetId}/${imageNumber}.webp`;
     const encodedKey = encodeURIComponent(key);
@@ -79,11 +79,11 @@ async function processDateFolderForImages(dateFolder: string): Promise<void> {
     try {
         const folders = await readdir(datePath);
         const tweetFolders = folders.filter((folder) =>
-            folder.startsWith("twitter-article-")
+            folder.startsWith("twitter-article-"),
         );
 
         console.log(
-            `Processing ${tweetFolders.length} tweet folders in ${dateFolder}`
+            `Processing ${tweetFolders.length} tweet folders in ${dateFolder}`,
         );
 
         for (const folder of tweetFolders) {
@@ -96,13 +96,13 @@ async function processDateFolderForImages(dateFolder: string): Promise<void> {
             }
 
             const tweetData = JSON.parse(
-                await readFile(tweetJsonPath, "utf-8")
+                await readFile(tweetJsonPath, "utf-8"),
             );
             const tweetId = getTweetIdFromUrl(tweetData.url);
 
             if (!tweetId) {
                 console.warn(
-                    `Skipping ${folder}: Could not extract tweet ID from URL`
+                    `Skipping ${folder}: Could not extract tweet ID from URL`,
                 );
                 continue;
             }
@@ -187,7 +187,7 @@ async function oldMain() {
     console.log("folderToUploads", foldersToUpload);
 
     console.log(
-        `Found ${foldersToUpload.length} folders that need image uploads`
+        `Found ${foldersToUpload.length} folders that need image uploads`,
     );
 
     for (const imp of foldersToUpload) {
@@ -199,7 +199,7 @@ async function oldMain() {
         } catch (error) {
             console.error(
                 `Failed to upload images for ${imp.dateFolder}:`,
-                error
+                error,
             );
             // Continue with other folders even if one fails
         }
@@ -208,7 +208,7 @@ async function oldMain() {
     // Save updated imports.json
     await saveImportsJson(imports);
     console.log(
-        `Image upload process complete. Updated ${foldersToUpload.length} folders.`
+        `Image upload process complete. Updated ${foldersToUpload.length} folders.`,
     );
 }
 
@@ -231,7 +231,7 @@ async function main() {
         tweets.length,
         "tweets, from",
         //@ts-expect-error
-        tweets[tweets.length - 1].id
+        tweets[tweets.length - 1].id,
     );
 
     const distDir = resolve(import.meta.dir, "../dist/");
@@ -274,7 +274,7 @@ async function main() {
     console.log("failed", failed);
     await Bun.write(
         resolve(distDir, `./${DateTime.now().toMillis()}-failed.json`),
-        JSON.stringify(failed, null, 4)
+        JSON.stringify(failed, null, 4),
     );
 }
 

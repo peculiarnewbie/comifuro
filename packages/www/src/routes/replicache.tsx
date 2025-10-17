@@ -34,7 +34,7 @@ const createReplicache = (apiHost: string) => {
         mutators: {
             async markTweet(
                 tx: WriteTransaction,
-                { id, mark, user }: { id: string; mark: string; user?: string }
+                { id, mark, user }: { id: string; mark: string; user?: string },
             ) {
                 await tx.set(`message/${id}`, {
                     mark,
@@ -75,13 +75,13 @@ function RouteComponent() {
                             list
                                 .map(([id, tweet]) => ({ ...tweet, id }))
                                 .filter((t) => t.imageMask !== 0)
-                                .reverse()
+                                .reverse(),
                         );
                         if (list.length > currentTweetLength) {
                             rep.pull();
                         }
                     },
-                }
+                },
             );
 
             console.log("listening");
@@ -192,7 +192,7 @@ function Tweets(props: {
                                     data-index={virtualRow.index}
                                     ref={(el) =>
                                         queueMicrotask(() =>
-                                            virtual().measureElement(el)
+                                            virtual().measureElement(el),
                                         )
                                     }
                                     class={
@@ -254,7 +254,7 @@ function Tweets(props: {
                                                         <div class="flex h-[200px] w-full overflow-hidden">
                                                             {maskToIndices(
                                                                 tweet()
-                                                                    .imageMask
+                                                                    .imageMask,
                                                             ).map((x) => (
                                                                 <img
                                                                     class="h-full w-auto object-contain"

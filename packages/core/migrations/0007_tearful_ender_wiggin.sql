@@ -1,0 +1,1 @@
+CREATE INDEX `user_with_mutation_idx` ON `replicache_clients` (`user_id`,`last_mutation_id`);

@@ -29,6 +29,34 @@
       "when": 1760078191950,
       "tag": "0003_needy_havok",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1760695745363,
+      "tag": "0004_fresh_jamie_braddock",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1760697461056,
+      "tag": "0005_freezing_supreme_intelligence",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1760698180210,
+      "tag": "0006_early_expediter",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1760698307148,
+      "tag": "0007_tearful_ender_wiggin",
+      "breakpoints": true
     }
   ]
 }

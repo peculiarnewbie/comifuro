@@ -1,0 +1,1 @@
+ALTER TABLE `user_to_tweet` ADD `tags` text;

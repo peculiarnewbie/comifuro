@@ -3,14 +3,16 @@ import { R2Bucket, D1Database } from "@cloudflare/workers-types";
 import { drizzle, DrizzleD1Database } from "drizzle-orm/d1";
 import {
     tweets,
-    replicacheClientGroups,
     replicacheClients,
+    userToTweet,
+    users,
 } from "@comifuro/core/schema";
 import { z } from "zod";
-import { desc, eq, gt, lt } from "drizzle-orm";
+import { and, desc, eq, gt, lt } from "drizzle-orm";
 import { tweetsOperations, tweetsTypes } from "@comifuro/core";
 import { ReplicacheClientSelect, TweetSelect } from "@comifuro/core/types";
 import { cors } from "hono/cors";
+import { generateUserId } from "./generate-id";
 
 type Bindings = {
     R2: R2Bucket;
@@ -24,7 +26,7 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 const currentSchemaVersion = 1;
 
-function getDb(c: Context) {
+export function getDb(c: Context) {
     return drizzle(c.env.DB);
 }
 
@@ -49,7 +51,7 @@ app.use(
         exposeHeaders: ["Content-Length"],
         maxAge: 86400,
         credentials: true,
-    })
+    }),
 );
 
 app.get("/", (c) => c.text("Hello Hono!"))
@@ -91,7 +93,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
         const offset = Number(url.searchParams.get("offset") ?? 0) || 0;
         const limit = Math.min(
             200,
-            Number(url.searchParams.get("limit") ?? 100) || 100
+            Number(url.searchParams.get("limit") ?? 100) || 100,
         );
         const db = getDb(c);
         const rows = await db.select().from(tweets).limit(limit).offset(offset);
@@ -110,7 +112,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
                     timestamp: z.union([z.number(), z.string()]),
                     text: z.string(),
                     imageMask: z.number().int().nonnegative(),
-                })
+                }),
             )
             .safeParse(body);
         const db = getDb(c);
@@ -159,7 +161,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
         });
         return res as any;
     })
-    .post("/replicache/pull", async (c) => {
+    .post("/replicache/tweets/pull", async (c) => {
         const limit = Number(c.req.query("limit") ?? 500);
 
         const body = await c.req.json();
@@ -199,7 +201,6 @@ app.get("/", (c) => c.text("Hello Hono!"))
         }
 
         const db = getDb(c);
-        let clientGroup = await getClientGroup(clientGroupID, db);
 
         //TODO: check if user owns client group
         //TODO: handle deletion
@@ -240,7 +241,10 @@ app.get("/", (c) => c.text("Hello Hono!"))
                         .select()
                         .from(tweets)
                         .where(
-                            gt(tweets.timestamp, new Date(newestTweetTimestamp))
+                            gt(
+                                tweets.timestamp,
+                                new Date(newestTweetTimestamp),
+                            ),
                         )
                         .orderBy(tweets.timestamp)
                         .limit(limit)
@@ -269,13 +273,13 @@ app.get("/", (c) => c.text("Hello Hono!"))
                     console.log(
                         "pulling more",
                         tweetsRows.length,
-                        lastTweet.timestamp.getTime()
+                        lastTweet.timestamp.getTime(),
                     );
                     oldestTweetTimestamp = lastTweet.timestamp.getTime();
                     donePullingTweet = false;
                     console.log(
                         "Updated oldestTweetTimestamp to:",
-                        oldestTweetTimestamp
+                        oldestTweetTimestamp,
                     );
                 }
             }
@@ -315,6 +319,74 @@ app.get("/", (c) => c.text("Hello Hono!"))
         };
         return c.json(res);
     })
+    .post("/replicache/pull", async (c) => {
+        const body = await c.req.json();
+
+        console.log(JSON.stringify(body));
+
+        const { cookie, clientGroupID } = body as {
+            cookie?: number;
+            clientGroupID?: string;
+        };
+
+        let prevVersion = cookie ?? 0;
+        let userId = clientGroupID;
+
+        if (!userId)
+            return c.json({ error: "userId is required for pull" }, 500);
+
+        const db = getDb(c);
+        const userRes = await db
+            .select()
+            .from(users)
+            .where(eq(users.id, userId));
+
+        if (userRes.length < 1) return c.json({ error: "user not found" }, 500);
+
+        const tweetsRes = await db
+            .select()
+            .from(userToTweet)
+            .where(
+                and(
+                    eq(userToTweet.userId, userId),
+                    gt(userToTweet.lastModifiedVersion, prevVersion),
+                ),
+            );
+
+        const lastMutationIdRes = await db
+            .select()
+            .from(replicacheClients)
+            .where(
+                and(
+                    eq(replicacheClients.userId, userId),
+                    gt(replicacheClients.lastModifiedVersion, prevVersion),
+                ),
+            );
+
+        const ops =
+            tweetsRes.length > 0
+                ? tweetsRes.map((t) => {
+                      const { tweetId, ...rest } = t;
+                      return {
+                          op: "put",
+                          key: tweetId,
+                          value: rest,
+                      };
+                  })
+                : [];
+
+        const lastMutationIDChanges = Object.fromEntries(
+            lastMutationIdRes.map((x) => [x.id, x.lastMutationId]),
+        );
+
+        const res = {
+            lastMutationIDChanges,
+            cookie: userRes[0].version,
+            patch: [...ops],
+        };
+
+        return c.json(res);
+    })
     .post("/replicache/push", async (c) => {
         let errorMode = false;
         type ReplicachePushBody = {
@@ -336,11 +408,10 @@ app.get("/", (c) => c.text("Hello Hono!"))
         console.log("client group id:", body.clientGroupID);
         console.log(
             "last mutation:",
-            JSON.stringify(body.mutations[body.mutations.length - 1])
+            JSON.stringify(body.mutations[body.mutations.length - 1]),
         );
 
         const db = getDb(c);
-        let clientGroup = await getClientGroup(body.clientGroupID, db);
 
         for (const mutation of body.mutations) {
             let nextMutationID = 0;
@@ -355,7 +426,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
             if (clientRes.length === 0) {
                 client = {
                     id: mutation.clientID,
-                    clientGroupId: body.clientGroupID,
+                    userId: clientRes[0].userId,
                     lastMutationId: 0,
                     lastModifiedVersion: 0,
                 };
@@ -371,22 +442,5 @@ app.get("/", (c) => c.text("Hello Hono!"))
 
         return c.json(body);
     });
-
-const getClientGroup = async (clientGroupID: string, db: DrizzleD1Database) => {
-    const clientGroupRes = await db
-        .select()
-        .from(replicacheClientGroups)
-        .where(eq(replicacheClientGroups.id, clientGroupID))
-        .limit(1);
-
-    if (clientGroupRes.length === 0) {
-        return {
-            id: clientGroupID,
-            userId: null,
-        };
-    } else {
-        return clientGroupRes[0];
-    }
-};
 
 export default app;

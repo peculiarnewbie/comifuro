@@ -1,0 +1,1 @@
+ALTER TABLE `replicache_clients` ADD `user_id` text NOT NULL REFERENCES users(id);
