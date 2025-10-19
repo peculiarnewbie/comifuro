@@ -12,7 +12,6 @@ import { and, desc, eq, gt, lt } from "drizzle-orm";
 import { tweetsOperations, tweetsTypes } from "@comifuro/core";
 import { ReplicacheClientSelect, TweetSelect } from "@comifuro/core/types";
 import { cors } from "hono/cors";
-import { generateUserId } from "./generate-id";
 
 type Bindings = {
     R2: R2Bucket;
