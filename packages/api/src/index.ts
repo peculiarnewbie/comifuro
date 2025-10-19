@@ -23,7 +23,7 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-const currentSchemaVersion = 1;
+const currentSchemaVersion = 3;
 
 export function getDb(c: Context) {
     return drizzle(c.env.DB);
@@ -72,8 +72,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
         }
 
         const r2 = c.env.R2;
-        //@ts-expect-error
-        await r2.put(decodedKey, file);
+        await r2.put(decodedKey, file as any);
 
         c.header("Content-Type", "image/webp");
         return c.json({ ok: true });
@@ -165,11 +164,11 @@ app.get("/", (c) => c.text("Hello Hono!"))
 
         const body = await c.req.json();
 
-        console.log(JSON.stringify(body));
+        console.log(body);
 
         type PullCookie = {
-            newestTweetTimestamp?: number;
-            oldestTweetTimestamp?: number;
+            newestTweet?: string;
+            oldestTweet?: string;
             order?: number;
             donePullingTweet?: boolean;
             schemaVersion?: number;
@@ -180,12 +179,12 @@ app.get("/", (c) => c.text("Hello Hono!"))
             clientGroupID: string;
         };
 
-        console.log("cookie", cookie);
+        console.log(cookie);
 
         // change to pull from newest first, but caching both the newest tweets and oldest pulled tweets
 
-        let newestTweetTimestamp = cookie?.newestTweetTimestamp;
-        let oldestTweetTimestamp = cookie?.oldestTweetTimestamp;
+        let newestTweet = cookie?.newestTweet;
+        let oldestTweet = cookie?.oldestTweet;
         let order = cookie?.order;
         let donePullingTweet = cookie?.donePullingTweet;
         let schemaVersion = cookie?.schemaVersion;
@@ -193,11 +192,12 @@ app.get("/", (c) => c.text("Hello Hono!"))
         const preOps = [];
 
         // TODO: create a migration function
-        if (!schemaVersion) {
-            console.log("no schema version, resetting");
+        if (!schemaVersion || schemaVersion < currentSchemaVersion) {
+            console.log("different schema. clearing");
             preOps.push({
                 op: "clear",
             });
+            newestTweet = "0";
         }
 
         const db = getDb(c);
@@ -206,7 +206,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
         //TODO: handle deletion
 
         let tweetsRows = [] as TweetSelect[];
-        if (!newestTweetTimestamp) {
+        if (!newestTweet) {
             console.log("new init");
             tweetsRows = await db
                 .select()
@@ -217,8 +217,8 @@ app.get("/", (c) => c.text("Hello Hono!"))
             const firstTweet = tweetsRows[0];
             const lastTweet = tweetsRows[tweetsRows.length - 1];
             if (firstTweet) {
-                newestTweetTimestamp = firstTweet.timestamp.getTime();
-                oldestTweetTimestamp = lastTweet.timestamp.getTime();
+                newestTweet = firstTweet.id;
+                oldestTweet = lastTweet.id;
                 donePullingTweet = false;
                 console.log("clearing");
                 preOps.push({
@@ -226,56 +226,54 @@ app.get("/", (c) => c.text("Hello Hono!"))
                 });
             }
         } else {
-            const newestTweet = (
+            const newest = (
                 await db.select().from(tweets).orderBy(desc(tweets.id)).limit(1)
             )[0];
 
-            if (newestTweet.timestamp.getTime() > newestTweetTimestamp) {
+            if (newestTweet < newest.id) {
                 console.log("there are newer tweets");
                 tweetsRows = (
                     await db
                         .select()
                         .from(tweets)
-                        .where(
-                            gt(
-                                tweets.timestamp,
-                                new Date(newestTweetTimestamp),
-                            ),
-                        )
                         .orderBy(tweets.id)
+                        .where(gt(tweets.id, newestTweet))
                         .limit(limit)
                 ).toReversed();
                 const firstTweet = tweetsRows[0];
                 if (firstTweet) {
-                    newestTweetTimestamp = firstTweet.timestamp.getTime();
+                    newestTweet = firstTweet.id;
                     donePullingTweet = false;
                 }
+                const lastTweet = tweetsRows[tweetsRows.length - 1];
+                if (!oldestTweet) oldestTweet = lastTweet.id;
             } else {
-                console.log("there are older tweets");
-                if (!oldestTweetTimestamp) {
-                    oldestTweetTimestamp = Date.now();
+                console.log("there no newer tweets");
+                if (!oldestTweet) {
+                    oldestTweet = newest.id;
                 }
                 tweetsRows = await db
                     .select()
                     .from(tweets)
                     .orderBy(desc(tweets.id))
-                    .where(lt(tweets.timestamp, new Date(oldestTweetTimestamp)))
+                    .where(lt(tweets.id, oldestTweet))
                     .limit(limit);
                 if (tweetsRows.length === 0) {
                     donePullingTweet = true;
                     console.log("done pulling");
                 } else {
+                    console.log("there are older tweets");
                     const lastTweet = tweetsRows[tweetsRows.length - 1];
                     console.log(
                         "pulling more",
                         tweetsRows.length,
                         lastTweet.timestamp.getTime(),
                     );
-                    oldestTweetTimestamp = lastTweet.timestamp.getTime();
+                    oldestTweet = lastTweet.id;
                     donePullingTweet = false;
                     console.log(
                         "Updated oldestTweetTimestamp to:",
-                        oldestTweetTimestamp,
+                        oldestTweet,
                     );
                 }
             }
@@ -303,13 +301,14 @@ app.get("/", (c) => c.text("Hello Hono!"))
         }
 
         const newCookie = {
-            newestTweetTimestamp,
-            oldestTweetTimestamp,
+            newestTweet,
+            oldestTweet,
             donePullingTweet,
             order: newOrder ?? order,
             schemaVersion: currentSchemaVersion,
         } satisfies PullCookie;
-        console.log("Response cookie values:", newCookie);
+        console.log({ message: "new cookie", ...newCookie });
+
         const res = {
             lastMutationIDChanges: {},
             cookie: newCookie,

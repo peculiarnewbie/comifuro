@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "private": true,
     "dependencies": {
-        "drizzle-orm": "^0.44.4"
+        "drizzle-orm": "^0.44.5"
     },
     "devDependencies": {
         "drizzle-kit": "^0.31.4"
