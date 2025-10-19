@@ -212,7 +212,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
             tweetsRows = await db
                 .select()
                 .from(tweets)
-                .orderBy(desc(tweets.timestamp))
+                .orderBy(desc(tweets.id))
                 .limit(limit);
 
             const firstTweet = tweetsRows[0];
@@ -228,11 +228,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
             }
         } else {
             const newestTweet = (
-                await db
-                    .select()
-                    .from(tweets)
-                    .orderBy(desc(tweets.timestamp))
-                    .limit(1)
+                await db.select().from(tweets).orderBy(desc(tweets.id)).limit(1)
             )[0];
 
             if (newestTweet.timestamp.getTime() > newestTweetTimestamp) {
@@ -247,7 +243,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
                                 new Date(newestTweetTimestamp),
                             ),
                         )
-                        .orderBy(tweets.timestamp)
+                        .orderBy(tweets.id)
                         .limit(limit)
                 ).toReversed();
                 const firstTweet = tweetsRows[0];
@@ -263,7 +259,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
                 tweetsRows = await db
                     .select()
                     .from(tweets)
-                    .orderBy(desc(tweets.timestamp))
+                    .orderBy(desc(tweets.id))
                     .where(lt(tweets.timestamp, new Date(oldestTweetTimestamp)))
                     .limit(limit);
                 if (tweetsRows.length === 0) {
@@ -285,6 +281,8 @@ app.get("/", (c) => c.text("Hello Hono!"))
                 }
             }
         }
+
+        tweetsRows = tweetsRows.filter((x) => x.imageMask > 0);
 
         const ops =
             tweetsRows.length > 0

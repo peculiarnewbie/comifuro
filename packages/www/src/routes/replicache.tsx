@@ -4,6 +4,7 @@ import {
     createMemo,
     createSignal,
     For,
+    on,
     onMount,
     Show,
 } from "solid-js";
@@ -63,15 +64,22 @@ const createMarksReplicache = (apiHost: string) => {
 type TweetsReplicache = ReturnType<typeof createTweetsReplicache>;
 type MarksReplicache = ReturnType<typeof createMarksReplicache>;
 
+const dbName = "ms";
+const storeName = "cache";
+const keyName = "ms";
+
 function RouteComponent() {
     const [tweetsReplicache, setTweetsReplicache] =
         createSignal<TweetsReplicache | null>(null);
     const [marksReplicache, setMarksReplicache] =
         createSignal<MarksReplicache | null>(null);
     const [tweets, setTweets] = createSignal<(Tweet & { id: string })[]>([]);
+
     const [filtered, setFiltered] = createSignal<SearchResult[]>([]);
     const [searchValue, setSearchValue] = createSignal("");
+
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const [isProcessingIndex, setIsProcessingIndex] = createSignal(false);
 
     const [miniSearch, setMiniSearch] = createSignal<MiniSearch | null>(null);
 
@@ -95,16 +103,12 @@ function RouteComponent() {
                     (await tx.scan().entries().toArray()) as [string, Tweet][],
                 {
                     onData: (list) => {
-                        const currentTweetLength = tweets().length;
                         setTweets(
                             list
                                 .map(([id, tweet]) => ({ ...tweet, id }))
-                                .filter((t) => t.imageMask !== 0)
                                 .reverse(),
                         );
-                        if (list.length > currentTweetLength) {
-                            tRep.pull();
-                        }
+                        tRep.pull();
                     },
                 },
             );
@@ -112,28 +116,142 @@ function RouteComponent() {
             console.log("listening");
         }
 
-        setMiniSearch(
-            new MiniSearch({
-                fields: ["user", "text"], // fields to index for full-text search
-                storeFields: ["user", "text", "timestamp", "imageMask", "id"], // fields to return with search results
-            }),
-        );
+        const open = indexedDB.open(dbName);
+        await new Promise((res, rej) => {
+            open.onupgradeneeded = () => {
+                open.result.createObjectStore(storeName);
+            };
+            open.onsuccess = () => res(undefined);
+            open.onerror = () => rej(open.error);
+        });
+
+        const db = open.result;
+        const tx = db.transaction(storeName, "readonly");
+        const store = tx.objectStore(storeName);
+        const req = store.get(keyName);
+
+        const data: string | undefined = await new Promise((res, rej) => {
+            req.onsuccess = () => res(req.result);
+            req.onerror = () => rej(req.error);
+        });
+
+        db.close();
+        if (!data) {
+            setMiniSearch(
+                new MiniSearch({
+                    fields: ["user", "text"], // fields to index for full-text search
+                    storeFields: [
+                        "user",
+                        "text",
+                        "timestamp",
+                        "imageMask",
+                        "id",
+                    ], // fields to return with search results
+                }),
+            );
+        } else {
+            // @ts-ignore - depends on your MiniSearch import
+            const miniSearchInstance = await (MiniSearch as any).loadJSONAsync(
+                data,
+                {
+                    fields: ["user", "text"], // fields to index for full-text search
+                    storeFields: [
+                        "user",
+                        "text",
+                        "timestamp",
+                        "imageMask",
+                        "id",
+                    ], // fields to return with search results
+                },
+            );
+            setMiniSearch(miniSearchInstance as any);
+        }
 
         return () => {
             void tweetsReplicache()?.close();
         };
     });
 
-    createEffect(() => {
-        const miniSearchCopy = miniSearch();
-        const tweetsCopy = tweets();
-        if (!miniSearchCopy || tweetsCopy.length < 1) return;
-        miniSearchCopy.addAll(tweetsCopy);
-    });
+    const processIndex = async () => {
+        setIsProcessingIndex(true);
+        const t = tweets();
+
+        console.log("processing", t.length);
+
+        for (const tweet of t) {
+            const ms = miniSearch();
+            if (!ms?.has(tweet.id)) ms?.add(tweet);
+        }
+        setIsProcessingIndex(false);
+
+        console.log("done processing");
+    };
+
+    createEffect(
+        on(
+            tweets,
+            (t, prev) => {
+                const miniSearchCopy = miniSearch();
+                if (!miniSearchCopy) return;
+
+                if (debounceTimer) return;
+
+                if (!isProcessingIndex) processIndex();
+                else
+                    debounceTimer = setTimeout(() => {
+                        processIndex();
+                        debounceTimer = null;
+                    }, 1000);
+            },
+            { defer: true },
+        ),
+    );
+
+    const isDoneProcessing = () => {
+        if (!isProcessingIndex()) {
+            const tCopy = tweets();
+            const ms = miniSearch();
+            if (!tCopy || !ms) return false;
+            return tCopy.length === ms.documentCount;
+        }
+        return false;
+    };
+
+    createEffect(
+        on(isDoneProcessing, async (r) => {
+            if (r) {
+                console.log("store ms cache");
+                const ms = miniSearch();
+                if (!ms) return;
+                const json = ms.toJSON(); // plain object
+                const data = JSON.stringify(json); // or store json directly via structured-clone
+                const open = indexedDB.open(dbName);
+
+                await new Promise((res, rej) => {
+                    open.onupgradeneeded = () => {
+                        open.result.createObjectStore(storeName);
+                    };
+                    open.onsuccess = () => res(undefined);
+                    open.onerror = () => rej(open.error);
+                });
+
+                const db = open.result;
+                const tx = db.transaction(storeName, "readwrite");
+                const store = tx.objectStore(storeName);
+                store.put(data, keyName);
+                await new Promise((res, rej) => {
+                    tx.oncomplete = () => res(undefined);
+                    tx.onerror = () => rej(tx.error);
+                });
+                db.close();
+            }
+        }),
+    );
 
     const filterTweets = (filter: string) => {
         const miniSearchCopy = miniSearch();
         if (!filter || !miniSearchCopy) {
+            console.log("no minisearch");
             //@ts-expect-error
             setFiltered(tweets());
             return;
@@ -142,20 +260,21 @@ function RouteComponent() {
         let results = miniSearchCopy.search(filter, {
             prefix: true,
         });
+        console.log("results", results.length, miniSearchCopy.documentCount);
         setFiltered(results);
     };
 
     const handleSearchInput = (value: string) => {
         setSearchValue(value);
-        if (debounceTimer) clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-            filterTweets(value);
-        }, 10);
+        filterTweets(value);
     };
 
     return (
         <div>
-            <p>total tweets: {tweets().length}</p>
+            <p>
+                total tweets: {tweets().length}{" "}
+                {isDoneProcessing() ? "v" : "..."}
+            </p>
             <p>filtered: {filtered().length}</p>
             <div>
                 search:
