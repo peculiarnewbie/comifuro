@@ -1,5 +1,12 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import { createMemo, createSignal, For, onMount, Show } from "solid-js";
+import {
+    createEffect,
+    createMemo,
+    createSignal,
+    For,
+    onMount,
+    Show,
+} from "solid-js";
 import { Replicache, type WriteTransaction } from "replicache";
 import { createWindowVirtualizer } from "@tanstack/solid-virtual";
 import MiniSearch, { type SearchResult } from "minisearch";
@@ -66,15 +73,18 @@ function RouteComponent() {
     const [searchValue, setSearchValue] = createSignal("");
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+    const [miniSearch, setMiniSearch] = createSignal<MiniSearch | null>(null);
+
+    // replicache
     onMount(async () => {
         const apiHost = getApiHost(window.location.href);
 
         const tReplicache = createTweetsReplicache(apiHost);
-        const mReplicache = createMarksReplicache(apiHost);
+        // const mReplicache = createMarksReplicache(apiHost);
 
         setTweetsReplicache(tReplicache);
-        setMarksReplicache(mReplicache);
-        listen(tReplicache, mReplicache);
+        // setMarksReplicache(mReplicache);
+        // listen(tReplicache, mReplicache);
 
         const tRep = tweetsReplicache();
         const mRep = marksReplicache();
@@ -102,23 +112,34 @@ function RouteComponent() {
             console.log("listening");
         }
 
+        setMiniSearch(
+            new MiniSearch({
+                fields: ["user", "text"], // fields to index for full-text search
+                storeFields: ["user", "text", "timestamp", "imageMask", "id"], // fields to return with search results
+            }),
+        );
+
         return () => {
             void tweetsReplicache()?.close();
         };
     });
 
+    createEffect(() => {
+        const miniSearchCopy = miniSearch();
+        const tweetsCopy = tweets();
+        if (!miniSearchCopy || tweetsCopy.length < 1) return;
+        miniSearchCopy.addAll(tweetsCopy);
+    });
+
     const filterTweets = (filter: string) => {
-        if (!filter) {
+        const miniSearchCopy = miniSearch();
+        if (!filter || !miniSearchCopy) {
             //@ts-expect-error
             setFiltered(tweets());
             return;
         }
-        let miniSearch = new MiniSearch({
-            fields: ["user", "text"], // fields to index for full-text search
-            storeFields: ["user", "text", "timestamp", "imageMask", "id"], // fields to return with search results
-        });
-        miniSearch.addAll(tweets());
-        let results = miniSearch.search(filter, {
+
+        let results = miniSearchCopy.search(filter, {
             prefix: true,
         });
         setFiltered(results);
@@ -129,7 +150,7 @@ function RouteComponent() {
         if (debounceTimer) clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
             filterTweets(value);
-        }, 100);
+        }, 10);
     };
 
     return (
@@ -165,7 +186,6 @@ function Tweets(props: {
     let parentRef!: HTMLDivElement;
 
     const virtual = createMemo(() => {
-        console.log("creating virtualizer", props.tweets.length);
         return createWindowVirtualizer({
             count: props.tweets.length,
             estimateSize: () => 410,

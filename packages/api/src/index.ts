@@ -189,11 +189,12 @@ app.get("/", (c) => c.text("Hello Hono!"))
         let oldestTweetTimestamp = cookie?.oldestTweetTimestamp;
         let order = cookie?.order;
         let donePullingTweet = cookie?.donePullingTweet;
+        let schemaVersion = cookie?.schemaVersion;
 
         const preOps = [];
 
         // TODO: create a migration function
-        if (!body.schemaVersion) {
+        if (!schemaVersion) {
             console.log("no schema version, resetting");
             preOps.push({
                 op: "clear",
