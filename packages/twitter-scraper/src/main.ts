@@ -1,4 +1,4 @@
-import { exists } from "node:fs/promises";
+import { exists, readdir } from "node:fs/promises";
 import { join, dirname } from "path";
 import { ensureDir } from "./lib/ensure-dir";
 import {
@@ -7,9 +7,11 @@ import {
 } from "./lib/deprecate/processed-tweets";
 import { crawlPage, getBrowserInstance, openLatestTweets } from "./lib/browser";
 import { DateTime } from "luxon";
+import { resolve } from "node:path";
+import type { TweetData } from "./lib/types";
 
 const findProjectRoot = async (
-    startDir: string = process.cwd()
+    startDir: string = process.cwd(),
 ): Promise<string | null> => {
     let currentDir = startDir;
 
@@ -53,12 +55,24 @@ async function main() {
 
     const arg = Bun.argv[2];
 
-    console.log("start crawling until", arg);
+    let timeUntil = arg;
+
+    if (arg === "-r") {
+        const res = await readdir(distDir);
+        const sorted = res.sort();
+        const newest = sorted[sorted.length - 1];
+        if (!newest) process.exit(1);
+        const newestTweetFile = resolve(distDir, `${newest}/tweet.json`);
+        const json = (await Bun.file(newestTweetFile).json()) as TweetData;
+        timeUntil = json.time;
+    }
+
+    console.log("start crawling until", timeUntil);
     await crawlPage(
         browser,
         page,
         maxRetries,
-        arg ? DateTime.fromISO(arg).toMillis() : undefined
+        timeUntil ? DateTime.fromISO(timeUntil).toMillis() : undefined,
     );
 
     console.log("done");
