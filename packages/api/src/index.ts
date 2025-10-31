@@ -9,8 +9,8 @@ import {
 } from "@comifuro/core/schema";
 import { z } from "zod";
 import { and, desc, eq, gt, lt } from "drizzle-orm";
-import { tweetsOperations, tweetsTypes } from "@comifuro/core";
-import { ReplicacheClientSelect, TweetSelect } from "@comifuro/core/types";
+import { tweetsOperations } from "@comifuro/core";
+import { ReplicacheClientSelect, TweetInsert, TweetSelect } from "@comifuro/core/types";
 import { cors } from "hono/cors";
 import { pullTweets } from "./pull-tweets";
 import { marksPull } from "./pull";
@@ -103,7 +103,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
         const rows = parsed.data.map((t) => ({
             ...t,
             timestamp: new Date(t.timestamp),
-        })) as tweetsTypes.TweetInsert[];
+        })) as TweetInsert[];
         // Insert in small chunks to keep parameter counts low
         let total = 0;
         for (let i = 0; i < rows.length; i += 20) {

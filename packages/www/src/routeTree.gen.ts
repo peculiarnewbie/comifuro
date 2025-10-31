@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ReplicacheRouteImport } from './routes/replicache'
+import { Route as MapRouteImport } from './routes/map'
 import { Route as IndexRouteImport } from './routes/index'
 
 const ReplicacheRoute = ReplicacheRouteImport.update({
   id: '/replicache',
   path: '/replicache',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MapRoute = MapRouteImport.update({
+  id: '/map',
+  path: '/map',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -25,27 +31,31 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/map': typeof MapRoute
   '/replicache': typeof ReplicacheRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/map': typeof MapRoute
   '/replicache': typeof ReplicacheRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/map': typeof MapRoute
   '/replicache': typeof ReplicacheRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/replicache'
+  fullPaths: '/' | '/map' | '/replicache'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/replicache'
-  id: '__root__' | '/' | '/replicache'
+  to: '/' | '/map' | '/replicache'
+  id: '__root__' | '/' | '/map' | '/replicache'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  MapRoute: typeof MapRoute
   ReplicacheRoute: typeof ReplicacheRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/solid-router' {
       path: '/replicache'
       fullPath: '/replicache'
       preLoaderRoute: typeof ReplicacheRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/map': {
+      id: '/map'
+      path: '/map'
+      fullPath: '/map'
+      preLoaderRoute: typeof MapRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -70,6 +87,7 @@ declare module '@tanstack/solid-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  MapRoute: MapRoute,
   ReplicacheRoute: ReplicacheRoute,
 }
 export const routeTree = rootRouteImport
