@@ -43,47 +43,37 @@ const createTweetsReplicache = (apiHost: string) => {
     });
 };
 
+const sharedMarksReplicacheProperties = {
+    name: "marks",
+    mutators: {
+        async markTweet(
+            tx: WriteTransaction,
+            { id, mark, user }: { id: string; mark: string; user?: string },
+        ) {
+            await tx.set(`message/${id}`, {
+                mark,
+                user,
+            });
+        },
+        async removeTweet(tx: WriteTransaction, id: string) {
+            await tx.del(`message/${id}`);
+        },
+    },
+};
+
 const createOfflineMarksReplicache = () => {
     return new Replicache({
-        name: "marks",
+        ...sharedMarksReplicacheProperties,
         logLevel: "debug",
-        mutators: {
-            async markTweet(
-                tx: WriteTransaction,
-                { id, mark, user }: { id: string; mark: string; user?: string },
-            ) {
-                await tx.set(`message/${id}`, {
-                    mark,
-                    user,
-                });
-            },
-            async removeTweet(tx: WriteTransaction, id: string) {
-                await tx.del(`message/${id}`);
-            },
-        },
     });
 };
 
 const createMarksReplicache = (apiHost: string, auth: string) => {
     return new Replicache({
-        name: "marks",
+        ...sharedMarksReplicacheProperties,
         pullURL: `${apiHost}/replicache/pull`,
         pushURL: `${apiHost}/replicache/push`,
         logLevel: "debug",
-        mutators: {
-            async markTweet(
-                tx: WriteTransaction,
-                { id, mark, user }: { id: string; mark: string; user?: string },
-            ) {
-                await tx.set(`message/${id}`, {
-                    mark,
-                    user,
-                });
-            },
-            async removeTweet(tx: WriteTransaction, id: string) {
-                await tx.del(`message/${id}`);
-            },
-        },
         auth,
     });
 };
@@ -495,7 +485,7 @@ function Tweets(props: {
                                                                 );
                                                             }}
                                                         >
-                                                            mark bookmark
+                                                            remove mark
                                                         </button>
                                                     </div>
                                                 </div>
