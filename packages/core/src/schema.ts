@@ -46,7 +46,7 @@ export const userToTweet = sqliteTable(
     {
         userId: text("user_id")
             .notNull()
-            .references(() => users.id),
+            .references(() => users.id, { onDelete: "cascade" }),
         tweetId: text("tweet_id")
             .notNull()
             .references(() => tweets.id),
@@ -90,17 +90,32 @@ export const userPostRelations = relations(userToTweet, ({ one }) => ({
     }),
 }));
 
-export const replicacheClients = sqliteTable(
-    "replicache_clients",
+export const replicacheClientGroups = sqliteTable(
+    "replicache_client_groups",
     {
         id: text("id").primaryKey(),
         userId: text("user_id")
             .notNull()
-            .references(() => users.id),
+            .references(() => users.id, { onDelete: "cascade" }),
+    },
+    (t) => [index("user_client_group_idx").on(t.userId)],
+);
+
+export const replicacheClients = sqliteTable(
+    "replicache_clients",
+    {
+        id: text("id").primaryKey(),
+        clientGroupId: text("client_group_id")
+            .notNull()
+            .references(() => replicacheClientGroups.id, {
+                onDelete: "cascade",
+            }),
         lastMutationId: integer("last_mutation_id").notNull().default(0),
         lastModifiedVersion: integer("last_modified_version")
             .notNull()
             .default(0),
     },
-    (t) => [index("user_with_mutation_idx").on(t.userId, t.lastMutationId)],
+    (t) => [
+        index("group_with_mutation_idx").on(t.clientGroupId, t.lastMutationId),
+    ],
 );
