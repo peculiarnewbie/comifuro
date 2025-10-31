@@ -12,14 +12,15 @@ import {
 import { Replicache, type WriteTransaction } from "replicache";
 import { createWindowVirtualizer } from "@tanstack/solid-virtual";
 import MiniSearch, { type SearchResult } from "minisearch";
+import { type Marks } from "@comifuro/core/types";
 
 export const Route = createFileRoute("/replicache")({
     component: RouteComponent,
 });
 
-function listen(tweetsReplicache: Replicache, marksReplicache: Replicache) {
+function listen(rep: Replicache) {
     // TODO: listen to changes on server
-    console.log(tweetsReplicache, marksReplicache);
+    console.log(rep);
 }
 
 type Tweet = {
@@ -42,7 +43,28 @@ const createTweetsReplicache = (apiHost: string) => {
     });
 };
 
-const createMarksReplicache = (apiHost: string) => {
+const createOfflineMarksReplicache = () => {
+    return new Replicache({
+        name: "marks",
+        logLevel: "debug",
+        mutators: {
+            async markTweet(
+                tx: WriteTransaction,
+                { id, mark, user }: { id: string; mark: string; user?: string },
+            ) {
+                await tx.set(`message/${id}`, {
+                    mark,
+                    user,
+                });
+            },
+            async removeTweet(tx: WriteTransaction, id: string) {
+                await tx.del(`message/${id}`);
+            },
+        },
+    });
+};
+
+const createMarksReplicache = (apiHost: string, auth: string) => {
     return new Replicache({
         name: "marks",
         pullURL: `${apiHost}/replicache/pull`,
@@ -58,7 +80,11 @@ const createMarksReplicache = (apiHost: string) => {
                     user,
                 });
             },
+            async removeTweet(tx: WriteTransaction, id: string) {
+                await tx.del(`message/${id}`);
+            },
         },
+        auth,
     });
 };
 
@@ -83,23 +109,14 @@ function RouteComponent() {
 
     const [miniSearch, setMiniSearch] = createSignal<MiniSearch | null>(null);
 
-    // replicache
+    // tweets replicache
     onMount(async () => {
         const apiHost = getApiHost(window.location.href);
 
         const tReplicache = createTweetsReplicache(apiHost);
-        setTweetsReplicache(tReplicache);
 
-        const mReplicache = createMarksReplicache(apiHost);
-        setMarksReplicache(mReplicache);
-
-        listen(tReplicache, mReplicache);
-
-        const tRep = tweetsReplicache();
-        const mRep = marksReplicache();
-
-        if (tRep) {
-            tRep.subscribe(
+        if (tReplicache) {
+            tReplicache.subscribe(
                 async (tx) =>
                     (await tx.scan().entries().toArray()) as [string, Tweet][],
                 {
@@ -109,7 +126,7 @@ function RouteComponent() {
                                 .map(([id, tweet]) => ({ ...tweet, id }))
                                 .reverse(),
                         );
-                        tRep.pull();
+                        tReplicache.pull();
                     },
                 },
             );
@@ -162,16 +179,57 @@ function RouteComponent() {
                         "timestamp",
                         "imageMask",
                         "id",
-                    ], // fields to return with search results
+                    ], // fields to return with search result;
                 },
             );
             setMiniSearch(miniSearchInstance as any);
         }
 
+        setTweetsReplicache(tReplicache);
+
         return () => {
             void tweetsReplicache()?.close();
         };
     });
+
+    const [marks, setMarks] = createSignal<[string, { mark: Marks }][]>([]);
+
+    onMount(() => {
+        const mReplicache = createOfflineMarksReplicache();
+
+        if (mReplicache) {
+            mReplicache.subscribe(
+                async (tx) =>
+                    (await tx.scan().entries().toArray()) as [
+                        string,
+                        { mark: Marks },
+                    ][],
+                {
+                    onData: (list) => {
+                        console.log("marks list", list);
+                        setMarks(list);
+                        mReplicache.pull();
+                    },
+                },
+            );
+        }
+
+        setMarksReplicache(mReplicache);
+
+        return () => {
+            void marksReplicache()?.close();
+        };
+    });
+
+    // marks replicache
+    const setupOnlineMarksReplicache = () => {
+        const apiHost = getApiHost(window.location.href);
+
+        const mReplicache = createMarksReplicache(apiHost, "izmeeeee");
+        setMarksReplicache(mReplicache);
+
+        listen(mReplicache);
+    };
 
     const processIndex = async () => {
         setIsProcessingIndex(true);
@@ -268,12 +326,8 @@ function RouteComponent() {
             },
         );
         console.log("results", results.length, miniSearchCopy.documentCount);
-        return results;
+        return results as unknown as (Tweet & { id: string })[];
     });
-
-    const handleSearchInput = (value: string) => {
-        setSearchValue(value);
-    };
 
     return (
         <div>
@@ -282,17 +336,24 @@ function RouteComponent() {
                 {isDoneProcessing() ? "v" : "..."}
             </p>
             <p>filtered: {filtered().length}</p>
+            <For each={marks()}>
+                {(mark) => (
+                    <p>
+                        {mark[0]}: {mark[1].mark}
+                    </p>
+                )}
+            </For>
             <div>
                 search:
                 <input
                     class="p-1 rounded border"
                     type="text"
                     value={searchValue()}
-                    oninput={(e) => handleSearchInput(e.target.value)}
+                    oninput={(e) => setSearchValue(e.target.value)}
                 />
             </div>
             <Show when={tweets().length > 0}>
-                <Tweets tweets={filtered()} replicache={tweetsReplicache()} />
+                <Tweets tweets={filtered()} replicache={marksReplicache()} />
             </Show>
         </div>
     );
@@ -300,7 +361,7 @@ function RouteComponent() {
 
 function Tweets(props: {
     tweets: (Tweet & { id: string })[];
-    replicache: TweetsReplicache | null;
+    replicache: MarksReplicache | null;
 }) {
     let parentRef!: HTMLDivElement;
 
@@ -361,35 +422,7 @@ function Tweets(props: {
                                             height: "390px",
                                         }}
                                     >
-                                        {/* <div>Row {virtualRow.index}</div>
-                                        <button
-                                            class="cursor-pointer"
-                                            onclick={async () => {
-                                                await props.replicache?.mutate.markTweet(
-                                                    {
-                                                        id: "sup",
-                                                        user: "test",
-                                                        mark: "ignore",
-                                                    }
-                                                );
-                                            }}
-                                        >
-                                            mark ignore
-                                        </button>
-                                        <button
-                                            class="cursor-pointer"
-                                            onclick={async () => {
-                                                await props.replicache?.mutate.markTweet(
-                                                    {
-                                                        id: "sup",
-                                                        user: "test",
-                                                        mark: "bookmark",
-                                                    }
-                                                );
-                                            }}
-                                        >
-                                            mark bookmark
-                                        </button> */}
+                                        <div>Row {virtualRow.index}</div>
                                         <Show
                                             when={
                                                 props.tweets[virtualRow.index]
@@ -424,6 +457,47 @@ function Tweets(props: {
                                                     >
                                                         view on twitter
                                                     </a>
+
+                                                    <div class="flex gap-2">
+                                                        <button
+                                                            class="cursor-pointer"
+                                                            onclick={async () => {
+                                                                await props.replicache?.mutate.markTweet(
+                                                                    {
+                                                                        id: tweet()
+                                                                            .id,
+                                                                        mark: "ignore",
+                                                                    },
+                                                                );
+                                                            }}
+                                                        >
+                                                            mark ignore
+                                                        </button>
+                                                        <button
+                                                            class="cursor-pointer"
+                                                            onclick={async () => {
+                                                                await props.replicache?.mutate.markTweet(
+                                                                    {
+                                                                        id: tweet()
+                                                                            .id,
+                                                                        mark: "bookmark",
+                                                                    },
+                                                                );
+                                                            }}
+                                                        >
+                                                            mark bookmark
+                                                        </button>
+                                                        <button
+                                                            class="cursor-pointer"
+                                                            onclick={async () => {
+                                                                await props.replicache?.mutate.removeTweet(
+                                                                    tweet().id,
+                                                                );
+                                                            }}
+                                                        >
+                                                            mark bookmark
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             )}
                                         </Show>

@@ -7,7 +7,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
-const MarkValues = ["bookmarked", "ignored", "deleted"] as const;
+export const MarkValues = ["bookmarked", "ignored", "deleted"] as const;
 // type MarkType = (typeof MarkValues)[number];
 
 export const users = sqliteTable("users", {
