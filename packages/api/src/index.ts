@@ -319,18 +319,21 @@ app.get("/", (c) => c.text("Hello Hono!"))
     .post("/replicache/pull", async (c) => {
         const body = await c.req.json();
 
-        console.log(JSON.stringify(body));
+        console.log({ message: "body", ...body });
 
         const { cookie, clientGroupID } = body as {
             cookie?: number;
             clientGroupID?: string;
         };
 
+        const noop = {
+            patch: [],
+        };
+
         let prevVersion = cookie ?? 0;
         let userId = clientGroupID;
 
-        if (!userId)
-            return c.json({ error: "userId is required for pull" }, 500);
+        if (!userId) return c.json(noop);
 
         const db = getDb(c);
         const userRes = await db
@@ -338,7 +341,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
             .from(users)
             .where(eq(users.id, userId));
 
-        if (userRes.length < 1) return c.json({ error: "user not found" }, 500);
+        if (userRes.length < 1) return c.json(noop);
 
         const tweetsRes = await db
             .select()
@@ -400,13 +403,13 @@ app.get("/", (c) => c.text("Hello Hono!"))
             schemaVersion: string;
         };
         const body: ReplicachePushBody = await c.req.json();
-        console.log(JSON.stringify(body));
+        console.log({ message: "body", ...body });
         console.log("profile id:", body.profileID);
         console.log("client group id:", body.clientGroupID);
-        console.log(
-            "last mutation:",
-            JSON.stringify(body.mutations[body.mutations.length - 1]),
-        );
+        console.log({
+            message: "last mutation:",
+            ...body.mutations[body.mutations.length - 1],
+        });
 
         const db = getDb(c);
 

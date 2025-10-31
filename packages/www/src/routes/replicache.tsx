@@ -7,6 +7,7 @@ import {
     on,
     onMount,
     Show,
+    untrack,
 } from "solid-js";
 import { Replicache, type WriteTransaction } from "replicache";
 import { createWindowVirtualizer } from "@tanstack/solid-virtual";
@@ -75,7 +76,6 @@ function RouteComponent() {
         createSignal<MarksReplicache | null>(null);
     const [tweets, setTweets] = createSignal<(Tweet & { id: string })[]>([]);
 
-    const [filtered, setFiltered] = createSignal<SearchResult[]>([]);
     const [searchValue, setSearchValue] = createSignal("");
 
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -88,11 +88,12 @@ function RouteComponent() {
         const apiHost = getApiHost(window.location.href);
 
         const tReplicache = createTweetsReplicache(apiHost);
-        // const mReplicache = createMarksReplicache(apiHost);
-
         setTweetsReplicache(tReplicache);
-        // setMarksReplicache(mReplicache);
-        // listen(tReplicache, mReplicache);
+
+        const mReplicache = createMarksReplicache(apiHost);
+        setMarksReplicache(mReplicache);
+
+        listen(tReplicache, mReplicache);
 
         const tRep = tweetsReplicache();
         const mRep = marksReplicache();
@@ -248,25 +249,30 @@ function RouteComponent() {
         }),
     );
 
-    const filterTweets = (filter: string) => {
-        const miniSearchCopy = miniSearch();
+    const filtered = createMemo(() => {
+        const miniSearchCopy = untrack(() => miniSearch());
+
+        const filter = searchValue();
+
         if (!filter || !miniSearchCopy) {
             console.log("no minisearch");
-            //@ts-expect-error
-            setFiltered(tweets());
-            return;
+            return tweets();
         }
 
-        let results = miniSearchCopy.search(filter, {
-            prefix: true,
-        });
+        const words = filter.split(" ");
+
+        let results = miniSearchCopy.search(
+            { combineWith: "AND", queries: words },
+            {
+                prefix: true,
+            },
+        );
         console.log("results", results.length, miniSearchCopy.documentCount);
-        setFiltered(results);
-    };
+        return results;
+    });
 
     const handleSearchInput = (value: string) => {
         setSearchValue(value);
-        filterTweets(value);
     };
 
     return (
@@ -286,13 +292,7 @@ function RouteComponent() {
                 />
             </div>
             <Show when={tweets().length > 0}>
-                <Tweets
-                    tweets={
-                        //@ts-expect-error
-                        filtered() as (Tweet & { id: string })[]
-                    }
-                    replicache={tweetsReplicache()}
-                />
+                <Tweets tweets={filtered()} replicache={tweetsReplicache()} />
             </Show>
         </div>
     );

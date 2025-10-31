@@ -23,6 +23,6 @@
         "db:migrate": "cd ../core && bun run src/migrate.ts",
         "import-tweets": "bun run src/import-tweets.ts",
         "sync-to-d1": "bun run src/sync-to-d1.ts",
-        "scrape-and-sync": "bun run src/main.ts && bun run src/import-tweets.ts && bun run src/sync-to-d1.ts"
+        "scrape-and-sync": "bun run src/main.ts -r && bun run src/sync-to-d1.ts"
     }
 }
