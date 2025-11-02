@@ -10,7 +10,11 @@ import {
 import { z } from "zod";
 import { and, desc, eq, gt, lt } from "drizzle-orm";
 import { tweetsOperations } from "@comifuro/core";
-import { ReplicacheClientSelect, TweetInsert, TweetSelect } from "@comifuro/core/types";
+import {
+    ReplicacheClientSelect,
+    TweetInsert,
+    TweetSelect,
+} from "@comifuro/core/types";
 import { cors } from "hono/cors";
 import { pullTweets } from "./pull-tweets";
 import { marksPull } from "./pull";
@@ -29,7 +33,7 @@ const app = new Hono<{ Bindings: Bindings }>();
 const currentSchemaVersion = 3;
 
 export function getDb(c: Context) {
-    return drizzle(c.env.DB);
+    return drizzle(c.env.DB) as DrizzleD1Database;
 }
 
 app.use(
@@ -53,7 +57,7 @@ app.use(
         exposeHeaders: ["Content-Length"],
         maxAge: 86400,
         credentials: true,
-    }),
+    })
 );
 
 app.get("/", (c) => c.text("Hello Hono!"))
@@ -93,7 +97,7 @@ app.get("/", (c) => c.text("Hello Hono!"))
                     timestamp: z.union([z.number(), z.string()]),
                     text: z.string(),
                     imageMask: z.number().int().nonnegative(),
-                }),
+                })
             )
             .safeParse(body);
         const db = getDb(c);
@@ -108,6 +112,21 @@ app.get("/", (c) => c.text("Hello Hono!"))
         let total = 0;
         for (let i = 0; i < rows.length; i += 20) {
             const chunk = rows.slice(i, i + 20);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             const rest = await tweetsOperations.upsertMultipleTweets(db, chunk);
         }
         return c.json({ ok: true, count: total });

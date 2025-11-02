@@ -1,9 +1,13 @@
 {
     "name": "comifuro",
     "catalog": {
-        "wrangler": "^4.40.2"
+        "wrangler": "^4.40.2",
+        "drizzle-orm": "^0.44.6"
     },
     "workspaces": [
         "packages/*"
-    ]
+    ],
+    "devDependencies": {
+        "prettier": "^3.6.2"
+    }
 }

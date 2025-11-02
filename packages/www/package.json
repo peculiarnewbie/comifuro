@@ -21,7 +21,7 @@
         "@tanstack/solid-router-devtools": "^1.109.2",
         "@tanstack/solid-virtual": "^3.13.12",
         "animejs": "^4.0.1",
-        "drizzle-orm": "^0.44.5",
+        "drizzle-orm": "catalog:",
         "elysia": "1.4.7",
         "hono": "^4.9.9",
         "minisearch": "^7.2.0",

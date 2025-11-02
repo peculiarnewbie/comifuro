@@ -7,7 +7,7 @@
     "dependencies": {
         "@cloudflare/workers-types": "^4.20251011.0",
         "@comifuro/core": "workspace:*",
-        "drizzle-orm": "^0.44.5",
+        "drizzle-orm": "catalog:",
         "hono": "^4.10.1",
         "nanoid": "^5.1.6",
         "wrangler": "^4.36.0",

@@ -9,7 +9,7 @@
     "dependencies": {
         "@comifuro/core": "workspace:*",
         "@types/luxon": "^3.6.2",
-        "drizzle-orm": "^0.44.4",
+        "drizzle-orm": "catalog:",
         "luxon": "^3.6.1",
         "puppeteer": "^24.6.1",
         "sharp": "^0.34.1"

@@ -21,7 +21,7 @@ export type Metadata = {
 function App() {
     const [data] = createResource(async () => {
         const res = await fetch(
-            "https://r2.comifuro.peculiarnewbie.com/tweets.json.gz"
+            "https://r2.comifuro.peculiarnewbie.com/tweets.json.gz",
         );
 
         const compressedStream = res.body;
@@ -41,7 +41,7 @@ function App() {
         return R.pipe(
             json,
             R.entries(),
-            R.map(([k, v]) => [k, v])
+            R.map(([k, v]) => [k, v]),
         );
     });
 
@@ -98,7 +98,7 @@ function App() {
             R.take(filters.limit),
             R.map(([k, v]) => {
                 return { tweet: [k, v], height: 0 };
-            })
+            }),
         ) as {
             tweet: [string, Metadata];
             height: number;

@@ -1,7 +1,7 @@
 import { DrizzleD1Database } from "drizzle-orm/d1";
 import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { and, desc, eq, gt, lt, sql } from "drizzle-orm";
-import { replicacheClients, tweets, userToTweet } from "./schema";
+import { replicacheClients, tweets, users, userToTweet } from "./schema";
 import { TweetInsert } from "./types";
 
 export namespace tweetsOperations {
