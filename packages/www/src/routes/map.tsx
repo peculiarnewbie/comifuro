@@ -175,8 +175,7 @@ function RouteComponent() {
         const w = svgEl?.getBoundingClientRect().width ?? 400;
         const baseline = 400; // px
         const scale = Math.max(0.5, Math.min(3, w / baseline));
-        // Original friction ~0.0018; scale it by width/baseline
-        return 0.005 * scale;
+        return 0.01 * scale;
     }
 
     function startInertia(vx: number, vy: number) {
@@ -221,7 +220,7 @@ function RouteComponent() {
                 dy *= k;
             }
 
-            setCam((c) => ({ ...c, x: c.x + dx / 2, y: c.y + dy / 2 }));
+            setCam((c) => ({ ...c, x: c.x + dx, y: c.y + dy }));
 
             inertiaRAF = requestAnimationFrame(tick);
         };
@@ -257,10 +256,14 @@ function RouteComponent() {
         pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
         if (pointers.size === 1 && lastPan) {
-            const dx = e.clientX - lastPan.x;
-            const dy = e.clientY - lastPan.y;
+            let dx = e.clientX - lastPan.x;
+            let dy = e.clientY - lastPan.y;
+            if (e.pointerType === "mouse") {
+                dx = dx / 2;
+                dy = dy / 2;
+            }
             lastPan = { x: e.clientX, y: e.clientY };
-            setCam((c) => ({ ...c, x: c.x + dx / 2, y: c.y + dy / 2 }));
+            setCam((c) => ({ ...c, x: c.x + dx, y: c.y + dy }));
 
             // velocity sample
             const now = performance.now();
