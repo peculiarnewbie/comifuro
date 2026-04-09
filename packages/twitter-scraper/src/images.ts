@@ -58,28 +58,44 @@ async function fetchBestImage(previewUrl: string) {
 export async function uploadTweetImages(
     apiClient: ApiClient,
     tweet: ExtractedTweet,
+    options?: {
+        continueOnError?: boolean;
+    },
 ) {
     const uploaded: UploadedMedia[] = [];
+    const continueOnError = options?.continueOnError ?? false;
 
     for (const [mediaIndex, previewUrl] of tweet.previewImageUrls.entries()) {
-        const image = await fetchBestImage(previewUrl);
-        const metadata = await sharp(image.buffer).metadata();
-        const webpBuffer = await sharp(image.buffer)
-            .rotate()
-            .webp({ quality: 92 })
-            .toBuffer();
-        const key = `${tweet.id}/${mediaIndex}.webp`;
+        try {
+            const image = await fetchBestImage(previewUrl);
+            const metadata = await sharp(image.buffer).metadata();
+            const webpBuffer = await sharp(image.buffer)
+                .rotate()
+                .webp({ quality: 92 })
+                .toBuffer();
+            const key = `${tweet.id}/${mediaIndex}.webp`;
 
-        await apiClient.uploadImage(key, webpBuffer);
+            await apiClient.uploadImage(key, webpBuffer);
 
-        uploaded.push({
-            mediaIndex,
-            r2Key: key,
-            sourceUrl: image.sourceUrl,
-            contentType: "image/webp",
-            width: metadata.width,
-            height: metadata.height,
-        });
+            uploaded.push({
+                mediaIndex,
+                r2Key: key,
+                sourceUrl: image.sourceUrl,
+                contentType: "image/webp",
+                width: metadata.width,
+                height: metadata.height,
+            });
+        } catch (error) {
+            if (!continueOnError) {
+                throw error;
+            }
+
+            console.warn(
+                `skipping image ${tweet.id}/${mediaIndex}: ${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+            );
+        }
     }
 
     return uploaded;

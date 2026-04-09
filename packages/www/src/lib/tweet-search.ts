@@ -16,3 +16,13 @@ export function createTweetSearchText(tweet: SearchableTweet) {
         .filter(Boolean)
         .join("\n");
 }
+
+export function createTweetThreadSearchText(
+    rootTweet: SearchableTweet,
+    replies: SearchableTweet[] = [],
+) {
+    return [createTweetSearchText(rootTweet), ...replies.map(createTweetSearchText)]
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .join("\n");
+}

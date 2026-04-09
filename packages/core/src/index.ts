@@ -1,6 +1,7 @@
 import { DrizzleD1Database } from "drizzle-orm/d1";
 import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import {
+    type SQLWrapper,
     and,
     asc,
     desc,
@@ -26,7 +27,7 @@ import type {
     TweetMediaInsert,
 } from "./types";
 
-type SupportedDb = DrizzleD1Database | BunSQLiteDatabase;
+type SupportedDb = DrizzleD1Database<any> | BunSQLiteDatabase<any>;
 
 export type ScrapedTweetUpsert = {
     tweet: TweetInsert;
@@ -35,6 +36,64 @@ export type ScrapedTweetUpsert = {
 
 export namespace tweetsOperations {
     const effectiveUpdatedAt = sql<number>`coalesce(${tweets.updatedAt}, ${tweets.createdAt})`;
+    const excludedColumn = (column: { name: string }) =>
+        sql.raw(`excluded.${column.name}`);
+    const classificationRank = (value: SQLWrapper) =>
+        sql<number>`case
+            when ${value} = 'catalogue' then 3
+            when ${value} = 'unknown' then 2
+            when ${value} = 'error' then 1
+            when ${value} = 'not_catalogue' then 0
+            else 0
+        end`;
+    const maxImageMask = sql<number>`case
+        when ${tweets.imageMask} > ${excludedColumn(tweets.imageMask)}
+            then ${tweets.imageMask}
+        else ${excludedColumn(tweets.imageMask)}
+    end`;
+    const preferredClassification = sql<TweetClassification>`case
+        when ${classificationRank(tweets.classification)} >= ${classificationRank(
+            excludedColumn(tweets.classification),
+        )}
+            then ${tweets.classification}
+        else ${excludedColumn(tweets.classification)}
+    end`;
+    const shouldPreferIncomingClassification = sql<boolean>`
+        ${classificationRank(excludedColumn(tweets.classification))} >= ${classificationRank(
+            tweets.classification,
+        )}
+    `;
+    const buildTweetUpsertSet = () => ({
+        user: excludedColumn(tweets.user),
+        eventId: excludedColumn(tweets.eventId),
+        displayName: excludedColumn(tweets.displayName),
+        timestamp: excludedColumn(tweets.timestamp),
+        text: excludedColumn(tweets.text),
+        tweetUrl: excludedColumn(tweets.tweetUrl),
+        searchQuery: excludedColumn(tweets.searchQuery),
+        matchedTags: excludedColumn(tweets.matchedTags),
+        imageMask: maxImageMask,
+        classification: preferredClassification,
+        classificationReason: sql<string | null>`case
+            when ${shouldPreferIncomingClassification}
+                then coalesce(${excludedColumn(tweets.classificationReason)}, ${tweets.classificationReason})
+            else ${tweets.classificationReason}
+        end`,
+        classifierPromptVersion: sql<string | null>`case
+            when ${shouldPreferIncomingClassification}
+                then coalesce(${excludedColumn(tweets.classifierPromptVersion)}, ${tweets.classifierPromptVersion})
+            else ${tweets.classifierPromptVersion}
+        end`,
+        inferredFandoms: excludedColumn(tweets.inferredFandoms),
+        inferredFandomsConfidence: excludedColumn(tweets.inferredFandomsConfidence),
+        inferredBoothId: excludedColumn(tweets.inferredBoothId),
+        inferredBoothIdConfidence: excludedColumn(tweets.inferredBoothIdConfidence),
+        rootTweetId: sql<string | null>`coalesce(${excludedColumn(tweets.rootTweetId)}, ${tweets.rootTweetId})`,
+        parentTweetId: sql<string | null>`coalesce(${excludedColumn(tweets.parentTweetId)}, ${tweets.parentTweetId})`,
+        threadPosition: sql<number | null>`coalesce(${excludedColumn(tweets.threadPosition)}, ${tweets.threadPosition})`,
+        updatedAt: excludedColumn(tweets.updatedAt),
+        deleted: excludedColumn(tweets.deleted),
+    });
 
     export const getTweet = async (
         db: SupportedDb,
@@ -64,7 +123,7 @@ export namespace tweetsOperations {
             .values(tweet)
             .onConflictDoUpdate({
                 target: tweets.id,
-                set: tweet,
+                set: buildTweetUpsertSet(),
             })
             .returning();
     };
@@ -82,40 +141,7 @@ export namespace tweetsOperations {
             .values(tweetsInsert)
             .onConflictDoUpdate({
                 target: tweets.id,
-                set: {
-                    user: sql.raw(`excluded.${tweets.user.name}`),
-                    eventId: sql.raw(`excluded.${tweets.eventId.name}`),
-                    displayName: sql.raw(`excluded.${tweets.displayName.name}`),
-                    timestamp: sql.raw(`excluded.${tweets.timestamp.name}`),
-                    text: sql.raw(`excluded.${tweets.text.name}`),
-                    tweetUrl: sql.raw(`excluded.${tweets.tweetUrl.name}`),
-                    searchQuery: sql.raw(`excluded.${tweets.searchQuery.name}`),
-                    matchedTags: sql.raw(`excluded.${tweets.matchedTags.name}`),
-                    imageMask: sql.raw(`excluded.${tweets.imageMask.name}`),
-                    classification: sql.raw(
-                        `excluded.${tweets.classification.name}`,
-                    ),
-                    classificationReason: sql.raw(
-                        `excluded.${tweets.classificationReason.name}`,
-                    ),
-                    classifierPromptVersion: sql.raw(
-                        `excluded.${tweets.classifierPromptVersion.name}`,
-                    ),
-                    inferredFandoms: sql.raw(
-                        `excluded.${tweets.inferredFandoms.name}`,
-                    ),
-                    inferredFandomsConfidence: sql.raw(
-                        `excluded.${tweets.inferredFandomsConfidence.name}`,
-                    ),
-                    inferredBoothId: sql.raw(
-                        `excluded.${tweets.inferredBoothId.name}`,
-                    ),
-                    inferredBoothIdConfidence: sql.raw(
-                        `excluded.${tweets.inferredBoothIdConfidence.name}`,
-                    ),
-                    updatedAt: sql.raw(`excluded.${tweets.updatedAt.name}`),
-                    deleted: sql.raw(`excluded.${tweets.deleted.name}`),
-                },
+                set: buildTweetUpsertSet(),
             })
             .returning();
     };
@@ -139,7 +165,9 @@ export namespace tweetsOperations {
         input: ScrapedTweetUpsert,
     ) => {
         const [tweet] = await upsertTweet(db, input.tweet);
-        await replaceTweetMedia(db, input.tweet.id, input.media);
+        if (input.media.length > 0) {
+            await replaceTweetMedia(db, input.tweet.id, input.media);
+        }
         return tweet;
     };
 

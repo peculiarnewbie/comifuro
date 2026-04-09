@@ -1,11 +1,14 @@
 import type { Stagehand } from "@browserbasehq/stagehand";
+import type { Page } from "playwright";
 import { ApiClient } from "./api-client";
 import {
+    crawlThreadContinuations,
     connectStagehand,
     ensureBrowserAvailable,
     extractVisibleTweets,
     findExistingPage,
     openLiveSearch,
+    openTweetDetailPage,
     scrollTimeline,
 } from "./browser";
 import { loadConfig } from "./config";
@@ -33,7 +36,74 @@ function buildImageMask(indices: number[]) {
     return mask;
 }
 
-async function processTweet(params: {
+async function storeCatalogueTweet(params: {
+    apiClient: ApiClient;
+    tweet: ExtractedTweet;
+    eventId: string;
+    searchQuery: string;
+    classificationReason: string;
+    classifierPromptVersion: string;
+    inferredFandoms: string[];
+    inferredFandomsConfidence: "low" | "medium" | "high" | null;
+    inferredBoothId: string | null;
+    inferredBoothIdConfidence: "low" | "medium" | "high" | null;
+    continueOnImageError?: boolean;
+    skipUpsertWhenNoMedia?: boolean;
+}) {
+    const {
+        apiClient,
+        tweet,
+        eventId,
+        searchQuery,
+        classificationReason,
+        classifierPromptVersion,
+        inferredFandoms,
+        inferredFandomsConfidence,
+        inferredBoothId,
+        inferredBoothIdConfidence,
+        continueOnImageError,
+        skipUpsertWhenNoMedia,
+    } = params;
+    const media = await uploadTweetImages(apiClient, tweet, {
+        continueOnError: continueOnImageError,
+    });
+    const imageMask = buildImageMask(media.map((item) => item.mediaIndex));
+
+    if (media.length === 0 && skipUpsertWhenNoMedia) {
+        return false;
+    }
+
+    await apiClient.upsertTweet({
+        id: tweet.id,
+        eventId,
+        user: tweet.user,
+        displayName: tweet.displayName,
+        timestamp: tweet.timestamp,
+        text: tweet.text,
+        tweetUrl: tweet.tweetUrl,
+        searchQuery,
+        matchedTags: tweet.matchedTags,
+        imageMask,
+        classification: media.length > 0 ? "catalogue" : "error",
+        classificationReason:
+            media.length > 0
+                ? classificationReason
+                : "classified as catalogue but no downloadable images were found",
+        classifierPromptVersion,
+        inferredFandoms,
+        inferredFandomsConfidence,
+        inferredBoothId,
+        inferredBoothIdConfidence,
+        rootTweetId: tweet.rootTweetId,
+        parentTweetId: tweet.parentTweetId,
+        threadPosition: tweet.threadPosition,
+        media,
+    });
+
+    return media.length > 0;
+}
+
+async function processSearchTweet(params: {
     apiClient: ApiClient;
     classifier: Awaited<ReturnType<typeof createClassifier>>;
     tweet: ExtractedTweet;
@@ -66,41 +136,117 @@ async function processTweet(params: {
             inferredFandomsConfidence: null,
             inferredBoothId: null,
             inferredBoothIdConfidence: null,
+            rootTweetId: null,
+            parentTweetId: null,
+            threadPosition: null,
             media: [],
         });
         console.log(`skip ${tweet.id}: ${classification.reason}`);
-        return false;
+        return {
+            accepted: false,
+            classifierPromptVersion: classifier.promptVersion,
+            classificationReason: classification.reason,
+        };
     }
 
-    const media = await uploadTweetImages(apiClient, tweet);
-    const imageMask = buildImageMask(media.map((item) => item.mediaIndex));
-
-    await apiClient.upsertTweet({
-        id: tweet.id,
+    const accepted = await storeCatalogueTweet({
+        apiClient,
+        tweet,
         eventId,
-        user: tweet.user,
-        displayName: tweet.displayName,
-        timestamp: tweet.timestamp,
-        text: tweet.text,
-        tweetUrl: tweet.tweetUrl,
         searchQuery,
-        matchedTags: tweet.matchedTags,
-        imageMask,
-        classification: media.length > 0 ? "catalogue" : "error",
-        classificationReason:
-            media.length > 0
-                ? classification.reason
-                : "classified as catalogue but no downloadable images were found",
+        classificationReason: classification.reason,
         classifierPromptVersion: classifier.promptVersion,
         inferredFandoms: classification.inferredFandoms,
         inferredFandomsConfidence: classification.inferredFandomsConfidence,
         inferredBoothId: classification.inferredBoothId,
         inferredBoothIdConfidence: classification.inferredBoothIdConfidence,
-        media,
     });
 
-    console.log(`stored ${tweet.id}: ${media.length} image(s)`);
-    return media.length > 0;
+    console.log(
+        JSON.stringify({
+            type: "root-processed",
+            tweetId: tweet.id,
+            accepted,
+            discoverySource: tweet.discoverySource,
+        }),
+    );
+
+    return {
+        accepted,
+        classifierPromptVersion: classifier.promptVersion,
+        classificationReason: classification.reason,
+    };
+}
+
+async function processThreadContinuations(params: {
+    apiClient: ApiClient;
+    page: Page;
+    rootTweet: ExtractedTweet;
+    eventId: string;
+    searchQuery: string;
+    classifierPromptVersion: string;
+    scrollDelayMs: number;
+    idleScrollLimit: number;
+}) {
+    const {
+        apiClient,
+        page,
+        rootTweet,
+        eventId,
+        searchQuery,
+        classifierPromptVersion,
+        scrollDelayMs,
+        idleScrollLimit,
+    } = params;
+
+    console.log(
+        JSON.stringify({
+            type: "thread-crawl-start",
+            rootTweetId: rootTweet.id,
+            tweetUrl: rootTweet.tweetUrl,
+        }),
+    );
+
+    const crawlResult = await crawlThreadContinuations({
+        page,
+        rootTweet,
+        scrollDelayMs,
+        idleScrollLimit,
+    });
+
+    const acceptedIds: string[] = [];
+    for (const tweet of crawlResult.chain) {
+        const accepted = await storeCatalogueTweet({
+            apiClient,
+            tweet,
+            eventId,
+            searchQuery,
+            classificationReason: `inherited from root ${rootTweet.id}`,
+            classifierPromptVersion,
+            inferredFandoms: [],
+            inferredFandomsConfidence: null,
+            inferredBoothId: null,
+            inferredBoothIdConfidence: null,
+            continueOnImageError: true,
+            skipUpsertWhenNoMedia: true,
+        });
+
+        if (accepted) {
+            acceptedIds.push(tweet.id);
+        }
+    }
+
+    console.log(
+        JSON.stringify({
+            type: "thread-crawl-end",
+            rootTweetId: rootTweet.id,
+            discoveredCount: crawlResult.chain.length,
+            acceptedCount: acceptedIds.length,
+            skipped: crawlResult.skipped,
+        }),
+    );
+
+    return acceptedIds;
 }
 
 async function run(stagehand: Stagehand, config = loadConfig()) {
@@ -151,7 +297,7 @@ async function run(stagehand: Stagehand, config = loadConfig()) {
             }
 
             try {
-                const accepted = await processTweet({
+                const result = await processSearchTweet({
                     apiClient,
                     classifier,
                     tweet,
@@ -159,8 +305,45 @@ async function run(stagehand: Stagehand, config = loadConfig()) {
                     searchQuery: config.searchQuery,
                 });
 
-                if (accepted) {
+                if (result.accepted) {
                     acceptedCount += 1;
+
+                    try {
+                        const detailPage = await openTweetDetailPage(page, tweet.tweetUrl);
+                        try {
+                            const acceptedThreadIds = await processThreadContinuations({
+                                apiClient,
+                                page: detailPage,
+                                rootTweet: tweet,
+                                eventId: config.eventId,
+                                searchQuery: config.searchQuery,
+                                classifierPromptVersion:
+                                    result.classifierPromptVersion,
+                                scrollDelayMs: config.threadScrollDelayMs,
+                                idleScrollLimit: config.threadIdleScrollLimit,
+                            });
+
+                            for (const tweetId of acceptedThreadIds) {
+                                seenTweetIds.add(tweetId);
+                            }
+
+                            acceptedCount += acceptedThreadIds.length;
+                        } finally {
+                            await detailPage.close();
+                        }
+                    } catch (error) {
+                        console.error(
+                            JSON.stringify({
+                                type: "thread-crawl-failed",
+                                rootTweetId: tweet.id,
+                                tweetUrl: tweet.tweetUrl,
+                                error:
+                                    error instanceof Error
+                                        ? error.message
+                                        : String(error),
+                            }),
+                        );
+                    }
                 }
             } catch (error) {
                 console.error(`failed ${tweet.id}`, error);
@@ -183,6 +366,9 @@ async function run(stagehand: Stagehand, config = loadConfig()) {
                     inferredFandomsConfidence: null,
                     inferredBoothId: null,
                     inferredBoothIdConfidence: null,
+                    rootTweetId: null,
+                    parentTweetId: null,
+                    threadPosition: null,
                     media: [],
                 });
             }

@@ -59,6 +59,9 @@ export const tweets = sqliteTable(
         inferredBoothIdConfidence: text("inferred_booth_id_confidence", {
             enum: InferenceConfidenceValues,
         }),
+        rootTweetId: text("root_tweet_id"),
+        parentTweetId: text("parent_tweet_id"),
+        threadPosition: integer("thread_position"),
         createdAt: integer("created_at", { mode: "timestamp_ms" })
             .notNull()
             .$defaultFn(() => new Date()),
@@ -72,6 +75,14 @@ export const tweets = sqliteTable(
         index("classification_idx").on(table.classification),
         index("timestamp_idx").on(table.timestamp),
         index("event_id_idx").on(table.eventId),
+        index("event_root_tweet_idx").on(table.eventId, table.rootTweetId),
+        index("event_root_thread_position_idx").on(
+            table.eventId,
+            table.rootTweetId,
+            table.threadPosition,
+            table.id,
+        ),
+        index("parent_tweet_idx").on(table.parentTweetId),
         index("event_updated_id_idx").on(
             table.eventId,
             table.updatedAt,

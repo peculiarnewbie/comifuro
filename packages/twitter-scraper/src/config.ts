@@ -24,6 +24,8 @@ const envSchema = z.object({
     SCRAPER_PAGE_URL_MATCH: z.string().min(1).default("https://x.com/"),
     SCRAPER_SCROLL_DELAY_MS: z.coerce.number().int().positive().default(3000),
     SCRAPER_IDLE_SCROLL_LIMIT: z.coerce.number().int().positive().default(4),
+    THREAD_SCROLL_DELAY_MS: z.coerce.number().int().positive().default(1500),
+    THREAD_IDLE_SCROLL_LIMIT: z.coerce.number().int().positive().default(2),
     OPENCODE_BASE_URL: z.string().url().default("http://127.0.0.1:4097"),
     OPENCODE_MANAGED: z
         .union([z.literal("true"), z.literal("false")])
@@ -63,6 +65,8 @@ export function loadConfig(): ScraperConfig {
         scraperPageUrlMatch: parsed.data.SCRAPER_PAGE_URL_MATCH,
         scrollDelayMs: parsed.data.SCRAPER_SCROLL_DELAY_MS,
         idleScrollLimit: parsed.data.SCRAPER_IDLE_SCROLL_LIMIT,
+        threadScrollDelayMs: parsed.data.THREAD_SCROLL_DELAY_MS,
+        threadIdleScrollLimit: parsed.data.THREAD_IDLE_SCROLL_LIMIT,
         opencodeBaseUrl: parsed.data.OPENCODE_BASE_URL,
         opencodeManaged: parsed.data.OPENCODE_MANAGED ?? true,
         opencodeBin: parsed.data.OPENCODE_BIN,

@@ -9,6 +9,11 @@ export type ExtractedTweet = {
     timestamp: string;
     matchedTags: string[];
     previewImageUrls: string[];
+    hasQuotedTweet: boolean;
+    rootTweetId: string | null;
+    parentTweetId: string | null;
+    threadPosition: number | null;
+    discoverySource: "search" | "thread";
 };
 
 export type ClassificationResult = {
@@ -49,6 +54,8 @@ export type ScraperConfig = {
     scraperPageUrlMatch: string;
     scrollDelayMs: number;
     idleScrollLimit: number;
+    threadScrollDelayMs: number;
+    threadIdleScrollLimit: number;
     opencodeBaseUrl: string;
     opencodeManaged: boolean;
     opencodeBin: string;

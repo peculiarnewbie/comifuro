@@ -69,6 +69,9 @@ const scraperTweetSchema = z.object({
         .enum(InferenceConfidenceValues)
         .nullable()
         .optional(),
+    rootTweetId: z.string().min(1).nullable().optional(),
+    parentTweetId: z.string().min(1).nullable().optional(),
+    threadPosition: z.number().int().positive().nullable().optional(),
     media: z.array(scraperMediaSchema).default([]),
 });
 
@@ -192,6 +195,9 @@ async function buildPublicFeed(db: DrizzleD1Database, eventId: string) {
                 inferredBoothId: tweet.inferredBoothId ?? null,
                 inferredBoothIdConfidence:
                     tweet.inferredBoothIdConfidence ?? null,
+                rootTweetId: tweet.rootTweetId ?? null,
+                parentTweetId: tweet.parentTweetId ?? null,
+                threadPosition: tweet.threadPosition ?? null,
                 images:
                     mediaByTweet.get(tweet.id) ??
                     maskToFallbackR2Keys(tweet.id, tweet.imageMask),
@@ -326,6 +332,9 @@ app.get("/", (c) => c.text("ok"))
                     inferredBoothId: row.inferredBoothId ?? null,
                     inferredBoothIdConfidence:
                         row.inferredBoothIdConfidence ?? null,
+                    rootTweetId: row.rootTweetId ?? null,
+                    parentTweetId: row.parentTweetId ?? null,
+                    threadPosition: row.threadPosition ?? null,
                     updatedAt: (row.updatedAt ?? row.createdAt).getTime(),
                     deleted:
                         Boolean(row.deleted) ||
@@ -421,6 +430,9 @@ app.get("/", (c) => c.text("ok"))
                 inferredBoothId: tweet.inferredBoothId ?? null,
                 inferredBoothIdConfidence:
                     tweet.inferredBoothIdConfidence ?? null,
+                rootTweetId: tweet.rootTweetId ?? null,
+                parentTweetId: tweet.parentTweetId ?? null,
+                threadPosition: tweet.threadPosition ?? null,
                 updatedAt: now,
             },
             media: tweet.media.map((media) => ({

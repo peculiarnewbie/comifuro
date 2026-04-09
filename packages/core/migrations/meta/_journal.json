@@ -106,6 +106,13 @@
             "when": 1775742600000,
             "tag": "0014_silent_bonuses",
             "breakpoints": true
+        },
+        {
+            "idx": 15,
+            "version": "7",
+            "when": 1775750400000,
+            "tag": "0015_threaded_catalogues",
+            "breakpoints": true
         }
     ]
 }

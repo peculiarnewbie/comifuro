@@ -23,6 +23,11 @@ const VALUE_SYNC_ERROR = "syncError";
 export type SyncStatus = "idle" | "loading" | "syncing" | "error";
 
 export type CatalogueTweet = Omit<TweetSyncItem, "deleted">;
+export type CatalogueTweetThread = {
+    groupId: string;
+    root: CatalogueTweet;
+    replies: CatalogueTweet[];
+};
 
 export type TweetStoreSnapshot = {
     tweets: CatalogueTweet[];
@@ -70,6 +75,51 @@ const getValue = <T>(store: Store, valueId: string, fallback: T) => {
     return value == null ? fallback : (value as T);
 };
 
+const compareThreadPositionsAsc = (left: CatalogueTweet, right: CatalogueTweet) => {
+    const leftPosition = left.threadPosition ?? Number.MAX_SAFE_INTEGER;
+    const rightPosition = right.threadPosition ?? Number.MAX_SAFE_INTEGER;
+    if (leftPosition !== rightPosition) {
+        return leftPosition - rightPosition;
+    }
+
+    return compareTweetIdsDesc(right.id, left.id);
+};
+
+export function groupTweetsIntoThreads(
+    tweets: CatalogueTweet[],
+): CatalogueTweetThread[] {
+    const roots = new Map<string, CatalogueTweetThread>();
+    const pendingReplies = new Map<string, CatalogueTweet[]>();
+
+    for (const tweet of tweets) {
+        if (!tweet.rootTweetId) {
+            roots.set(tweet.id, {
+                groupId: tweet.id,
+                root: tweet,
+                replies: [],
+            });
+            continue;
+        }
+
+        const current = pendingReplies.get(tweet.rootTweetId) ?? [];
+        current.push(tweet);
+        pendingReplies.set(tweet.rootTweetId, current);
+    }
+
+    for (const [rootTweetId, replies] of pendingReplies.entries()) {
+        const thread = roots.get(rootTweetId);
+        if (!thread) {
+            continue;
+        }
+
+        thread.replies = replies.sort(compareThreadPositionsAsc);
+    }
+
+    return Array.from(roots.values()).sort((left, right) =>
+        compareTweetIdsDesc(left.groupId, right.groupId),
+    );
+}
+
 const getTweetSnapshot = (store: Store): TweetStoreSnapshot => {
     const table = store.getTable(TWEETS_TABLE) as Record<
         string,
@@ -93,6 +143,10 @@ const getTweetSnapshot = (store: Store): TweetStoreSnapshot => {
             inferredBoothId: row.inferredBoothId ?? null,
             inferredBoothIdConfidence:
                 row.inferredBoothIdConfidence ?? null,
+            rootTweetId: row.rootTweetId ?? null,
+            parentTweetId: row.parentTweetId ?? null,
+            threadPosition:
+                row.threadPosition == null ? null : Number(row.threadPosition),
             updatedAt: Number(row.updatedAt),
             images: Array.isArray(row.images) ? row.images : [],
         }))
@@ -268,6 +322,9 @@ export async function createTweetStoreSession({
                     inferredBoothId: item.inferredBoothId,
                     inferredBoothIdConfidence:
                         item.inferredBoothIdConfidence,
+                    rootTweetId: item.rootTweetId,
+                    parentTweetId: item.parentTweetId,
+                    threadPosition: item.threadPosition,
                     updatedAt: item.updatedAt,
                     images: item.images,
                 });

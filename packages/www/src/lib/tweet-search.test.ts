@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { createTweetSearchText } from "./tweet-search";
+import {
+    createTweetSearchText,
+    createTweetThreadSearchText,
+} from "./tweet-search";
 
 describe("createTweetSearchText", () => {
     test("includes inferred fandoms and booth id in searchable text", () => {
@@ -26,5 +29,29 @@ describe("createTweetSearchText", () => {
         });
 
         expect(searchText).toBe("artist\nnew catalogue");
+    });
+
+    test("includes continuation text when building thread search text", () => {
+        const searchText = createTweetThreadSearchText(
+            {
+                user: "artist",
+                text: "catalogue part 1",
+                inferredFandoms: ["Blue Archive"],
+                inferredBoothId: "A12",
+            },
+            [
+                {
+                    user: "artist",
+                    text: "catalogue part 2",
+                    inferredFandoms: null,
+                    inferredBoothId: null,
+                },
+            ],
+        );
+
+        expect(searchText).toContain("catalogue part 1");
+        expect(searchText).toContain("catalogue part 2");
+        expect(searchText).toContain("Blue Archive");
+        expect(searchText).toContain("A12");
     });
 });

@@ -10,12 +10,14 @@ import {
 } from "solid-js";
 import type { Marks } from "@comifuro/core/types";
 import TweetCard from "../components/tweet";
-import { createTweetSearchText } from "../lib/tweet-search";
+import { createTweetThreadSearchText } from "../lib/tweet-search";
 import {
     createMarksStoreSession,
     createTweetStoreSession,
     getApiHost,
     type CatalogueTweet,
+    type CatalogueTweetThread,
+    groupTweetsIntoThreads,
     type MarksStoreSession,
     type TweetStoreSession,
 } from "../lib/catalogue-store";
@@ -24,8 +26,10 @@ export const Route = createFileRoute("/")({
     component: AppRouteComponent,
 });
 
-type SearchDocument = CatalogueTweet & {
+type SearchDocument = {
+    id: string;
     searchText: string;
+    updatedAt: number;
 };
 
 type SearchIndexState = {
@@ -36,30 +40,18 @@ type SearchIndexState = {
 function createSearchIndex() {
     return new MiniSearch<SearchDocument>({
         fields: ["searchText"],
-        storeFields: [
-            "id",
-            "eventId",
-            "user",
-            "displayName",
-            "timestamp",
-            "text",
-            "tweetUrl",
-            "imageMask",
-            "classification",
-            "inferredFandoms",
-            "inferredFandomsConfidence",
-            "inferredBoothId",
-            "inferredBoothIdConfidence",
-            "updatedAt",
-            "images",
-        ],
+        storeFields: ["id", "searchText", "updatedAt"],
     });
 }
 
-function toSearchDocument(tweet: CatalogueTweet): SearchDocument {
+function toSearchDocument(thread: CatalogueTweetThread): SearchDocument {
     return {
-        ...tweet,
-        searchText: createTweetSearchText(tweet),
+        id: thread.groupId,
+        updatedAt: Math.max(
+            thread.root.updatedAt,
+            ...thread.replies.map((tweet) => tweet.updatedAt),
+        ),
+        searchText: createTweetThreadSearchText(thread.root, thread.replies),
     };
 }
 
@@ -84,6 +76,13 @@ export function AppRouteComponent() {
         ready: false,
         count: 0,
     });
+    const groupedThreads = createMemo(() => groupTweetsIntoThreads(tweets()));
+    const groupedThreadsById = createMemo(
+        () =>
+            new Map(
+                groupedThreads().map((thread) => [thread.groupId, thread] as const),
+            ),
+    );
 
     let tweetSession: TweetStoreSession | null = null;
     let marksSession: MarksStoreSession | null = null;
@@ -166,19 +165,19 @@ export function AppRouteComponent() {
     });
 
     createEffect(() => {
-        const nextTweets = tweets();
+        const nextThreads = groupedThreads();
         const nextRevision = ++searchRevision;
         const nextIndex = miniSearch();
         const nextDocuments = new Map(
-            nextTweets.map((tweet) => {
-                const document = toSearchDocument(tweet);
-                return [tweet.id, document] satisfies [string, SearchDocument];
+            nextThreads.map((thread) => {
+                const document = toSearchDocument(thread);
+                return [thread.groupId, document] satisfies [string, SearchDocument];
             }),
         );
 
         setSearchIndexState({
             ready: false,
-            count: nextTweets.length,
+            count: nextThreads.length,
         });
 
         void (async () => {
@@ -230,15 +229,15 @@ export function AppRouteComponent() {
         })();
     });
 
-    const filteredTweets = createMemo(() => {
+    const filteredThreads = createMemo(() => {
         const filter = searchValue().trim();
         if (!filter) {
-            return tweets();
+            return groupedThreads();
         }
 
         const search = miniSearch();
         if (!searchIndexState().ready) {
-            return tweets();
+            return groupedThreads();
         }
 
         const queries = filter
@@ -246,12 +245,14 @@ export function AppRouteComponent() {
             .map((token) => token.trim())
             .filter(Boolean);
         if (queries.length === 0) {
-            return tweets();
+            return groupedThreads();
         }
 
+        const threadMap = groupedThreadsById();
         return search
             .search({ combineWith: "AND", queries }, { prefix: true })
-            .map((result) => result as unknown as CatalogueTweet);
+            .map((result) => threadMap.get(result.id))
+            .filter((thread): thread is CatalogueTweetThread => Boolean(thread));
     });
 
     const setEvent = (nextEventId: string) => {
@@ -294,7 +295,7 @@ export function AppRouteComponent() {
                     <div>event: {eventId()}</div>
                     <div>tweets cached: {tweets().length}</div>
                     <div>search indexed: {searchIndexState().count}</div>
-                    <div>filtered: {filteredTweets().length}</div>
+                    <div>filtered: {filteredThreads().length}</div>
                     <div>
                         sync: {syncStatus()}
                         {bootstrapComplete() ? " (ready)" : " (bootstrapping)"}
@@ -321,7 +322,7 @@ export function AppRouteComponent() {
             </div>
 
             <Show
-                when={filteredTweets().length > 0}
+                when={filteredThreads().length > 0}
                 fallback={
                     <div class="rounded border border-dashed p-8 text-center text-sm text-gray-500">
                         {tweets().length === 0
@@ -331,13 +332,17 @@ export function AppRouteComponent() {
                 }
             >
                 <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    <For each={filteredTweets()}>
-                        {(tweet) => (
+                    <For each={filteredThreads()}>
+                        {(thread) => (
                             <TweetCard
-                                tweet={tweet}
-                                mark={marks()[tweet.id] ?? null}
-                                onMark={(mark) => marksSession?.setMark(tweet.id, mark)}
-                                onClearMark={() => marksSession?.clearMark(tweet.id)}
+                                thread={thread}
+                                mark={marks()[thread.groupId] ?? null}
+                                onMark={(mark) =>
+                                    marksSession?.setMark(thread.groupId, mark)
+                                }
+                                onClearMark={() =>
+                                    marksSession?.clearMark(thread.groupId)
+                                }
                             />
                         )}
                     </For>

@@ -2,7 +2,10 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { drizzle, DrizzleD1Database } from "drizzle-orm/d1";
 import { scraperOperations, tweetsOperations } from "@comifuro/core";
-import { TweetClassificationValues } from "@comifuro/core/schema";
+import {
+    InferenceConfidenceValues,
+    TweetClassificationValues,
+} from "@comifuro/core/schema";
 import type {
     TweetInsert,
     TweetSyncCursor,
@@ -56,6 +59,19 @@ const scraperTweetSchema = z.object({
     classification: z.enum(TweetClassificationValues).default("unknown"),
     classificationReason: z.string().nullable().optional(),
     classifierPromptVersion: z.string().nullable().optional(),
+    inferredFandoms: z.array(z.string().min(1)).nullable().optional(),
+    inferredFandomsConfidence: z
+        .enum(InferenceConfidenceValues)
+        .nullable()
+        .optional(),
+    inferredBoothId: z.string().min(1).nullable().optional(),
+    inferredBoothIdConfidence: z
+        .enum(InferenceConfidenceValues)
+        .nullable()
+        .optional(),
+    rootTweetId: z.string().min(1).nullable().optional(),
+    parentTweetId: z.string().min(1).nullable().optional(),
+    threadPosition: z.number().int().positive().nullable().optional(),
     media: z.array(scraperMediaSchema).default([]),
 });
 
@@ -176,6 +192,15 @@ async function buildPublicFeed(db: DrizzleD1Database, eventId: string) {
                 user: tweet.user,
                 text: tweet.text,
                 url: tweet.tweetUrl,
+                inferredFandoms: tweet.inferredFandoms ?? [],
+                inferredFandomsConfidence:
+                    tweet.inferredFandomsConfidence ?? null,
+                inferredBoothId: tweet.inferredBoothId ?? null,
+                inferredBoothIdConfidence:
+                    tweet.inferredBoothIdConfidence ?? null,
+                rootTweetId: tweet.rootTweetId ?? null,
+                parentTweetId: tweet.parentTweetId ?? null,
+                threadPosition: tweet.threadPosition ?? null,
                 images:
                     mediaByTweet.get(tweet.id) ??
                     maskToFallbackR2Keys(tweet.id, tweet.imageMask),
@@ -285,6 +310,9 @@ api.get("/", (c) => c.text("ok"))
                     inferredBoothId: row.inferredBoothId ?? null,
                     inferredBoothIdConfidence:
                         row.inferredBoothIdConfidence ?? null,
+                    rootTweetId: row.rootTweetId ?? null,
+                    parentTweetId: row.parentTweetId ?? null,
+                    threadPosition: row.threadPosition ?? null,
                     updatedAt: (row.updatedAt ?? row.createdAt).getTime(),
                     deleted:
                         Boolean(row.deleted) ||
@@ -336,6 +364,10 @@ api.get("/", (c) => c.text("ok"))
                     tweetUrl: `https://x.com/i/web/status/${tweet.id}`,
                     imageMask: tweet.imageMask,
                     classification: "catalogue",
+                    inferredFandoms: [],
+                    inferredFandomsConfidence: null,
+                    inferredBoothId: null,
+                    inferredBoothIdConfidence: null,
                     updatedAt: now,
                 }) satisfies TweetInsert,
         );
@@ -374,6 +406,15 @@ api.get("/", (c) => c.text("ok"))
                 classification: tweet.classification,
                 classificationReason: tweet.classificationReason ?? null,
                 classifierPromptVersion: tweet.classifierPromptVersion ?? null,
+                inferredFandoms: tweet.inferredFandoms ?? [],
+                inferredFandomsConfidence:
+                    tweet.inferredFandomsConfidence ?? null,
+                inferredBoothId: tweet.inferredBoothId ?? null,
+                inferredBoothIdConfidence:
+                    tweet.inferredBoothIdConfidence ?? null,
+                rootTweetId: tweet.rootTweetId ?? null,
+                parentTweetId: tweet.parentTweetId ?? null,
+                threadPosition: tweet.threadPosition ?? null,
                 updatedAt: now,
             },
             media: tweet.media.map((media) => ({

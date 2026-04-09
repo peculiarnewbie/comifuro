@@ -19,6 +19,9 @@ type ScrapedTweetPayload = {
     inferredFandomsConfidence: InferenceConfidence | null;
     inferredBoothId: string | null;
     inferredBoothIdConfidence: InferenceConfidence | null;
+    rootTweetId?: string | null;
+    parentTweetId?: string | null;
+    threadPosition?: number | null;
     media: UploadedMedia[];
 };
 
