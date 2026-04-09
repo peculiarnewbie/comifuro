@@ -9,6 +9,7 @@ import {
 } from "./browser";
 import { loadConfig } from "./config";
 import { uploadTweetImages } from "./images";
+import { ensureOpencodeServer } from "./opencode-manager";
 import { createClassifier } from "./opencode";
 import type { ExtractedTweet } from "./types";
 
@@ -192,15 +193,43 @@ async function run(stagehand: Stagehand, config = loadConfig()) {
 }
 
 let stagehand: Stagehand | null = null;
+let stopManagedOpencode: (() => void) | null = null;
+let cleanupRegistered = false;
+
+function registerCleanup() {
+    if (cleanupRegistered) {
+        return;
+    }
+
+    cleanupRegistered = true;
+    const cleanup = () => {
+        stopManagedOpencode?.();
+        stopManagedOpencode = null;
+    };
+
+    process.on("exit", cleanup);
+    process.on("SIGINT", () => {
+        cleanup();
+        process.exit(130);
+    });
+    process.on("SIGTERM", () => {
+        cleanup();
+        process.exit(143);
+    });
+}
 
 async function main() {
     const config = loadConfig();
+    registerCleanup();
 
     try {
+        const managedOpencode = await ensureOpencodeServer(config);
+        stopManagedOpencode = managedOpencode.stop;
         stagehand = await connectStagehand(config);
         await run(stagehand, config);
         process.exit(0);
     } finally {
+        stopManagedOpencode?.();
         // Stagehand closes the connected browser on close(). When we attach to an
         // existing authenticated Chrome instance over CDP, leaving cleanup to the
         // process exit avoids killing the user's browser session.

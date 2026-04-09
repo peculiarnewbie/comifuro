@@ -19,7 +19,12 @@ const envSchema = z.object({
     SCRAPER_PAGE_URL_MATCH: z.string().min(1).default("https://x.com/"),
     SCRAPER_SCROLL_DELAY_MS: z.coerce.number().int().positive().default(3000),
     SCRAPER_IDLE_SCROLL_LIMIT: z.coerce.number().int().positive().default(4),
-    OPENCODE_BASE_URL: z.string().url().default("http://127.0.0.1:4096"),
+    OPENCODE_BASE_URL: z.string().url().default("http://127.0.0.1:4097"),
+    OPENCODE_MANAGED: z
+        .union([z.literal("true"), z.literal("false")])
+        .optional()
+        .transform((value) => value !== "false"),
+    OPENCODE_BIN: z.string().min(1).default("opencode"),
     OPENCODE_PROVIDER_ID: z.string().min(1).optional(),
     OPENCODE_MODEL_ID: z.string().min(1).optional(),
     OPENCODE_SERVER_USERNAME: z.string().min(1).optional(),
@@ -52,6 +57,8 @@ export function loadConfig(): ScraperConfig {
         scrollDelayMs: parsed.data.SCRAPER_SCROLL_DELAY_MS,
         idleScrollLimit: parsed.data.SCRAPER_IDLE_SCROLL_LIMIT,
         opencodeBaseUrl: parsed.data.OPENCODE_BASE_URL,
+        opencodeManaged: parsed.data.OPENCODE_MANAGED ?? true,
+        opencodeBin: parsed.data.OPENCODE_BIN,
         opencodeProviderId: parsed.data.OPENCODE_PROVIDER_ID,
         opencodeModelId: parsed.data.OPENCODE_MODEL_ID,
         opencodeUsername: parsed.data.OPENCODE_SERVER_USERNAME,

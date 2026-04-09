@@ -22,10 +22,7 @@ google-chrome --remote-debugging-port=9222
 2. Log into X in that browser.
 3. Leave an X tab open. The scraper attaches to an existing tab and reuses it.
 4. Start opencode in server mode:
-
-```bash
-opencode serve --port 4096
-```
+This is optional now. By default the scraper will start its own dedicated `opencode serve` on port `4097` if nothing is already listening there.
 
 ## Environment
 
@@ -36,7 +33,9 @@ STAGEHAND_CDP_URL=http://127.0.0.1:9222
 SEARCH_QUERY='(#comifuro22catalogue OR #cf22) filter:images'
 SCRAPER_STATE_ID=x-search:cf22
 SCRAPER_PAGE_URL_MATCH=https://x.com/
-OPENCODE_BASE_URL=http://127.0.0.1:4096
+OPENCODE_BASE_URL=http://127.0.0.1:4097
+OPENCODE_MANAGED=true
+OPENCODE_BIN=opencode
 OPENCODE_PROVIDER_ID=...
 OPENCODE_MODEL_ID=...
 CLASSIFIER_PROMPT_PATH=./prompts/catalogue-classifier.md
@@ -75,3 +74,18 @@ The scraper:
 - converts uploads to WebP and sends them to the Worker
 - stores tweet/media metadata in D1
 - rebuilds the public `tweets.json` feed in R2 if new accepted tweets were found
+
+## Managed Opencode
+
+Default behavior:
+
+- if `OPENCODE_BASE_URL` is already healthy, the scraper reuses it
+- otherwise, if `OPENCODE_MANAGED=true`, the scraper starts `opencode serve` itself
+- the managed instance is shut down when the scraper exits
+
+If you want to bring your own opencode server instead:
+
+```bash
+OPENCODE_MANAGED=false
+OPENCODE_BASE_URL=http://127.0.0.1:4096
+```

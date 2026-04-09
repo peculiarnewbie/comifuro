@@ -42,6 +42,8 @@ export type ScraperConfig = {
     scrollDelayMs: number;
     idleScrollLimit: number;
     opencodeBaseUrl: string;
+    opencodeManaged: boolean;
+    opencodeBin: string;
     opencodeProviderId?: string;
     opencodeModelId?: string;
     opencodeUsername?: string;
