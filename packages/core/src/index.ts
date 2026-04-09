@@ -1,12 +1,31 @@
 import { DrizzleD1Database } from "drizzle-orm/d1";
 import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
-import { and, desc, eq, gt, lt, sql } from "drizzle-orm";
-import { replicacheClients, tweets, users, userToTweet } from "./schema";
-import { TweetInsert } from "./types";
+import { and, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
+import {
+    replicacheClients,
+    scraperState,
+    tweetMedia,
+    tweets,
+    users,
+    userToTweet,
+} from "./schema";
+import {
+    ScraperStateInsert,
+    TweetClassification,
+    TweetInsert,
+    TweetMediaInsert,
+} from "./types";
+
+type SupportedDb = DrizzleD1Database | BunSQLiteDatabase;
+
+export type ScrapedTweetUpsert = {
+    tweet: TweetInsert;
+    media: TweetMediaInsert[];
+};
 
 export namespace tweetsOperations {
     export const getTweet = async (
-        db: DrizzleD1Database | BunSQLiteDatabase,
+        db: SupportedDb,
         id: string,
     ) => {
         const tweet = await db
@@ -18,14 +37,14 @@ export namespace tweetsOperations {
     };
 
     export const insertTweet = async (
-        db: DrizzleD1Database | BunSQLiteDatabase,
+        db: SupportedDb,
         tweet: TweetInsert,
     ) => {
         return await db.insert(tweets).values(tweet).returning();
     };
 
     export const upsertTweet = async (
-        db: DrizzleD1Database | BunSQLiteDatabase,
+        db: SupportedDb,
         tweet: TweetInsert,
     ) => {
         return await db
@@ -39,10 +58,13 @@ export namespace tweetsOperations {
     };
 
     export const upsertMultipleTweets = async (
-        db: DrizzleD1Database | BunSQLiteDatabase,
+        db: SupportedDb,
         tweetsInsert: TweetInsert[],
     ) => {
-        console.log("upsertMultipleTweets", tweetsInsert);
+        if (tweetsInsert.length === 0) {
+            return [];
+        }
+
         return await db
             .insert(tweets)
             .values(tweetsInsert)
@@ -50,33 +72,113 @@ export namespace tweetsOperations {
                 target: tweets.id,
                 set: {
                     user: sql.raw(`excluded.${tweets.user.name}`),
+                    displayName: sql.raw(`excluded.${tweets.displayName.name}`),
                     timestamp: sql.raw(`excluded.${tweets.timestamp.name}`),
                     text: sql.raw(`excluded.${tweets.text.name}`),
+                    tweetUrl: sql.raw(`excluded.${tweets.tweetUrl.name}`),
+                    searchQuery: sql.raw(`excluded.${tweets.searchQuery.name}`),
+                    matchedTags: sql.raw(`excluded.${tweets.matchedTags.name}`),
                     imageMask: sql.raw(`excluded.${tweets.imageMask.name}`),
+                    classification: sql.raw(
+                        `excluded.${tweets.classification.name}`,
+                    ),
+                    classificationReason: sql.raw(
+                        `excluded.${tweets.classificationReason.name}`,
+                    ),
+                    classifierPromptVersion: sql.raw(
+                        `excluded.${tweets.classifierPromptVersion.name}`,
+                    ),
+                    updatedAt: sql.raw(`excluded.${tweets.updatedAt.name}`),
+                    deleted: sql.raw(`excluded.${tweets.deleted.name}`),
                 },
             })
             .returning();
     };
 
+    export const replaceTweetMedia = async (
+        db: SupportedDb,
+        tweetId: string,
+        media: TweetMediaInsert[],
+    ) => {
+        await db.delete(tweetMedia).where(eq(tweetMedia.tweetId, tweetId));
+
+        if (media.length === 0) {
+            return [];
+        }
+
+        return await db.insert(tweetMedia).values(media).returning();
+    };
+
+    export const upsertScrapedTweet = async (
+        db: SupportedDb,
+        input: ScrapedTweetUpsert,
+    ) => {
+        const [tweet] = await upsertTweet(db, input.tweet);
+        await replaceTweetMedia(db, input.tweet.id, input.media);
+        return tweet;
+    };
+
+    export const listTweetMedia = async (db: SupportedDb, tweetId: string) => {
+        return await db
+            .select()
+            .from(tweetMedia)
+            .where(eq(tweetMedia.tweetId, tweetId))
+            .orderBy(tweetMedia.mediaIndex);
+    };
+
+    export const listPublicTweets = async (
+        db: SupportedDb,
+        classification: TweetClassification = "catalogue",
+    ) => {
+        return await db
+            .select()
+            .from(tweets)
+            .where(
+                and(
+                    eq(tweets.classification, classification),
+                    gt(tweets.imageMask, 0),
+                ),
+            )
+            .orderBy(desc(tweets.id));
+    };
+
+    export const listPublicTweetMedia = async (
+        db: SupportedDb,
+        tweetIds: string[],
+    ) => {
+        if (tweetIds.length === 0) {
+            return [];
+        }
+
+        return await db
+            .select()
+            .from(tweetMedia)
+            .where(inArray(tweetMedia.tweetId, tweetIds))
+            .orderBy(tweetMedia.tweetId, tweetMedia.mediaIndex);
+    };
+
     export const selectTweets = async (
-        db: DrizzleD1Database | BunSQLiteDatabase,
+        db: SupportedDb,
         opt?: {
             offset?: number;
             limit?: number;
         },
     ) => {
         const { offset = 0, limit = 100 } = opt || {};
-        return await db.select().from(tweets).limit(limit).offset(offset);
+        return await db
+            .select()
+            .from(tweets)
+            .orderBy(desc(tweets.id))
+            .limit(limit)
+            .offset(offset);
     };
 
-    export const getNewestTweet = async (
-        db: DrizzleD1Database | BunSQLiteDatabase,
-    ) => {
+    export const getNewestTweet = async (db: SupportedDb) => {
         return await db.select().from(tweets).orderBy(desc(tweets.id)).limit(1);
     };
 
     export const getNewerTweets = async (
-        db: DrizzleD1Database | BunSQLiteDatabase,
+        db: SupportedDb,
         newestTweet: string,
         limit = 100,
     ) => {
@@ -89,7 +191,7 @@ export namespace tweetsOperations {
     };
 
     export const getOlderTweets = async (
-        db: DrizzleD1Database | BunSQLiteDatabase,
+        db: SupportedDb,
         oldestTweet: string,
         limit = 100,
     ) => {
@@ -104,7 +206,7 @@ export namespace tweetsOperations {
 
 export namespace marksOperations {
     export const getUserMarks = async (
-        db: DrizzleD1Database | BunSQLiteDatabase,
+        db: SupportedDb,
         userId: string,
         prevVersion: number,
     ) => {
@@ -122,14 +224,14 @@ export namespace marksOperations {
 
 export namespace replicacheOperations {
     export const getUser = async (
-        db: DrizzleD1Database | BunSQLiteDatabase,
+        db: SupportedDb,
         userId: string,
     ) => {
         return await db.select().from(users).where(eq(users.id, userId));
     };
 
     export const getOutdatedReplicacheClients = async (
-        db: DrizzleD1Database | BunSQLiteDatabase,
+        db: SupportedDb,
         clientGroup: string,
         prevVersion: number,
     ) => {
@@ -142,5 +244,39 @@ export namespace replicacheOperations {
                     gt(replicacheClients.lastModifiedVersion, prevVersion),
                 ),
             );
+    };
+}
+
+export namespace scraperOperations {
+    export const getState = async (db: SupportedDb, id: string) => {
+        const rows = await db
+            .select()
+            .from(scraperState)
+            .where(eq(scraperState.id, id))
+            .limit(1);
+
+        return rows[0];
+    };
+
+    export const upsertState = async (
+        db: SupportedDb,
+        state: ScraperStateInsert,
+    ) => {
+        return await db
+            .insert(scraperState)
+            .values(state)
+            .onConflictDoUpdate({
+                target: scraperState.id,
+                set: {
+                    lastSeenTweetId: sql.raw(
+                        `excluded.${scraperState.lastSeenTweetId.name}`,
+                    ),
+                    lastRunAt: sql.raw(`excluded.${scraperState.lastRunAt.name}`),
+                    updatedAt: sql.raw(
+                        `excluded.${scraperState.updatedAt.name}`,
+                    ),
+                },
+            })
+            .returning();
     };
 }

@@ -8,7 +8,12 @@ import {
 import { relations } from "drizzle-orm";
 
 export const MarkValues = ["bookmarked", "ignored", "deleted"] as const;
-// type MarkType = (typeof MarkValues)[number];
+export const TweetClassificationValues = [
+    "unknown",
+    "catalogue",
+    "not_catalogue",
+    "error",
+] as const;
 
 export const users = sqliteTable("users", {
     id: text("id").primaryKey(),
@@ -28,9 +33,23 @@ export const tweets = sqliteTable(
     {
         id: text("id").primaryKey(),
         user: text("user").notNull(),
+        displayName: text("display_name"),
         timestamp: integer("timestamp", { mode: "timestamp_ms" }).notNull(),
         text: text("text").notNull(),
+        tweetUrl: text("tweet_url").notNull(),
+        searchQuery: text("search_query"),
+        matchedTags: text("matched_tags", { mode: "json" }).$type<string[]>(),
         imageMask: integer("image_mask").notNull().default(0),
+        classification: text("classification", {
+            enum: TweetClassificationValues,
+        })
+            .notNull()
+            .default("unknown"),
+        classificationReason: text("classification_reason"),
+        classifierPromptVersion: text("classifier_prompt_version"),
+        createdAt: integer("created_at", { mode: "timestamp_ms" })
+            .notNull()
+            .$defaultFn(() => new Date()),
         updatedAt: integer("updated_at", { mode: "timestamp_ms" }),
         deleted: integer("deleted", { mode: "boolean" }),
     },
@@ -38,8 +57,41 @@ export const tweets = sqliteTable(
         index("user_idx").on(table.user),
         index("deleted_idx").on(table.deleted),
         index("updated_at_idx").on(table.updatedAt),
+        index("classification_idx").on(table.classification),
+        index("timestamp_idx").on(table.timestamp),
     ],
 );
+
+export const tweetMedia = sqliteTable(
+    "tweet_media",
+    {
+        tweetId: text("tweet_id")
+            .notNull()
+            .references(() => tweets.id, { onDelete: "cascade" }),
+        mediaIndex: integer("media_index").notNull(),
+        r2Key: text("r2_key").notNull(),
+        sourceUrl: text("source_url").notNull(),
+        contentType: text("content_type"),
+        width: integer("width"),
+        height: integer("height"),
+        createdAt: integer("created_at", { mode: "timestamp_ms" })
+            .notNull()
+            .$defaultFn(() => new Date()),
+    },
+    (table) => [
+        primaryKey({ columns: [table.tweetId, table.mediaIndex] }),
+        index("tweet_media_key_idx").on(table.r2Key),
+    ],
+);
+
+export const scraperState = sqliteTable("scraper_state", {
+    id: text("id").primaryKey(),
+    lastSeenTweetId: text("last_seen_tweet_id"),
+    lastRunAt: integer("last_run_at", { mode: "timestamp_ms" }),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+        .notNull()
+        .$defaultFn(() => new Date()),
+});
 
 export const userToTweet = sqliteTable(
     "user_to_tweet",
@@ -77,6 +129,14 @@ export const usersRelations = relations(users, ({ many }) => ({
 
 export const tweetsRelations = relations(tweets, ({ many }) => ({
     userPostRelations: many(userToTweet),
+    media: many(tweetMedia),
+}));
+
+export const tweetMediaRelations = relations(tweetMedia, ({ one }) => ({
+    tweet: one(tweets, {
+        fields: [tweetMedia.tweetId],
+        references: [tweets.id],
+    }),
 }));
 
 export const userPostRelations = relations(userToTweet, ({ one }) => ({

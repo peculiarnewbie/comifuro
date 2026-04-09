@@ -20,23 +20,8 @@ export type Metadata = {
 
 function App() {
     const [data] = createResource(async () => {
-        const res = await fetch(
-            "https://r2.comifuro.peculiarnewbie.com/tweets.json.gz",
-        );
-
-        const compressedStream = res.body;
-
-        if (!compressedStream) {
-            return [];
-        }
-
-        const decompressionStream = new DecompressionStream("gzip");
-
-        const decompressedStream =
-            compressedStream.pipeThrough(decompressionStream);
-
-        const decompressedResponse = new Response(decompressedStream);
-        const json = (await decompressedResponse.json()) as Record<string, any>;
+        const res = await fetch("https://r2.comifuro.peculiarnewbie.com/tweets.json");
+        const json = (await res.json()) as Record<string, any>;
 
         return R.pipe(
             json,

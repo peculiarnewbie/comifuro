@@ -1,6 +1,9 @@
 import {
     MarkValues,
     replicacheClients,
+    scraperState,
+    tweetMedia,
+    TweetClassificationValues,
     tweets,
     users,
     userToTweet,
@@ -8,6 +11,11 @@ import {
 
 export type TweetInsert = typeof tweets.$inferInsert;
 export type TweetSelect = typeof tweets.$inferSelect;
+export type TweetMediaInsert = typeof tweetMedia.$inferInsert;
+export type TweetMediaSelect = typeof tweetMedia.$inferSelect;
+export type ScraperStateInsert = typeof scraperState.$inferInsert;
+export type ScraperStateSelect = typeof scraperState.$inferSelect;
+export type TweetClassification = (typeof TweetClassificationValues)[number];
 
 export type UserInsert = typeof users.$inferInsert;
 export type UserSelect = typeof users.$inferSelect;

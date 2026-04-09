@@ -1,5 +1,77 @@
 # twitter-scraper
 
-todo:
+Stagehand-based X scraper for Comifuro catalogue tweets.
 
-- refetch images for tweets that actually has no image files (mask 0)
+## What Changed
+
+- No local `dist/` pipeline
+- No local sqlite sync step
+- No image download tab juggling
+- Direct upload to the API Worker and R2
+- Tweet/media/state persisted in D1
+- Tweet text classified through a local opencode server before images are kept
+
+## Requirements
+
+1. Start Chrome or Chromium with remote debugging enabled, for example:
+
+```bash
+google-chrome --remote-debugging-port=9222
+```
+
+2. Log into X in that browser.
+3. Leave an X tab open. The scraper attaches to an existing tab and reuses it.
+4. Start opencode in server mode:
+
+```bash
+opencode serve --port 4096
+```
+
+## Environment
+
+```bash
+API_BASE_URL=https://api.cf.peculiarnewbie.com
+API_PASSWORD=...
+STAGEHAND_CDP_URL=http://127.0.0.1:9222
+SEARCH_QUERY='(#comifuro22catalogue OR #cf22) filter:images'
+SCRAPER_STATE_ID=x-search:cf22
+SCRAPER_PAGE_URL_MATCH=https://x.com/
+OPENCODE_BASE_URL=http://127.0.0.1:4096
+OPENCODE_PROVIDER_ID=...
+OPENCODE_MODEL_ID=...
+CLASSIFIER_PROMPT_PATH=./prompts/catalogue-classifier.md
+```
+
+If your opencode server is password-protected:
+
+```bash
+OPENCODE_SERVER_USERNAME=opencode
+OPENCODE_SERVER_PASSWORD=...
+```
+
+## Prompt Tuning
+
+Edit [prompts/catalogue-classifier.md](/home/bolt/git/other/comifuro/packages/twitter-scraper/prompts/catalogue-classifier.md).
+
+Available placeholders:
+
+- `{{tweet_text}}`
+- `{{matched_tags}}`
+- `{{search_query}}`
+
+## Run
+
+```bash
+bun run scrape
+```
+
+The scraper:
+
+- opens the live search for the configured query
+- walks visible tweets from newest to older
+- stops once it reaches the last seen tweet id stored in D1
+- classifies each tweet through opencode
+- downloads the full-size image variant from `pbs.twimg.com`
+- converts uploads to WebP and sends them to the Worker
+- stores tweet/media metadata in D1
+- rebuilds the public `tweets.json` feed in R2 if new accepted tweets were found

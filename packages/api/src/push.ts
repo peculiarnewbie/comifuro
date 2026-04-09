@@ -43,7 +43,7 @@ export const marksPush = async (c: Context, version: number) => {
         if (clientRes.length === 0) {
             client = {
                 id: mutation.clientID,
-                userId: clientRes[0].userId,
+                clientGroupId: body.clientGroupID,
                 lastMutationId: 0,
                 lastModifiedVersion: 0,
             };

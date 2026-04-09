@@ -99,7 +99,9 @@ export const pullTweets = async (c: Context, version: number) => {
         }
     }
 
-    tweetsRows = tweetsRows.filter((x) => x.imageMask > 0);
+    tweetsRows = tweetsRows.filter(
+        (x) => x.imageMask > 0 && x.classification === "catalogue",
+    );
 
     const ops =
         tweetsRows.length > 0
