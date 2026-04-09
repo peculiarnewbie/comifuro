@@ -1,3 +1,5 @@
+import type { InferenceConfidence } from "@comifuro/core/types";
+
 export type ExtractedTweet = {
     id: string;
     user: string;
@@ -11,8 +13,12 @@ export type ExtractedTweet = {
 
 export type ClassificationResult = {
     isCatalogue: boolean;
-    confidence: "low" | "medium" | "high";
+    confidence: InferenceConfidence;
     reason: string;
+    inferredFandoms: string[];
+    inferredFandomsConfidence: InferenceConfidence | null;
+    inferredBoothId: string | null;
+    inferredBoothIdConfidence: InferenceConfidence | null;
     raw: string;
 };
 

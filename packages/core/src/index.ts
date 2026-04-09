@@ -101,6 +101,18 @@ export namespace tweetsOperations {
                     classifierPromptVersion: sql.raw(
                         `excluded.${tweets.classifierPromptVersion.name}`,
                     ),
+                    inferredFandoms: sql.raw(
+                        `excluded.${tweets.inferredFandoms.name}`,
+                    ),
+                    inferredFandomsConfidence: sql.raw(
+                        `excluded.${tweets.inferredFandomsConfidence.name}`,
+                    ),
+                    inferredBoothId: sql.raw(
+                        `excluded.${tweets.inferredBoothId.name}`,
+                    ),
+                    inferredBoothIdConfidence: sql.raw(
+                        `excluded.${tweets.inferredBoothIdConfidence.name}`,
+                    ),
                     updatedAt: sql.raw(`excluded.${tweets.updatedAt.name}`),
                     deleted: sql.raw(`excluded.${tweets.deleted.name}`),
                 },

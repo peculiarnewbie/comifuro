@@ -68,7 +68,7 @@ const exportPublicFeedSchema = z.object({
     eventId: z.string().min(1).optional(),
 });
 
-const currentSchemaVersion = 6;
+const currentSchemaVersion = 7;
 
 type AppContext = Context<{ Bindings: WorkerBindings }>;
 
@@ -277,6 +277,14 @@ api.get("/", (c) => c.text("ok"))
                     tweetUrl: row.tweetUrl,
                     imageMask: row.imageMask,
                     classification: row.classification,
+                    inferredFandoms: Array.isArray(row.inferredFandoms)
+                        ? row.inferredFandoms
+                        : [],
+                    inferredFandomsConfidence:
+                        row.inferredFandomsConfidence ?? null,
+                    inferredBoothId: row.inferredBoothId ?? null,
+                    inferredBoothIdConfidence:
+                        row.inferredBoothIdConfidence ?? null,
                     updatedAt: (row.updatedAt ?? row.createdAt).getTime(),
                     deleted:
                         Boolean(row.deleted) ||

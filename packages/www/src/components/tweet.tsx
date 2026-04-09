@@ -50,6 +50,28 @@ export default function Tweet(props: {
                     ) : null}
                 </div>
                 <p class="text-sm leading-6">{props.tweet.text}</p>
+                {props.tweet.inferredBoothId ||
+                props.tweet.inferredFandoms.length > 0 ? (
+                    <div class="space-y-2 text-xs text-gray-500">
+                        {props.tweet.inferredBoothId ? (
+                            <div>
+                                <span class="font-medium text-gray-600">
+                                    inferred booth
+                                </span>{" "}
+                                {props.tweet.inferredBoothId}
+                            </div>
+                        ) : null}
+                        {props.tweet.inferredFandoms.length > 0 ? (
+                            <div class="flex flex-wrap gap-1.5">
+                                {props.tweet.inferredFandoms.map((fandom) => (
+                                    <span class="rounded-full bg-gray-100 px-2 py-1 text-[11px] text-gray-600">
+                                        {fandom}
+                                    </span>
+                                ))}
+                            </div>
+                        ) : null}
+                    </div>
+                ) : null}
                 <div class="flex flex-wrap gap-2">
                     <button
                         type="button"

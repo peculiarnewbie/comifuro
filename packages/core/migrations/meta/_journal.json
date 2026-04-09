@@ -99,6 +99,13 @@
             "when": 1775742000000,
             "tag": "0013_green_glider",
             "breakpoints": true
+        },
+        {
+            "idx": 14,
+            "version": "6",
+            "when": 1775742600000,
+            "tag": "0014_silent_bonuses",
+            "breakpoints": true
         }
     ]
 }

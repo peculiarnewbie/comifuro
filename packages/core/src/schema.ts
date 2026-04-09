@@ -14,6 +14,7 @@ export const TweetClassificationValues = [
     "not_catalogue",
     "error",
 ] as const;
+export const InferenceConfidenceValues = ["low", "medium", "high"] as const;
 
 export const users = sqliteTable("users", {
     id: text("id").primaryKey(),
@@ -48,6 +49,16 @@ export const tweets = sqliteTable(
             .default("unknown"),
         classificationReason: text("classification_reason"),
         classifierPromptVersion: text("classifier_prompt_version"),
+        inferredFandoms: text("inferred_fandoms", { mode: "json" }).$type<
+            string[] | null
+        >(),
+        inferredFandomsConfidence: text("inferred_fandoms_confidence", {
+            enum: InferenceConfidenceValues,
+        }),
+        inferredBoothId: text("inferred_booth_id"),
+        inferredBoothIdConfidence: text("inferred_booth_id_confidence", {
+            enum: InferenceConfidenceValues,
+        }),
         createdAt: integer("created_at", { mode: "timestamp_ms" })
             .notNull()
             .$defaultFn(() => new Date()),

@@ -3,7 +3,10 @@ import { Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import { drizzle, DrizzleD1Database } from "drizzle-orm/d1";
 import { scraperOperations, tweetsOperations } from "@comifuro/core";
-import { TweetClassificationValues } from "@comifuro/core/schema";
+import {
+    InferenceConfidenceValues,
+    TweetClassificationValues,
+} from "@comifuro/core/schema";
 import {
     TweetInsert,
     TweetSyncCursor,
@@ -56,6 +59,16 @@ const scraperTweetSchema = z.object({
     classification: z.enum(TweetClassificationValues).default("unknown"),
     classificationReason: z.string().nullable().optional(),
     classifierPromptVersion: z.string().nullable().optional(),
+    inferredFandoms: z.array(z.string().min(1)).nullable().optional(),
+    inferredFandomsConfidence: z
+        .enum(InferenceConfidenceValues)
+        .nullable()
+        .optional(),
+    inferredBoothId: z.string().min(1).nullable().optional(),
+    inferredBoothIdConfidence: z
+        .enum(InferenceConfidenceValues)
+        .nullable()
+        .optional(),
     media: z.array(scraperMediaSchema).default([]),
 });
 
@@ -70,7 +83,7 @@ const exportPublicFeedSchema = z.object({
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-const currentSchemaVersion = 6;
+const currentSchemaVersion = 7;
 
 export function getDb(c: Context<{ Bindings: Bindings }>) {
     return drizzle(c.env.DB) as DrizzleD1Database;
@@ -173,6 +186,12 @@ async function buildPublicFeed(db: DrizzleD1Database, eventId: string) {
                 user: tweet.user,
                 text: tweet.text,
                 url: tweet.tweetUrl,
+                inferredFandoms: tweet.inferredFandoms ?? [],
+                inferredFandomsConfidence:
+                    tweet.inferredFandomsConfidence ?? null,
+                inferredBoothId: tweet.inferredBoothId ?? null,
+                inferredBoothIdConfidence:
+                    tweet.inferredBoothIdConfidence ?? null,
                 images:
                     mediaByTweet.get(tweet.id) ??
                     maskToFallbackR2Keys(tweet.id, tweet.imageMask),
@@ -299,6 +318,14 @@ app.get("/", (c) => c.text("ok"))
                     tweetUrl: row.tweetUrl,
                     imageMask: row.imageMask,
                     classification: row.classification,
+                    inferredFandoms: Array.isArray(row.inferredFandoms)
+                        ? row.inferredFandoms
+                        : [],
+                    inferredFandomsConfidence:
+                        row.inferredFandomsConfidence ?? null,
+                    inferredBoothId: row.inferredBoothId ?? null,
+                    inferredBoothIdConfidence:
+                        row.inferredBoothIdConfidence ?? null,
                     updatedAt: (row.updatedAt ?? row.createdAt).getTime(),
                     deleted:
                         Boolean(row.deleted) ||
@@ -388,6 +415,12 @@ app.get("/", (c) => c.text("ok"))
                 classification: tweet.classification,
                 classificationReason: tweet.classificationReason ?? null,
                 classifierPromptVersion: tweet.classifierPromptVersion ?? null,
+                inferredFandoms: tweet.inferredFandoms ?? [],
+                inferredFandomsConfidence:
+                    tweet.inferredFandomsConfidence ?? null,
+                inferredBoothId: tweet.inferredBoothId ?? null,
+                inferredBoothIdConfidence:
+                    tweet.inferredBoothIdConfidence ?? null,
                 updatedAt: now,
             },
             media: tweet.media.map((media) => ({

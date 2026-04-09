@@ -62,6 +62,10 @@ async function processTweet(params: {
             classification: "not_catalogue",
             classificationReason: classification.reason,
             classifierPromptVersion: classifier.promptVersion,
+            inferredFandoms: [],
+            inferredFandomsConfidence: null,
+            inferredBoothId: null,
+            inferredBoothIdConfidence: null,
             media: [],
         });
         console.log(`skip ${tweet.id}: ${classification.reason}`);
@@ -88,6 +92,10 @@ async function processTweet(params: {
                 ? classification.reason
                 : "classified as catalogue but no downloadable images were found",
         classifierPromptVersion: classifier.promptVersion,
+        inferredFandoms: classification.inferredFandoms,
+        inferredFandomsConfidence: classification.inferredFandomsConfidence,
+        inferredBoothId: classification.inferredBoothId,
+        inferredBoothIdConfidence: classification.inferredBoothIdConfidence,
         media,
     });
 
@@ -171,6 +179,10 @@ async function run(stagehand: Stagehand, config = loadConfig()) {
                     classificationReason:
                         error instanceof Error ? error.message : String(error),
                     classifierPromptVersion: classifier.promptVersion,
+                    inferredFandoms: [],
+                    inferredFandomsConfidence: null,
+                    inferredBoothId: null,
+                    inferredBoothIdConfidence: null,
                     media: [],
                 });
             }

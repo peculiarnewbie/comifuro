@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createOpencodeClient } from "@opencode-ai/sdk";
 import type { Part } from "@opencode-ai/sdk";
+import { parseClassificationResponse } from "./classification";
 import type { ClassificationResult, ScraperConfig } from "./types";
 
 function encodeBasicAuth(username: string, password: string) {
@@ -14,23 +15,6 @@ function extractText(parts: Part[]) {
         .map((part) => part.text)
         .join("")
         .trim();
-}
-
-function extractJsonObject(raw: string) {
-    const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
-    const candidate = fenced?.[1] ?? raw;
-    const start = candidate.indexOf("{");
-    const end = candidate.lastIndexOf("}");
-
-    if (start === -1 || end === -1 || end <= start) {
-        throw new Error(`opencode did not return JSON: ${raw}`);
-    }
-
-    return JSON.parse(candidate.slice(start, end + 1)) as {
-        isCatalogue: boolean;
-        confidence: "low" | "medium" | "high";
-        reason: string;
-    };
 }
 
 function renderPrompt(
@@ -62,7 +46,7 @@ Search query:
 ${input.searchQuery}
 
 Respond with JSON only:
-{"isCatalogue":true|false,"confidence":"low|medium|high","reason":"short explanation"}`;
+{"isCatalogue":true|false,"confidence":"low|medium|high","reason":"short explanation","inferredFandoms":["optional fandom"],"inferredFandomsConfidence":"low|medium|high|null","inferredBoothId":"A12|null","inferredBoothIdConfidence":"low|medium|high|null"}`;
 }
 
 export async function createClassifier(config: ScraperConfig) {
@@ -130,10 +114,8 @@ export async function createClassifier(config: ScraperConfig) {
                 const chatResult = await client.session.chat({
                     path: { id: sessionId },
                     body: {
-                        model: {
-                            providerID: providerId,
-                            modelID: modelId,
-                        },
+                        providerID: providerId,
+                        modelID: modelId,
                         system:
                             "You are a strict binary classifier. Return JSON only, no prose, no markdown.",
                         parts: [
@@ -150,12 +132,10 @@ export async function createClassifier(config: ScraperConfig) {
                 }
 
                 const raw = extractText(chatResult.data.parts);
-                const parsed = extractJsonObject(raw);
+                const parsed = parseClassificationResponse(raw);
 
                 return {
-                    isCatalogue: parsed.isCatalogue,
-                    confidence: parsed.confidence,
-                    reason: parsed.reason,
+                    ...parsed,
                     raw,
                 };
             } finally {

@@ -1,3 +1,4 @@
+import type { InferenceConfidence } from "@comifuro/core/types";
 import type { ScraperState, UploadedMedia } from "./types";
 
 type ScrapedTweetPayload = {
@@ -14,6 +15,10 @@ type ScrapedTweetPayload = {
     classification: "catalogue" | "not_catalogue" | "error";
     classificationReason: string;
     classifierPromptVersion: string;
+    inferredFandoms: string[];
+    inferredFandomsConfidence: InferenceConfidence | null;
+    inferredBoothId: string | null;
+    inferredBoothIdConfidence: InferenceConfidence | null;
     media: UploadedMedia[];
 };
 

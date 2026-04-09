@@ -10,6 +10,7 @@ import {
 } from "solid-js";
 import type { Marks } from "@comifuro/core/types";
 import TweetCard from "../components/tweet";
+import { createTweetSearchText } from "../lib/tweet-search";
 import {
     createMarksStoreSession,
     createTweetStoreSession,
@@ -23,7 +24,9 @@ export const Route = createFileRoute("/")({
     component: AppRouteComponent,
 });
 
-type SearchDocument = CatalogueTweet;
+type SearchDocument = CatalogueTweet & {
+    searchText: string;
+};
 
 type SearchIndexState = {
     ready: boolean;
@@ -32,7 +35,7 @@ type SearchIndexState = {
 
 function createSearchIndex() {
     return new MiniSearch<SearchDocument>({
-        fields: ["user", "text"],
+        fields: ["searchText"],
         storeFields: [
             "id",
             "eventId",
@@ -43,10 +46,21 @@ function createSearchIndex() {
             "tweetUrl",
             "imageMask",
             "classification",
+            "inferredFandoms",
+            "inferredFandomsConfidence",
+            "inferredBoothId",
+            "inferredBoothIdConfidence",
             "updatedAt",
             "images",
         ],
     });
+}
+
+function toSearchDocument(tweet: CatalogueTweet): SearchDocument {
+    return {
+        ...tweet,
+        searchText: createTweetSearchText(tweet),
+    };
 }
 
 export function AppRouteComponent() {
@@ -156,7 +170,10 @@ export function AppRouteComponent() {
         const nextRevision = ++searchRevision;
         const nextIndex = miniSearch();
         const nextDocuments = new Map(
-            nextTweets.map((tweet) => [tweet.id, tweet] satisfies [string, SearchDocument]),
+            nextTweets.map((tweet) => {
+                const document = toSearchDocument(tweet);
+                return [tweet.id, document] satisfies [string, SearchDocument];
+            }),
         );
 
         setSearchIndexState({
@@ -189,8 +206,7 @@ export function AppRouteComponent() {
                 if (!previous) {
                     nextIndex.add(tweet);
                 } else if (
-                    previous.user !== tweet.user ||
-                    previous.text !== tweet.text ||
+                    previous.searchText !== tweet.searchText ||
                     previous.updatedAt !== tweet.updatedAt
                 ) {
                     if (nextIndex.has(tweetId)) {

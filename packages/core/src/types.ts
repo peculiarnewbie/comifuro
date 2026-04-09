@@ -1,4 +1,5 @@
 import {
+    InferenceConfidenceValues,
     MarkValues,
     replicacheClients,
     scraperState,
@@ -16,6 +17,7 @@ export type TweetMediaSelect = typeof tweetMedia.$inferSelect;
 export type ScraperStateInsert = typeof scraperState.$inferInsert;
 export type ScraperStateSelect = typeof scraperState.$inferSelect;
 export type TweetClassification = (typeof TweetClassificationValues)[number];
+export type InferenceConfidence = (typeof InferenceConfidenceValues)[number];
 
 export type UserInsert = typeof users.$inferInsert;
 export type UserSelect = typeof users.$inferSelect;
@@ -43,6 +45,10 @@ export type TweetSyncItem = {
     tweetUrl: string;
     imageMask: number;
     classification: TweetClassification;
+    inferredFandoms: string[];
+    inferredFandomsConfidence: InferenceConfidence | null;
+    inferredBoothId: string | null;
+    inferredBoothIdConfidence: InferenceConfidence | null;
     updatedAt: number;
     deleted: boolean;
     images: string[];

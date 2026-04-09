@@ -86,6 +86,13 @@ const getTweetSnapshot = (store: Store): TweetStoreSnapshot => {
             tweetUrl: row.tweetUrl,
             imageMask: Number(row.imageMask),
             classification: row.classification,
+            inferredFandoms: Array.isArray(row.inferredFandoms)
+                ? row.inferredFandoms
+                : [],
+            inferredFandomsConfidence: row.inferredFandomsConfidence ?? null,
+            inferredBoothId: row.inferredBoothId ?? null,
+            inferredBoothIdConfidence:
+                row.inferredBoothIdConfidence ?? null,
             updatedAt: Number(row.updatedAt),
             images: Array.isArray(row.images) ? row.images : [],
         }))
@@ -255,6 +262,12 @@ export async function createTweetStoreSession({
                     tweetUrl: item.tweetUrl,
                     imageMask: item.imageMask,
                     classification: item.classification,
+                    inferredFandoms: item.inferredFandoms,
+                    inferredFandomsConfidence:
+                        item.inferredFandomsConfidence,
+                    inferredBoothId: item.inferredBoothId,
+                    inferredBoothIdConfidence:
+                        item.inferredBoothIdConfidence,
                     updatedAt: item.updatedAt,
                     images: item.images,
                 });
