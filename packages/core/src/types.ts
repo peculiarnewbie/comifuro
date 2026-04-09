@@ -27,3 +27,32 @@ export type ReplicacheClientInsert = typeof replicacheClients.$inferInsert;
 export type ReplicacheClientSelect = typeof replicacheClients.$inferSelect;
 
 export type Marks = (typeof MarkValues)[number];
+
+export type TweetSyncCursor = {
+    updatedAt: number;
+    id: string;
+};
+
+export type TweetSyncItem = {
+    id: string;
+    eventId: string;
+    user: string;
+    displayName: string | null;
+    timestamp: number;
+    text: string;
+    tweetUrl: string;
+    imageMask: number;
+    classification: TweetClassification;
+    updatedAt: number;
+    deleted: boolean;
+    images: string[];
+};
+
+export type TweetSyncResponse = {
+    eventId: string;
+    syncToken: string;
+    items: TweetSyncItem[];
+    nextCursor: TweetSyncCursor | null;
+    hasMore: boolean;
+    serverTime: number;
+};

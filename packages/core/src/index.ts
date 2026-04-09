@@ -1,6 +1,16 @@
 import { DrizzleD1Database } from "drizzle-orm/d1";
 import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
-import { and, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
+import {
+    and,
+    asc,
+    desc,
+    eq,
+    gt,
+    inArray,
+    lt,
+    or,
+    sql,
+} from "drizzle-orm";
 import {
     replicacheClients,
     scraperState,
@@ -9,7 +19,7 @@ import {
     users,
     userToTweet,
 } from "./schema";
-import {
+import type {
     ScraperStateInsert,
     TweetClassification,
     TweetInsert,
@@ -24,6 +34,8 @@ export type ScrapedTweetUpsert = {
 };
 
 export namespace tweetsOperations {
+    const effectiveUpdatedAt = sql<number>`coalesce(${tweets.updatedAt}, ${tweets.createdAt})`;
+
     export const getTweet = async (
         db: SupportedDb,
         id: string,
@@ -127,6 +139,21 @@ export namespace tweetsOperations {
             .orderBy(tweetMedia.mediaIndex);
     };
 
+    export const listTweetMediaByTweetIds = async (
+        db: SupportedDb,
+        tweetIds: string[],
+    ) => {
+        if (tweetIds.length === 0) {
+            return [];
+        }
+
+        return await db
+            .select()
+            .from(tweetMedia)
+            .where(inArray(tweetMedia.tweetId, tweetIds))
+            .orderBy(tweetMedia.tweetId, tweetMedia.mediaIndex);
+    };
+
     export const listPublicTweets = async (
         db: SupportedDb,
         classification: TweetClassification = "catalogue",
@@ -163,6 +190,71 @@ export namespace tweetsOperations {
             .from(tweetMedia)
             .where(inArray(tweetMedia.tweetId, tweetIds))
             .orderBy(tweetMedia.tweetId, tweetMedia.mediaIndex);
+    };
+
+    export const listTweetsForSync = async (
+        db: SupportedDb,
+        {
+            eventId,
+            cursor,
+            limit,
+        }: {
+            eventId: string;
+            cursor?: {
+                updatedAt: number;
+                id: string;
+            };
+            limit: number;
+        },
+    ) => {
+        const baseQuery = db
+            .select()
+            .from(tweets)
+            .where(
+                and(
+                    eq(tweets.eventId, eventId),
+                    cursor
+                        ? or(
+                              gt(effectiveUpdatedAt, cursor.updatedAt),
+                              and(
+                                  eq(effectiveUpdatedAt, cursor.updatedAt),
+                                  gt(tweets.id, cursor.id),
+                              ),
+                          )
+                        : undefined,
+                ),
+            );
+
+        return await baseQuery
+            .orderBy(asc(effectiveUpdatedAt), asc(tweets.id))
+            .limit(limit);
+    };
+
+    export const listTweetImages = async (
+        db: SupportedDb,
+        rows: {
+            id: string;
+            imageMask: number;
+        }[],
+    ) => {
+        const media = await listTweetMediaByTweetIds(
+            db,
+            rows.map((row) => row.id),
+        );
+
+        const mediaByTweet = new Map<string, string[]>();
+        for (const item of media) {
+            const current = mediaByTweet.get(item.tweetId) ?? [];
+            current.push(item.r2Key);
+            mediaByTweet.set(item.tweetId, current);
+        }
+
+        return new Map(
+            rows.map((row) => [
+                row.id,
+                mediaByTweet.get(row.id) ?? maskToFallbackR2Keys(row.id, row.imageMask),
+            ]),
+        );
     };
 
     export const selectTweets = async (
@@ -255,6 +347,18 @@ export namespace marksOperations {
                 ),
             );
     };
+}
+
+function maskToFallbackR2Keys(tweetId: string, mask: number, maxBits = 8) {
+    const keys: string[] = [];
+
+    for (let index = 0; index < maxBits; index += 1) {
+        if ((mask & (1 << index)) !== 0) {
+            keys.push(`${tweetId}/${index}.webp`);
+        }
+    }
+
+    return keys;
 }
 
 export namespace replicacheOperations {

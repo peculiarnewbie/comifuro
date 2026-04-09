@@ -24,7 +24,11 @@ export class ApiClient {
     ) {}
 
     private async request<T>(path: string, init?: RequestInit): Promise<T> {
-        const response = await fetch(new URL(path, this.apiBaseUrl), {
+        const baseUrl = this.apiBaseUrl.endsWith("/")
+            ? this.apiBaseUrl
+            : `${this.apiBaseUrl}/`;
+        const normalizedPath = path.replace(/^\/+/, "");
+        const response = await fetch(new URL(normalizedPath, baseUrl), {
             ...init,
             headers: {
                 ...(init?.headers ?? {}),

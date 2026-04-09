@@ -61,6 +61,11 @@ export const tweets = sqliteTable(
         index("classification_idx").on(table.classification),
         index("timestamp_idx").on(table.timestamp),
         index("event_id_idx").on(table.eventId),
+        index("event_updated_id_idx").on(
+            table.eventId,
+            table.updatedAt,
+            table.id,
+        ),
     ],
 );
 

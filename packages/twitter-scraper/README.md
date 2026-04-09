@@ -28,7 +28,7 @@ This is optional now. By default the scraper will start its own dedicated `openc
 ## Environment
 
 ```bash
-API_BASE_URL=https://api.cf.peculiarnewbie.com
+API_BASE_URL=https://cf.peculiarnewbie.com/api
 API_PASSWORD=...
 STAGEHAND_CDP_URL=http://127.0.0.1:9222
 SCRAPER_BROWSER_COMMAND='helium-browser --remote-debugging-port=9222'

@@ -1,10 +1,9 @@
-import { timingSafeEqual } from "node:crypto";
-import { Context, Hono } from "hono";
-import { cors } from "hono/cors";
+import { Hono } from "hono";
+import type { Context } from "hono";
 import { drizzle, DrizzleD1Database } from "drizzle-orm/d1";
 import { scraperOperations, tweetsOperations } from "@comifuro/core";
 import { TweetClassificationValues } from "@comifuro/core/schema";
-import {
+import type {
     TweetInsert,
     TweetSyncCursor,
     TweetSyncItem,
@@ -12,7 +11,8 @@ import {
 } from "@comifuro/core/types";
 import { z } from "zod";
 
-type Bindings = {
+export type WorkerBindings = {
+    ASSETS: Fetcher;
     DB: D1Database;
     R2: R2Bucket;
     PASSWORD: string;
@@ -68,30 +68,33 @@ const exportPublicFeedSchema = z.object({
     eventId: z.string().min(1).optional(),
 });
 
-const app = new Hono<{ Bindings: Bindings }>();
-
 const currentSchemaVersion = 6;
 
-export function getDb(c: Context<{ Bindings: Bindings }>) {
+type AppContext = Context<{ Bindings: WorkerBindings }>;
+
+function getDb(c: AppContext) {
     return drizzle(c.env.DB) as DrizzleD1Database;
 }
 
-function safeEqual(actual: string | undefined, expected: string) {
-    if (!actual) {
+function safeEqual(actual: string | undefined, expected: string | undefined) {
+    if (!actual || !expected) {
         return false;
     }
 
-    const actualBytes = Buffer.from(actual);
-    const expectedBytes = Buffer.from(expected);
+    const encoder = new TextEncoder();
+    const actualBytes = encoder.encode(actual);
+    const expectedBytes = encoder.encode(expected);
+    const maxLength = Math.max(actualBytes.length, expectedBytes.length);
+    let mismatch = actualBytes.length === expectedBytes.length ? 0 : 1;
 
-    if (actualBytes.length !== expectedBytes.length) {
-        return false;
+    for (let index = 0; index < maxLength; index += 1) {
+        mismatch |= (actualBytes[index] ?? 0) ^ (expectedBytes[index] ?? 0);
     }
 
-    return timingSafeEqual(actualBytes, expectedBytes);
+    return mismatch === 0;
 }
 
-function requirePassword(c: Context<{ Bindings: Bindings }>) {
+function requirePassword(c: AppContext) {
     const password = c.req.header("pec-password");
 
     if (!safeEqual(password, c.env.PASSWORD)) {
@@ -181,34 +184,9 @@ async function buildPublicFeed(db: DrizzleD1Database, eventId: string) {
     );
 }
 
-app.use(
-    "*",
-    cors({
-        origin: (origin) => {
-            const allowed = [
-                "http://localhost:5173",
-                "http://localhost:3000",
-                "https://cf.peculiarnewbie.com",
-            ];
-            if (!origin) {
-                return "";
-            }
-            return allowed.includes(origin) ? origin : "";
-        },
-        allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allowHeaders: [
-            "Content-Type",
-            "Authorization",
-            "X-Replicache-RequestID",
-            "pec-password",
-        ],
-        exposeHeaders: ["Content-Length"],
-        maxAge: 86400,
-        credentials: true,
-    }),
-);
+const api = new Hono<{ Bindings: WorkerBindings }>();
 
-app.get("/", (c) => c.text("ok"))
+api.get("/", (c) => c.text("ok"))
     .post("/upload/:key", async (c) => {
         const authError = requirePassword(c);
         if (authError) {
@@ -458,4 +436,4 @@ app.get("/", (c) => c.text("ok"))
         return c.json({ ok: true, bytes: payload.length, eventId });
     });
 
-export default app;
+export const workerApp = new Hono<{ Bindings: WorkerBindings }>().route("/api", api);

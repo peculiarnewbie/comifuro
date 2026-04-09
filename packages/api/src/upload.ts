@@ -1,6 +1,6 @@
 import { Glob } from "bun";
 
-const endpoint = "https://api-comifuro.peculiarnewbie.workers.dev/upload";
+const endpoint = "https://cf.peculiarnewbie.com/api/upload/";
 
 const glob = new Glob("**/*.webp");
 

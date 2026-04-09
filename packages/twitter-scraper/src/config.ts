@@ -6,7 +6,7 @@ import type { ScraperConfig } from "./types";
 const currentDir = dirname(fileURLToPath(import.meta.url));
 
 const envSchema = z.object({
-    API_BASE_URL: z.string().url().default("https://api.cf.peculiarnewbie.com"),
+    API_BASE_URL: z.string().url().default("https://cf.peculiarnewbie.com/api"),
     API_PASSWORD: z
         .string()
         .min(1)

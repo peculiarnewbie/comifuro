@@ -1,242 +1,332 @@
 import { createFileRoute } from "@tanstack/solid-router";
-
-import { createResource, createSignal, For, Show } from "solid-js";
-import Tweet from "../components/tweet";
-import * as R from "remeda";
-import { createMasonry } from "@solid-primitives/masonry";
-import { createBreakpoints } from "@solid-primitives/media";
-import { createElementSize } from "@solid-primitives/resize-observer";
+import MiniSearch from "minisearch";
+import {
+    createEffect,
+    createMemo,
+    createSignal,
+    For,
+    onCleanup,
+    Show,
+} from "solid-js";
+import type { Marks } from "@comifuro/core/types";
+import TweetCard from "../components/tweet";
+import {
+    createMarksStoreSession,
+    createTweetStoreSession,
+    getApiHost,
+    type CatalogueTweet,
+    type MarksStoreSession,
+    type TweetStoreSession,
+} from "../lib/catalogue-store";
 
 export const Route = createFileRoute("/")({
-    component: App,
+    component: AppRouteComponent,
 });
 
-export type Metadata = {
-    eventId: string;
-    user: string;
-    text: string;
-    url: string;
-    images: string[];
+type SearchDocument = CatalogueTweet;
+
+type SearchIndexState = {
+    ready: boolean;
+    count: number;
 };
 
-function App() {
+function createSearchIndex() {
+    return new MiniSearch<SearchDocument>({
+        fields: ["user", "text"],
+        storeFields: [
+            "id",
+            "eventId",
+            "user",
+            "displayName",
+            "timestamp",
+            "text",
+            "tweetUrl",
+            "imageMask",
+            "classification",
+            "updatedAt",
+            "images",
+        ],
+    });
+}
+
+export function AppRouteComponent() {
     const [eventId, setEventId] = createSignal(
         typeof window !== "undefined"
-            ? new URLSearchParams(window.location.search).get("event")?.trim().toLowerCase() ||
-                  "cf22"
+            ? new URLSearchParams(window.location.search)
+                  .get("event")
+                  ?.trim()
+                  .toLowerCase() || "cf22"
             : "cf22",
     );
+    const [tweets, setTweets] = createSignal<CatalogueTweet[]>([]);
+    const [marks, setMarks] = createSignal<Record<string, Marks>>({});
+    const [syncStatus, setSyncStatus] = createSignal("idle");
+    const [syncError, setSyncError] = createSignal<string | null>(null);
+    const [lastSyncedAt, setLastSyncedAt] = createSignal<number | null>(null);
+    const [bootstrapComplete, setBootstrapComplete] = createSignal(false);
+    const [searchValue, setSearchValue] = createSignal("");
+    const [miniSearch, setMiniSearch] = createSignal(createSearchIndex());
+    const [searchIndexState, setSearchIndexState] = createSignal<SearchIndexState>({
+        ready: false,
+        count: 0,
+    });
 
-    const [data] = createResource(eventId, async (selectedEventId) => {
-        const res = await fetch(
-            `https://r2.comifuro.peculiarnewbie.com/${selectedEventId}/tweets.json`,
-        );
+    let tweetSession: TweetStoreSession | null = null;
+    let marksSession: MarksStoreSession | null = null;
+    let indexedDocuments = new Map<string, SearchDocument>();
+    let searchRevision = 0;
 
-        if (res.status === 404) {
-            return [] as [string, Metadata][];
+    createEffect(() => {
+        const selectedEventId = eventId();
+        if (typeof window === "undefined") {
+            return;
         }
 
-        const json = (await res.json()) as Record<string, any>;
+        let disposed = false;
+        let unsubscribe = () => {};
 
-        return R.pipe(
-            json,
-            R.entries(),
-            R.map(([k, v]) => [k, v]),
+        (async () => {
+            const nextSession = await createTweetStoreSession({
+                eventId: selectedEventId,
+                apiHost: getApiHost(window.location.href),
+            });
+
+            if (disposed) {
+                await nextSession.destroy();
+                return;
+            }
+
+            tweetSession = nextSession;
+            unsubscribe = nextSession.subscribe((snapshot) => {
+                setTweets(snapshot.tweets);
+                setSyncStatus(snapshot.syncStatus);
+                setSyncError(snapshot.syncError);
+                setLastSyncedAt(snapshot.lastSyncedAt);
+                setBootstrapComplete(snapshot.bootstrapComplete);
+            });
+
+            await nextSession.start();
+        })();
+
+        onCleanup(() => {
+            disposed = true;
+            unsubscribe();
+            const currentSession = tweetSession;
+            tweetSession = null;
+            if (currentSession) {
+                void currentSession.destroy();
+            }
+        });
+    });
+
+    createEffect(() => {
+        if (typeof window === "undefined" || marksSession) {
+            return;
+        }
+
+        let disposed = false;
+        let unsubscribe = () => {};
+
+        (async () => {
+            const nextSession = await createMarksStoreSession();
+            if (disposed) {
+                await nextSession.destroy();
+                return;
+            }
+
+            marksSession = nextSession;
+            unsubscribe = nextSession.subscribe((snapshot) => {
+                setMarks(snapshot.marks);
+            });
+        })();
+
+        onCleanup(() => {
+            disposed = true;
+            unsubscribe();
+            const currentSession = marksSession;
+            marksSession = null;
+            if (currentSession) {
+                void currentSession.destroy();
+            }
+        });
+    });
+
+    createEffect(() => {
+        const nextTweets = tweets();
+        const nextRevision = ++searchRevision;
+        const nextIndex = miniSearch();
+        const nextDocuments = new Map(
+            nextTweets.map((tweet) => [tweet.id, tweet] satisfies [string, SearchDocument]),
         );
-    });
 
-    const [filter, setFilter] = createSignal<{
-        word: string | null;
-        limit: number;
-    }>({
-        word: null,
-        limit: 20,
-    });
-    const [filteredCount, setFilteredCount] = createSignal(1);
+        setSearchIndexState({
+            ready: false,
+            count: nextTweets.length,
+        });
 
-    const [masonElementsRefs, setMasonElementsRefs] = createSignal<
-        HTMLElement[]
-    >([]);
+        void (async () => {
+            const removedIds = [...indexedDocuments.keys()].filter(
+                (id) => !nextDocuments.has(id),
+            );
 
-    // const setRef = (el: HTMLElement, index: number) => {
-    //     if (el) {
-    //         setMasonElementsRefs((prev) => {
-    //             const newArr = [...prev];
-    //             newArr[index] = el;
-    //             return newArr;
-    //         });
-    //     }
-    // };
-
-    const assignMasonElements = () => {
-        const masonElements = document.querySelectorAll(".tweet");
-        const elementsArray = Array.from(masonElements) as HTMLElement[];
-        if (elementsArray.length === 0) setTimeout(assignMasonElements, 0);
-        setMasonElementsRefs(elementsArray);
-    };
-
-    const filtered = () => {
-        const filters = filter();
-        const allData = data();
-        if (!allData) return [];
-
-        setTimeout(() => {
-            assignMasonElements();
-        }, 100);
-
-        return R.pipe(
-            allData,
-            R.filter(([_, v]) => {
-                if (filters.word) {
-                    return v.text
-                        .toLowerCase()
-                        .includes(filters.word.toLowerCase());
+            for (const tweetId of removedIds) {
+                if (nextRevision !== searchRevision) {
+                    return;
                 }
-                return true;
-            }),
-            R.tap((x) => setFilteredCount(x.length)),
-            R.take(filters.limit),
-            R.map(([k, v]) => {
-                return { tweet: [k, v], height: 0 };
-            }),
-        ) as {
-            tweet: [string, Metadata];
-            height: number;
-        }[];
+
+                if (nextIndex.has(tweetId)) {
+                    nextIndex.discard(tweetId);
+                }
+            }
+
+            let processed = 0;
+            for (const [tweetId, tweet] of nextDocuments.entries()) {
+                if (nextRevision !== searchRevision) {
+                    return;
+                }
+
+                const previous = indexedDocuments.get(tweetId);
+                if (!previous) {
+                    nextIndex.add(tweet);
+                } else if (
+                    previous.user !== tweet.user ||
+                    previous.text !== tweet.text ||
+                    previous.updatedAt !== tweet.updatedAt
+                ) {
+                    if (nextIndex.has(tweetId)) {
+                        nextIndex.replace(tweet);
+                    } else {
+                        nextIndex.add(tweet);
+                    }
+                }
+
+                processed += 1;
+                if (processed % 200 === 0) {
+                    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+                }
+            }
+
+            indexedDocuments = nextDocuments;
+            setSearchIndexState({
+                ready: true,
+                count: nextIndex.documentCount,
+            });
+        })();
+    });
+
+    const filteredTweets = createMemo(() => {
+        const filter = searchValue().trim();
+        if (!filter) {
+            return tweets();
+        }
+
+        const search = miniSearch();
+        if (!searchIndexState().ready) {
+            return tweets();
+        }
+
+        const queries = filter
+            .split(/\s+/)
+            .map((token) => token.trim())
+            .filter(Boolean);
+        if (queries.length === 0) {
+            return tweets();
+        }
+
+        return search
+            .search({ combineWith: "AND", queries }, { prefix: true })
+            .map((result) => result as unknown as CatalogueTweet);
+    });
+
+    const setEvent = (nextEventId: string) => {
+        setEventId(nextEventId);
+        const url = new URL(window.location.href);
+        url.searchParams.set("event", nextEventId);
+        window.history.replaceState({}, "", url);
     };
-
-    // function debounce<T extends (...args: any[]) => void>(
-    //     fn: T,
-    //     delay: number
-    // ) {
-    //     let timer: ReturnType<typeof setTimeout> | undefined;
-    //     return (...args: Parameters<T>) => {
-    //         if (timer) clearTimeout(timer);
-    //         timer = setTimeout(() => fn(...args), delay);
-    //     };
-    // }
-
-    const br = createBreakpoints({
-        sm: "640px",
-        md: "768px",
-        lg: "1024px",
-        xl: "1280px",
-    });
-
-    const masonry = createMasonry({
-        source: masonElementsRefs,
-        mapHeight(item) {
-            // observe the height of the element
-            const size = createElementSize(item);
-            // return the accessor of the height of the element
-            return () => size.height ?? 100;
-        },
-        columns() {
-            if (br.xl) return 4;
-            if (br.lg) return 3;
-            if (br.md) return 2;
-            return 1;
-        },
-        mapElement: (data) => (
-            <div
-                class="sm:w-full md:w-1/2 lg:w-1/3 xl:w-1/4 rounded-lg"
-                style={{
-                    // data.height is the value returned by `mapHeight`
-                    // Height of the element should always match that value.
-                    height: `${data.height()}px`,
-                    // The flex order of the item in the masonry
-                    order: data.order(),
-                    // The space needed to be filled to prevent the next item from switching columns.
-                    // "margin-bottom" is just an example, you could also add this to the element's height.
-                    "margin-bottom": `${data.margin()}px`,
-                }}
-            >
-                {data.source}
-            </div>
-        ),
-    });
 
     return (
-        <main class="text-center mx-auto text-gray-700 p-4">
-            <div class="mb-4 flex items-center justify-center gap-2">
+        <main class="mx-auto max-w-7xl p-4 text-gray-700">
+            <div class="mb-4 flex flex-wrap items-center gap-2">
                 <button
                     type="button"
                     class="rounded border px-3 py-1"
-                    onClick={() => {
-                        setEventId("cf22");
-                        const url = new URL(window.location.href);
-                        url.searchParams.set("event", "cf22");
-                        window.history.replaceState({}, "", url);
-                    }}
+                    onClick={() => setEvent("cf22")}
                 >
                     cf22
                 </button>
                 <button
                     type="button"
                     class="rounded border px-3 py-1"
-                    onClick={() => {
-                        setEventId("cf21");
-                        const url = new URL(window.location.href);
-                        url.searchParams.set("event", "cf21");
-                        window.history.replaceState({}, "", url);
-                    }}
+                    onClick={() => setEvent("cf21")}
                 >
                     cf21
                 </button>
-            </div>
-            <input
-                type="text"
-                placeholder="Filter"
-                oninput={(e) => {
-                    const currentFilters = filter();
-                    setFilter({
-                        ...currentFilters,
-                        word: e.target.value,
-                    });
-                }}
-                class="p-1 border"
-            />
-            <div>event: {eventId()}</div>
-            <div>total: {data()?.length}</div>
-            <div>filtered: {filteredCount()}</div>
-            <Show when={filtered().length > 0}>
-                <div
-                    style={{
-                        display: "flex",
-                        "flex-direction": "column",
-                        "flex-wrap": "wrap",
-                        height: `${masonry.height()}px`,
+                <button
+                    type="button"
+                    class="rounded border px-3 py-1"
+                    onClick={() => {
+                        void tweetSession?.syncOnce();
                     }}
                 >
-                    {masonry()}
+                    sync now
+                </button>
+            </div>
+
+            <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div class="space-y-1 text-sm">
+                    <div>event: {eventId()}</div>
+                    <div>tweets cached: {tweets().length}</div>
+                    <div>search indexed: {searchIndexState().count}</div>
+                    <div>filtered: {filteredTweets().length}</div>
+                    <div>
+                        sync: {syncStatus()}
+                        {bootstrapComplete() ? " (ready)" : " (bootstrapping)"}
+                    </div>
+                    <Show when={lastSyncedAt()}>
+                        {(value) => (
+                            <div>
+                                last sync: {new Date(value()).toLocaleString()}
+                            </div>
+                        )}
+                    </Show>
+                    <Show when={syncError()}>
+                        {(message) => <div class="text-red-600">{message()}</div>}
+                    </Show>
                 </div>
-                <For ref={masonElementsRefs} each={filtered()}>
-                    {(item) => (
-                        <Tweet
-                            tweet={item.tweet}
-                            // onImageLoad={() => debounceRecalculate()}
-                        />
-                    )}
-                </For>
-            </Show>
-            {/* {filtered().map((item, index) => (
-                    <Tweet
-                        ref={(el: HTMLElement) => setRef(el, index)}
-                        tweet={item.tweet}
-                    />
-                ))} */}
-            <button
-                onclick={() => {
-                    const currentFilters = filter();
-                    setFilter({
-                        ...currentFilters,
-                        limit: currentFilters.limit + 20,
-                    });
-                }}
-                class="p-2 bg-blue-400 text-2xl hover:cursor-pointer rounded text-white"
+
+                <input
+                    type="text"
+                    placeholder="Search tweets"
+                    value={searchValue()}
+                    onInput={(event) => setSearchValue(event.currentTarget.value)}
+                    class="w-full rounded border p-2 sm:max-w-sm"
+                />
+            </div>
+
+            <Show
+                when={filteredTweets().length > 0}
+                fallback={
+                    <div class="rounded border border-dashed p-8 text-center text-sm text-gray-500">
+                        {tweets().length === 0
+                            ? "No tweets cached yet."
+                            : "No tweets match the current search."}
+                    </div>
+                }
             >
-                more
-            </button>
+                <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    <For each={filteredTweets()}>
+                        {(tweet) => (
+                            <TweetCard
+                                tweet={tweet}
+                                mark={marks()[tweet.id] ?? null}
+                                onMark={(mark) => marksSession?.setMark(tweet.id, mark)}
+                                onClearMark={() => marksSession?.clearMark(tweet.id)}
+                            />
+                        )}
+                    </For>
+                </div>
+            </Show>
         </main>
     );
 }

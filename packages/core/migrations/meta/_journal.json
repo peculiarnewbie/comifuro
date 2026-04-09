@@ -92,6 +92,13 @@
             "when": 1775706000000,
             "tag": "0012_panoramic_event_split",
             "breakpoints": true
+        },
+        {
+            "idx": 13,
+            "version": "6",
+            "when": 1775742000000,
+            "tag": "0013_green_glider",
+            "breakpoints": true
         }
     ]
 }

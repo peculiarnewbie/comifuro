@@ -1,35 +1,79 @@
-import type { Metadata } from "../routes/index";
+import type { Marks } from "@comifuro/core/types";
+import type { CatalogueTweet } from "../lib/catalogue-store";
 
 export default function Tweet(props: {
-    tweet: [string, Metadata];
-    // onImageLoad: () => void;
+    tweet: CatalogueTweet;
+    mark: Marks | null;
+    onMark: (mark: Marks) => void;
+    onClearMark: () => void;
 }) {
-    const data: () => Metadata = () => {
-        return props.tweet[1];
-    };
+    const firstImage = () => props.tweet.images[0];
+    const markClass = (mark: Marks) =>
+        props.mark === mark
+            ? "bg-blue-600 text-white border-blue-600"
+            : "border-gray-300 text-gray-700";
+
     return (
-        <div class="p-2 tweet">
-            <div class="overflow-hidden relative">
-                <img
-                    class="object-cover"
-                    src={`https://r2.comifuro.peculiarnewbie.com/${data().images[0]}`}
-                    loading="lazy"
-                    // onload={() => {
-                    //     console.log("loaded");
-                    //     props.onImageLoad();
-                    // }}
-                />
+        <article class="tweet overflow-hidden rounded-xl border bg-white shadow-sm">
+            <div class="relative bg-gray-100">
+                {firstImage() ? (
+                    <img
+                        class="aspect-[4/5] w-full object-cover"
+                        src={`https://r2.comifuro.peculiarnewbie.com/${firstImage()}`}
+                        loading="lazy"
+                    />
+                ) : (
+                    <div class="flex aspect-[4/5] items-center justify-center text-sm text-gray-500">
+                        No image
+                    </div>
+                )}
                 <a
-                    href={data().url}
+                    href={props.tweet.tweetUrl}
                     target="_blank"
-                    class="absolute bg-blue-400/50 hover:bg-blue-400 font-bold text-lg text-white rounded-xl p-2 right-0 top-0 mr-2 mt-2"
+                    class="absolute right-2 top-2 rounded-xl bg-blue-500/80 p-2 text-sm font-semibold text-white hover:bg-blue-500"
                 >
                     view tweet
                 </a>
             </div>
-            {/* <h1>{props.tweet[0]}</h1> */}
-            <h3 class="text-sm">{data().user}</h3>
-            <p class="text-xs">{data().text}</p>
-        </div>
+            <div class="space-y-3 p-3">
+                <div class="flex items-start justify-between gap-2">
+                    <div>
+                        <h3 class="text-sm font-semibold">{props.tweet.user}</h3>
+                        <p class="text-xs text-gray-500">
+                            {new Date(props.tweet.timestamp).toLocaleString()}
+                        </p>
+                    </div>
+                    {props.mark ? (
+                        <span class="rounded-full bg-gray-100 px-2 py-1 text-xs capitalize">
+                            {props.mark}
+                        </span>
+                    ) : null}
+                </div>
+                <p class="text-sm leading-6">{props.tweet.text}</p>
+                <div class="flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        class={`rounded border px-3 py-1 text-xs ${markClass("bookmarked")}`}
+                        onClick={() => props.onMark("bookmarked")}
+                    >
+                        bookmark
+                    </button>
+                    <button
+                        type="button"
+                        class={`rounded border px-3 py-1 text-xs ${markClass("ignored")}`}
+                        onClick={() => props.onMark("ignored")}
+                    >
+                        ignore
+                    </button>
+                    <button
+                        type="button"
+                        class="rounded border border-gray-300 px-3 py-1 text-xs text-gray-700"
+                        onClick={() => props.onClearMark()}
+                    >
+                        clear
+                    </button>
+                </div>
+            </div>
+        </article>
     );
 }
