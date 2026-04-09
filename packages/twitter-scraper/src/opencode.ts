@@ -130,8 +130,10 @@ export async function createClassifier(config: ScraperConfig) {
                 const chatResult = await client.session.chat({
                     path: { id: sessionId },
                     body: {
-                        providerID: providerId,
-                        modelID: modelId,
+                        model: {
+                            providerID: providerId,
+                            modelID: modelId,
+                        },
                         system:
                             "You are a strict binary classifier. Return JSON only, no prose, no markdown.",
                         parts: [
