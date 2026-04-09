@@ -32,6 +32,7 @@ export const tweets = sqliteTable(
     "tweets",
     {
         id: text("id").primaryKey(),
+        eventId: text("event_id").notNull().default("cf21"),
         user: text("user").notNull(),
         displayName: text("display_name"),
         timestamp: integer("timestamp", { mode: "timestamp_ms" }).notNull(),
@@ -59,6 +60,7 @@ export const tweets = sqliteTable(
         index("updated_at_idx").on(table.updatedAt),
         index("classification_idx").on(table.classification),
         index("timestamp_idx").on(table.timestamp),
+        index("event_id_idx").on(table.eventId),
     ],
 );
 

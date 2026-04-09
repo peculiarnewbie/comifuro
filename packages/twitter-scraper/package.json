@@ -13,10 +13,11 @@
         "zod": "^4.1.12"
     },
     "devDependencies": {
-        "@types/bun": "latest"
+        "@types/bun": "latest",
+        "tsx": "^4.20.6"
     },
     "scripts": {
-        "scrape": "bun run src/main.ts",
-        "dev": "bun run --watch src/main.ts"
+        "scrape": "tsx src/main.ts",
+        "dev": "tsx watch src/main.ts"
     }
 }

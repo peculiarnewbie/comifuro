@@ -72,6 +72,7 @@ export namespace tweetsOperations {
                 target: tweets.id,
                 set: {
                     user: sql.raw(`excluded.${tweets.user.name}`),
+                    eventId: sql.raw(`excluded.${tweets.eventId.name}`),
                     displayName: sql.raw(`excluded.${tweets.displayName.name}`),
                     timestamp: sql.raw(`excluded.${tweets.timestamp.name}`),
                     text: sql.raw(`excluded.${tweets.text.name}`),
@@ -129,15 +130,22 @@ export namespace tweetsOperations {
     export const listPublicTweets = async (
         db: SupportedDb,
         classification: TweetClassification = "catalogue",
+        eventId?: string,
     ) => {
         return await db
             .select()
             .from(tweets)
             .where(
-                and(
-                    eq(tweets.classification, classification),
-                    gt(tweets.imageMask, 0),
-                ),
+                eventId
+                    ? and(
+                          eq(tweets.classification, classification),
+                          gt(tweets.imageMask, 0),
+                          eq(tweets.eventId, eventId),
+                      )
+                    : and(
+                          eq(tweets.classification, classification),
+                          gt(tweets.imageMask, 0),
+                      ),
             )
             .orderBy(desc(tweets.id));
     };
@@ -162,30 +170,49 @@ export namespace tweetsOperations {
         opt?: {
             offset?: number;
             limit?: number;
+            eventId?: string;
         },
     ) => {
-        const { offset = 0, limit = 100 } = opt || {};
-        return await db
-            .select()
-            .from(tweets)
+        const { offset = 0, limit = 100, eventId } = opt || {};
+        const query = db.select().from(tweets);
+
+        return await (eventId
+            ? query.where(eq(tweets.eventId, eventId))
+            : query
+        )
             .orderBy(desc(tweets.id))
             .limit(limit)
             .offset(offset);
     };
 
-    export const getNewestTweet = async (db: SupportedDb) => {
-        return await db.select().from(tweets).orderBy(desc(tweets.id)).limit(1);
+    export const getNewestTweet = async (db: SupportedDb, eventId?: string) => {
+        const query = db.select().from(tweets);
+
+        return await (eventId
+            ? query.where(eq(tweets.eventId, eventId))
+            : query
+        )
+            .orderBy(desc(tweets.id))
+            .limit(1);
     };
 
     export const getNewerTweets = async (
         db: SupportedDb,
         newestTweet: string,
         limit = 100,
+        eventId?: string,
     ) => {
         return await db
             .select()
             .from(tweets)
-            .where(gt(tweets.id, newestTweet))
+            .where(
+                eventId
+                    ? and(
+                          gt(tweets.id, newestTweet),
+                          eq(tweets.eventId, eventId),
+                      )
+                    : gt(tweets.id, newestTweet),
+            )
             .orderBy(desc(tweets.id))
             .limit(limit);
     };
@@ -194,11 +221,19 @@ export namespace tweetsOperations {
         db: SupportedDb,
         oldestTweet: string,
         limit = 100,
+        eventId?: string,
     ) => {
         return await db
             .select()
             .from(tweets)
-            .where(lt(tweets.id, oldestTweet))
+            .where(
+                eventId
+                    ? and(
+                          lt(tweets.id, oldestTweet),
+                          eq(tweets.eventId, eventId),
+                      )
+                    : lt(tweets.id, oldestTweet),
+            )
             .orderBy(desc(tweets.id))
             .limit(limit);
     };

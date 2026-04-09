@@ -12,7 +12,7 @@ export default function Tweet(props: {
             <div class="overflow-hidden relative">
                 <img
                     class="object-cover"
-                    src={`https://r2.comifuro.peculiarnewbie.com/${props.tweet[0]}${data().images[0]}`}
+                    src={`https://r2.comifuro.peculiarnewbie.com/${data().images[0]}`}
                     loading="lazy"
                     // onload={() => {
                     //     console.log("loaded");

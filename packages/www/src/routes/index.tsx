@@ -12,15 +12,30 @@ export const Route = createFileRoute("/")({
 });
 
 export type Metadata = {
+    eventId: string;
     user: string;
     text: string;
     url: string;
-    images: number[];
+    images: string[];
 };
 
 function App() {
-    const [data] = createResource(async () => {
-        const res = await fetch("https://r2.comifuro.peculiarnewbie.com/tweets.json");
+    const [eventId, setEventId] = createSignal(
+        typeof window !== "undefined"
+            ? new URLSearchParams(window.location.search).get("event")?.trim().toLowerCase() ||
+                  "cf22"
+            : "cf22",
+    );
+
+    const [data] = createResource(eventId, async (selectedEventId) => {
+        const res = await fetch(
+            `https://r2.comifuro.peculiarnewbie.com/${selectedEventId}/tweets.json`,
+        );
+
+        if (res.status === 404) {
+            return [] as [string, Metadata][];
+        }
+
         const json = (await res.json()) as Record<string, any>;
 
         return R.pipe(
@@ -143,6 +158,32 @@ function App() {
 
     return (
         <main class="text-center mx-auto text-gray-700 p-4">
+            <div class="mb-4 flex items-center justify-center gap-2">
+                <button
+                    type="button"
+                    class="rounded border px-3 py-1"
+                    onClick={() => {
+                        setEventId("cf22");
+                        const url = new URL(window.location.href);
+                        url.searchParams.set("event", "cf22");
+                        window.history.replaceState({}, "", url);
+                    }}
+                >
+                    cf22
+                </button>
+                <button
+                    type="button"
+                    class="rounded border px-3 py-1"
+                    onClick={() => {
+                        setEventId("cf21");
+                        const url = new URL(window.location.href);
+                        url.searchParams.set("event", "cf21");
+                        window.history.replaceState({}, "", url);
+                    }}
+                >
+                    cf21
+                </button>
+            </div>
             <input
                 type="text"
                 placeholder="Filter"
@@ -155,6 +196,7 @@ function App() {
                 }}
                 class="p-1 border"
             />
+            <div>event: {eventId()}</div>
             <div>total: {data()?.length}</div>
             <div>filtered: {filteredCount()}</div>
             <Show when={filtered().length > 0}>

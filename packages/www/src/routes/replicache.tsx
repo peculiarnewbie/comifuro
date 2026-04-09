@@ -35,10 +35,12 @@ const getApiHost = (url: string) => {
     return "https://api.cf.peculiarnewbie.com";
 };
 
-const createTweetsReplicache = (apiHost: string) => {
+const createTweetsReplicache = (apiHost: string, eventId: string) => {
     return new Replicache({
-        name: "tweets",
-        pullURL: `${apiHost}/replicache/tweets/pull`,
+        name: `tweets-${eventId}`,
+        pullURL: `${apiHost}/replicache/tweets/pull?eventId=${encodeURIComponent(
+            eventId,
+        )}`,
         logLevel: "debug",
     });
 };
@@ -86,6 +88,12 @@ const storeName = "cache";
 const keyName = "ms";
 
 function RouteComponent() {
+    const [eventId, setEventId] = createSignal(
+        typeof window !== "undefined"
+            ? new URLSearchParams(window.location.search).get("event")?.trim().toLowerCase() ||
+                  "cf22"
+            : "cf22",
+    );
     const [tweetsReplicache, setTweetsReplicache] =
         createSignal<TweetsReplicache | null>(null);
     const [marksReplicache, setMarksReplicache] =
@@ -103,7 +111,7 @@ function RouteComponent() {
     onMount(async () => {
         const apiHost = getApiHost(window.location.href);
 
-        const tReplicache = createTweetsReplicache(apiHost);
+        const tReplicache = createTweetsReplicache(apiHost, eventId());
 
         if (tReplicache) {
             tReplicache.subscribe(
@@ -321,6 +329,33 @@ function RouteComponent() {
 
     return (
         <div>
+            <div class="mb-4 flex items-center gap-2">
+                <button
+                    type="button"
+                    class="rounded border px-3 py-1"
+                    onClick={() => {
+                        setEventId("cf22");
+                        const url = new URL(window.location.href);
+                        url.searchParams.set("event", "cf22");
+                        window.location.replace(url.toString());
+                    }}
+                >
+                    cf22
+                </button>
+                <button
+                    type="button"
+                    class="rounded border px-3 py-1"
+                    onClick={() => {
+                        setEventId("cf21");
+                        const url = new URL(window.location.href);
+                        url.searchParams.set("event", "cf21");
+                        window.location.replace(url.toString());
+                    }}
+                >
+                    cf21
+                </button>
+            </div>
+            <p>event: {eventId()}</p>
             <p>
                 total tweets: {tweets().length}{" "}
                 {isDoneProcessing() ? "v" : "..."}

@@ -2,6 +2,7 @@ import type { ScraperState, UploadedMedia } from "./types";
 
 type ScrapedTweetPayload = {
     id: string;
+    eventId: string;
     user: string;
     displayName: string | null;
     timestamp: string;
@@ -84,11 +85,15 @@ export class ApiClient {
         });
     }
 
-    async exportPublicFeed() {
+    async exportPublicFeed(eventId: string) {
         return await this.request<{ ok: true; bytes: number }>(
             "/scraper/export-public-feed",
             {
                 method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ eventId }),
             },
         );
     }

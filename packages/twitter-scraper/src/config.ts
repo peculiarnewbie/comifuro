@@ -1,6 +1,9 @@
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import type { ScraperConfig } from "./types";
+
+const currentDir = dirname(fileURLToPath(import.meta.url));
 
 const envSchema = z.object({
     API_BASE_URL: z.string().url().default("https://api.cf.peculiarnewbie.com"),
@@ -10,12 +13,14 @@ const envSchema = z.object({
         .optional()
         .catch(undefined)
         .transform((value) => value ?? process.env.PEC_PASSWORD ?? process.env.PASSWORD),
+    EVENT_ID: z.string().min(1).default("cf22"),
     SCRAPER_STATE_ID: z.string().min(1).default("x-search:cf22"),
     SEARCH_QUERY: z
         .string()
         .min(1)
         .default("(#comifuro22catalogue OR #cf22) filter:images"),
     STAGEHAND_CDP_URL: z.string().min(1).default("http://127.0.0.1:9222"),
+    SCRAPER_BROWSER_COMMAND: z.string().min(1).optional(),
     SCRAPER_PAGE_URL_MATCH: z.string().min(1).default("https://x.com/"),
     SCRAPER_SCROLL_DELAY_MS: z.coerce.number().int().positive().default(3000),
     SCRAPER_IDLE_SCROLL_LIMIT: z.coerce.number().int().positive().default(4),
@@ -33,7 +38,7 @@ const envSchema = z.object({
         .string()
         .min(1)
         .default(
-            resolve(import.meta.dir, "../prompts/catalogue-classifier.md"),
+            resolve(currentDir, "../prompts/catalogue-classifier.md"),
         ),
 });
 
@@ -50,9 +55,11 @@ export function loadConfig(): ScraperConfig {
     return {
         apiBaseUrl: parsed.data.API_BASE_URL,
         apiPassword: parsed.data.API_PASSWORD,
+        eventId: parsed.data.EVENT_ID.trim().toLowerCase(),
         stateId: parsed.data.SCRAPER_STATE_ID,
         searchQuery: parsed.data.SEARCH_QUERY,
         stagehandCdpUrl: parsed.data.STAGEHAND_CDP_URL,
+        scraperBrowserCommand: parsed.data.SCRAPER_BROWSER_COMMAND,
         scraperPageUrlMatch: parsed.data.SCRAPER_PAGE_URL_MATCH,
         scrollDelayMs: parsed.data.SCRAPER_SCROLL_DELAY_MS,
         idleScrollLimit: parsed.data.SCRAPER_IDLE_SCROLL_LIMIT,

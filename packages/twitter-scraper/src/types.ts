@@ -35,9 +35,11 @@ export type ScraperState = {
 export type ScraperConfig = {
     apiBaseUrl: string;
     apiPassword: string;
+    eventId: string;
     stateId: string;
     searchQuery: string;
     stagehandCdpUrl: string;
+    scraperBrowserCommand?: string;
     scraperPageUrlMatch: string;
     scrollDelayMs: number;
     idleScrollLimit: number;

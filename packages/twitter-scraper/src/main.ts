@@ -2,6 +2,7 @@ import type { Stagehand } from "@browserbasehq/stagehand";
 import { ApiClient } from "./api-client";
 import {
     connectStagehand,
+    ensureBrowserAvailable,
     extractVisibleTweets,
     findExistingPage,
     openLiveSearch,
@@ -36,9 +37,10 @@ async function processTweet(params: {
     apiClient: ApiClient;
     classifier: Awaited<ReturnType<typeof createClassifier>>;
     tweet: ExtractedTweet;
+    eventId: string;
     searchQuery: string;
 }) {
-    const { apiClient, classifier, tweet, searchQuery } = params;
+    const { apiClient, classifier, tweet, eventId, searchQuery } = params;
     const classification = await classifier.classify({
         tweetText: tweet.text,
         matchedTags: tweet.matchedTags,
@@ -48,6 +50,7 @@ async function processTweet(params: {
     if (!classification.isCatalogue) {
         await apiClient.upsertTweet({
             id: tweet.id,
+            eventId,
             user: tweet.user,
             displayName: tweet.displayName,
             timestamp: tweet.timestamp,
@@ -70,6 +73,7 @@ async function processTweet(params: {
 
     await apiClient.upsertTweet({
         id: tweet.id,
+        eventId,
         user: tweet.user,
         displayName: tweet.displayName,
         timestamp: tweet.timestamp,
@@ -143,6 +147,7 @@ async function run(stagehand: Stagehand, config = loadConfig()) {
                     apiClient,
                     classifier,
                     tweet,
+                    eventId: config.eventId,
                     searchQuery: config.searchQuery,
                 });
 
@@ -153,6 +158,7 @@ async function run(stagehand: Stagehand, config = loadConfig()) {
                 console.error(`failed ${tweet.id}`, error);
                 await apiClient.upsertTweet({
                     id: tweet.id,
+                    eventId: config.eventId,
                     user: tweet.user,
                     displayName: tweet.displayName,
                     timestamp: tweet.timestamp,
@@ -180,7 +186,7 @@ async function run(stagehand: Stagehand, config = loadConfig()) {
     }
 
     if (acceptedCount > 0) {
-        await apiClient.exportPublicFeed();
+        await apiClient.exportPublicFeed(config.eventId);
     }
 
     console.log(
@@ -225,6 +231,7 @@ async function main() {
     try {
         const managedOpencode = await ensureOpencodeServer(config);
         stopManagedOpencode = managedOpencode.stop;
+        await ensureBrowserAvailable(config);
         stagehand = await connectStagehand(config);
         await run(stagehand, config);
         process.exit(0);

@@ -1,5 +1,6 @@
+import { spawn } from "node:child_process";
+import { setTimeout as sleep } from "node:timers/promises";
 import { createOpencodeClient } from "@opencode-ai/sdk";
-import type { Subprocess } from "bun";
 import type { ScraperConfig } from "./types";
 
 type ManagedOpencode = {
@@ -66,15 +67,9 @@ export async function ensureOpencodeServer(
         OPENCODE_SERVER_PASSWORD: config.opencodePassword,
     };
 
-    const subprocess: Subprocess = Bun.spawn(
-        [
-            config.opencodeBin,
-            "serve",
-            "--hostname",
-            "127.0.0.1",
-            "--port",
-            String(port),
-        ],
+    const subprocess = spawn(
+        config.opencodeBin,
+        ["serve", "--hostname", "127.0.0.1", "--port", String(port)],
         {
             env,
             stdio: ["ignore", "pipe", "pipe"],
@@ -104,7 +99,7 @@ export async function ensureOpencodeServer(
             };
         }
 
-        await Bun.sleep(300);
+        await sleep(300);
     }
 
     try {

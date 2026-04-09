@@ -116,7 +116,7 @@ export async function createClassifier(config: ScraperConfig) {
         }): Promise<ClassificationResult> {
             const sessionResult = await client.session.create({
                 body: {
-                    title: `cf22-classifier-${Date.now()}`,
+                    title: `${config.eventId}-classifier-${Date.now()}`,
                 },
             });
 

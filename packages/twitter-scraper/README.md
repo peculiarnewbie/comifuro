@@ -13,14 +13,15 @@ Stagehand-based X scraper for Comifuro catalogue tweets.
 
 ## Requirements
 
-1. Start Chrome or Chromium with remote debugging enabled, for example:
+1. Start a Chromium-based browser with remote debugging enabled, for example:
 
 ```bash
-google-chrome --remote-debugging-port=9222
+helium-browser --remote-debugging-port=9222
 ```
 
 2. Log into X in that browser.
 3. Leave an X tab open. The scraper attaches to an existing tab and reuses it.
+   If you want the scraper to launch the browser for you when CDP is unavailable, set `SCRAPER_BROWSER_COMMAND`.
 4. Start opencode in server mode:
 This is optional now. By default the scraper will start its own dedicated `opencode serve` on port `4097` if nothing is already listening there.
 
@@ -30,6 +31,7 @@ This is optional now. By default the scraper will start its own dedicated `openc
 API_BASE_URL=https://api.cf.peculiarnewbie.com
 API_PASSWORD=...
 STAGEHAND_CDP_URL=http://127.0.0.1:9222
+SCRAPER_BROWSER_COMMAND='helium-browser --remote-debugging-port=9222'
 SEARCH_QUERY='(#comifuro22catalogue OR #cf22) filter:images'
 SCRAPER_STATE_ID=x-search:cf22
 SCRAPER_PAGE_URL_MATCH=https://x.com/
@@ -61,11 +63,12 @@ Available placeholders:
 ## Run
 
 ```bash
-bun run scrape
+pnpm run scrape
 ```
 
 The scraper:
 
+- launches your configured browser command if `STAGEHAND_CDP_URL` is not already reachable
 - opens the live search for the configured query
 - walks visible tweets from newest to older
 - stops once it reaches the last seen tweet id stored in D1

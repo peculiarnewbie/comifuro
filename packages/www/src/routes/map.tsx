@@ -1022,11 +1022,48 @@ function RouteComponent() {
         setCam({ x: 0, y: 0, s: 1 });
     }
 
+    function normalizeWheelDelta(event: WheelEvent) {
+        const rect = svgEl?.getBoundingClientRect();
+        const lineSize = 16;
+        const pageSize = rect?.height ?? 800;
+        const factor =
+            event.deltaMode === WheelEvent.DOM_DELTA_LINE
+                ? lineSize
+                : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+                  ? pageSize
+                  : 1;
+
+        return {
+            x: event.deltaX * factor,
+            y: event.deltaY * factor,
+        };
+    }
+
     function onWheel(event: WheelEvent) {
         event.preventDefault();
-        const factor = Math.exp(-event.deltaY * 0.0015);
+        stopInertia();
+
+        const { x: deltaX, y: deltaY } = normalizeWheelDelta(event);
         const focal = clientToSvg(event.clientX, event.clientY);
-        zoomAround(focal, factor);
+
+        if (event.ctrlKey || event.metaKey) {
+            const factor = Math.exp(-deltaY * 0.0015);
+            zoomAround(focal, factor);
+            return;
+        }
+
+        const nextPoint = clientToSvg(
+            event.clientX + deltaX,
+            event.clientY + deltaY,
+        );
+        const dx = nextPoint.x - focal.x;
+        const dy = nextPoint.y - focal.y;
+
+        setCam((current) => ({
+            ...current,
+            x: current.x - dx,
+            y: current.y - dy,
+        }));
     }
 
     function stopInertia() {
@@ -1628,9 +1665,9 @@ function RouteComponent() {
                                 </button>
                             </div>
                             <p class="mt-3 text-sm text-slate-200">
-                                Search from the sidebar, jump straight to a
-                                booth, then set route start and destination
-                                from the detail panel.
+                                Scroll to pan. Use pinch or Cmd/Ctrl + scroll
+                                to zoom, then jump to a booth from the
+                                sidebar.
                             </p>
                         </section>
 

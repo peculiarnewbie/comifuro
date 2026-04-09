@@ -1,8 +1,11 @@
+import { spawn } from "node:child_process";
+import { setTimeout as sleep } from "node:timers/promises";
 import { Stagehand } from "@browserbasehq/stagehand";
 import type { Page } from "playwright";
 import type { ExtractedTweet, ScraperConfig } from "./types";
 
 const SEARCH_TIMELINE_SELECTOR = '[aria-label="Timeline: Search timeline"]';
+const CDP_READY_TIMEOUT_MS = 15_000;
 
 function normalizeTweet(raw: {
     id: string | null;
@@ -41,6 +44,50 @@ export async function connectStagehand(config: ScraperConfig) {
 
     await stagehand.init();
     return stagehand;
+}
+
+async function isCdpReachable(cdpUrl: string) {
+    try {
+        const response = await fetch(new URL("/json/version", cdpUrl), {
+            signal: AbortSignal.timeout(2_000),
+        });
+        return response.ok;
+    } catch {
+        return false;
+    }
+}
+
+export async function ensureBrowserAvailable(config: ScraperConfig) {
+    if (await isCdpReachable(config.stagehandCdpUrl)) {
+        return;
+    }
+
+    if (!config.scraperBrowserCommand) {
+        throw new Error(
+            `CDP browser is not reachable at ${config.stagehandCdpUrl}. Start your browser with remote debugging enabled or set SCRAPER_BROWSER_COMMAND.`,
+        );
+    }
+
+    console.log(`launching browser: ${config.scraperBrowserCommand}`);
+    const subprocess = spawn(config.scraperBrowserCommand, {
+        shell: true,
+        detached: true,
+        stdio: "ignore",
+    });
+    subprocess.unref();
+
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < CDP_READY_TIMEOUT_MS) {
+        if (await isCdpReachable(config.stagehandCdpUrl)) {
+            return;
+        }
+
+        await sleep(300);
+    }
+
+    throw new Error(
+        `Timed out waiting for a browser CDP endpoint at ${config.stagehandCdpUrl} after running SCRAPER_BROWSER_COMMAND.`,
+    );
 }
 
 export async function findExistingPage(

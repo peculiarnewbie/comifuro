@@ -5,10 +5,12 @@ import { tweetsOperations } from "@comifuro/core";
 
 export const pullTweets = async (c: Context, version: number) => {
     const limit = Number(c.req.query("limit") ?? 500);
+    const eventId = c.req.query("eventId")?.trim().toLowerCase() || "cf22";
 
     const body = await c.req.json();
 
     type PullCookie = {
+        eventId?: string;
         newestTweet?: string;
         oldestTweet?: string;
         order?: number;
@@ -28,16 +30,20 @@ export const pullTweets = async (c: Context, version: number) => {
     let order = cookie?.order;
     let donePullingTweet = cookie?.donePullingTweet;
     let schemaVersion = cookie?.schemaVersion;
+    const cookieEventId = cookie?.eventId;
 
     const preOps = [];
 
     // TODO: create a migration function
-    if (!schemaVersion || schemaVersion < version) {
+    if (!schemaVersion || schemaVersion < version || cookieEventId !== eventId) {
         console.log("different schema. clearing");
         preOps.push({
             op: "clear",
         });
         newestTweet = "0";
+        oldestTweet = undefined;
+        order = undefined;
+        donePullingTweet = false;
     }
 
     const db = getDb(c);
@@ -48,7 +54,10 @@ export const pullTweets = async (c: Context, version: number) => {
     let tweetsRows = [] as TweetSelect[];
     if (!newestTweet) {
         console.log("new init");
-        tweetsRows = await tweetsOperations.selectTweets(db, { limit });
+        tweetsRows = await tweetsOperations.selectTweets(db, {
+            limit,
+            eventId,
+        });
 
         const firstTweet = tweetsRows[0];
         const lastTweet = tweetsRows[tweetsRows.length - 1];
@@ -61,7 +70,22 @@ export const pullTweets = async (c: Context, version: number) => {
             });
         }
     } else {
-        const newest = (await tweetsOperations.getNewestTweet(db))[0];
+        const newest = (await tweetsOperations.getNewestTweet(db, eventId))[0];
+
+        if (!newest) {
+            const res = {
+                lastMutationIDChanges: {},
+                cookie: {
+                    newestTweet,
+                    oldestTweet,
+                    donePullingTweet: true,
+                    order,
+                    schemaVersion: version,
+                },
+                patch: preOps,
+            };
+            return c.json(res);
+        }
 
         if (newestTweet < newest.id) {
             console.log("there are newer tweets");
@@ -69,6 +93,7 @@ export const pullTweets = async (c: Context, version: number) => {
                 db,
                 newestTweet,
                 limit,
+                eventId,
             );
             const firstTweet = tweetsRows[0];
             if (firstTweet) {
@@ -86,6 +111,7 @@ export const pullTweets = async (c: Context, version: number) => {
                 db,
                 oldestTweet,
                 limit,
+                eventId,
             );
             if (tweetsRows.length === 0) {
                 donePullingTweet = true;
@@ -123,6 +149,7 @@ export const pullTweets = async (c: Context, version: number) => {
     }
 
     const newCookie = {
+        eventId,
         newestTweet,
         oldestTweet,
         donePullingTweet,

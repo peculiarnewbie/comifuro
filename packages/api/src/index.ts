@@ -23,6 +23,7 @@ const imageUploadSchema = z.object({
 const legacyTweetSchema = z.array(
     z.object({
         id: z.string().min(1),
+        eventId: z.string().min(1).optional(),
         user: z.string().min(1),
         timestamp: z.union([z.number().int(), z.string()]),
         text: z.string(),
@@ -41,6 +42,7 @@ const scraperMediaSchema = z.object({
 
 const scraperTweetSchema = z.object({
     id: z.string().min(1),
+    eventId: z.string().min(1).default("cf21"),
     user: z.string().min(1),
     displayName: z.string().nullable().optional(),
     timestamp: z.union([z.number().int(), z.string(), z.date()]),
@@ -60,9 +62,13 @@ const scraperStateSchema = z.object({
     lastRunAt: z.union([z.number().int(), z.string(), z.date()]).nullable(),
 });
 
+const exportPublicFeedSchema = z.object({
+    eventId: z.string().min(1).optional(),
+});
+
 const app = new Hono<{ Bindings: Bindings }>();
 
-const currentSchemaVersion = 4;
+const currentSchemaVersion = 5;
 
 export function getDb(c: Context<{ Bindings: Bindings }>) {
     return drizzle(c.env.DB) as DrizzleD1Database;
@@ -114,8 +120,28 @@ function toDate(value: number | string | Date | null | undefined) {
     return new Date(value);
 }
 
-async function buildPublicFeed(db: DrizzleD1Database) {
-    const publicTweets = await tweetsOperations.listPublicTweets(db);
+function normalizeEventId(value: string | null | undefined, fallback = "cf21") {
+    return value?.trim().toLowerCase() || fallback;
+}
+
+function maskToFallbackR2Keys(tweetId: string, mask: number, maxBits = 8) {
+    const keys: string[] = [];
+
+    for (let index = 0; index < maxBits; index += 1) {
+        if ((mask & (1 << index)) !== 0) {
+            keys.push(`${tweetId}/${index}.webp`);
+        }
+    }
+
+    return keys;
+}
+
+async function buildPublicFeed(db: DrizzleD1Database, eventId: string) {
+    const publicTweets = await tweetsOperations.listPublicTweets(
+        db,
+        "catalogue",
+        eventId,
+    );
     const media = await tweetsOperations.listPublicTweetMedia(
         db,
         publicTweets.map((tweet) => tweet.id),
@@ -124,7 +150,7 @@ async function buildPublicFeed(db: DrizzleD1Database) {
     const mediaByTweet = new Map<string, string[]>();
     for (const item of media) {
         const current = mediaByTweet.get(item.tweetId) ?? [];
-        current.push(`/${item.mediaIndex}.webp`);
+        current.push(item.r2Key);
         mediaByTweet.set(item.tweetId, current);
     }
 
@@ -132,10 +158,13 @@ async function buildPublicFeed(db: DrizzleD1Database) {
         publicTweets.map((tweet) => [
             tweet.id,
             {
+                eventId: tweet.eventId,
                 user: tweet.user,
                 text: tweet.text,
                 url: tweet.tweetUrl,
-                images: mediaByTweet.get(tweet.id) ?? [],
+                images:
+                    mediaByTweet.get(tweet.id) ??
+                    maskToFallbackR2Keys(tweet.id, tweet.imageMask),
             },
         ]),
     );
@@ -230,6 +259,7 @@ app.get("/", (c) => c.text("ok"))
             (tweet) =>
                 ({
                     id: tweet.id,
+                    eventId: normalizeEventId(tweet.eventId),
                     user: tweet.user,
                     timestamp: toDate(tweet.timestamp) ?? now,
                     text: tweet.text,
@@ -262,6 +292,7 @@ app.get("/", (c) => c.text("ok"))
         await tweetsOperations.upsertScrapedTweet(db, {
             tweet: {
                 id: tweet.id,
+                eventId: normalizeEventId(tweet.eventId),
                 user: tweet.user,
                 displayName: tweet.displayName ?? null,
                 timestamp: toDate(tweet.timestamp) ?? now,
@@ -325,15 +356,22 @@ app.get("/", (c) => c.text("ok"))
             return authError;
         }
 
+        const body = await c.req.json().catch(() => ({}));
+        const parsed = exportPublicFeedSchema.safeParse(body);
+        if (!parsed.success) {
+            return c.json({ error: parsed.error.issues[0]?.message }, 400);
+        }
+
+        const eventId = normalizeEventId(parsed.data.eventId, "cf22");
         const db = getDb(c);
-        const payload = JSON.stringify(await buildPublicFeed(db));
-        await c.env.R2.put("tweets.json", payload, {
+        const payload = JSON.stringify(await buildPublicFeed(db, eventId));
+        await c.env.R2.put(`${eventId}/tweets.json`, payload, {
             httpMetadata: {
                 contentType: "application/json; charset=utf-8",
             },
         });
 
-        return c.json({ ok: true, bytes: payload.length });
+        return c.json({ ok: true, bytes: payload.length, eventId });
     })
     .post("/replicache/tweets/pull", async (c) => {
         return await pullTweets(c, currentSchemaVersion);

@@ -85,6 +85,13 @@
             "when": 1775705878022,
             "tag": "0011_medical_franklin_richards",
             "breakpoints": true
+        },
+        {
+            "idx": 12,
+            "version": "6",
+            "when": 1775706000000,
+            "tag": "0012_panoramic_event_split",
+            "breakpoints": true
         }
     ]
 }
