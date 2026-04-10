@@ -85,9 +85,7 @@ export namespace tweetsOperations {
             else ${tweets.classifierPromptVersion}
         end`,
         inferredFandoms: excludedColumn(tweets.inferredFandoms),
-        inferredFandomsConfidence: excludedColumn(tweets.inferredFandomsConfidence),
         inferredBoothId: excludedColumn(tweets.inferredBoothId),
-        inferredBoothIdConfidence: excludedColumn(tweets.inferredBoothIdConfidence),
         rootTweetId: sql<string | null>`coalesce(${excludedColumn(tweets.rootTweetId)}, ${tweets.rootTweetId})`,
         parentTweetId: sql<string | null>`coalesce(${excludedColumn(tweets.parentTweetId)}, ${tweets.parentTweetId})`,
         threadPosition: sql<number | null>`coalesce(${excludedColumn(tweets.threadPosition)}, ${tweets.threadPosition})`,

@@ -3,10 +3,7 @@ import { Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import { drizzle, DrizzleD1Database } from "drizzle-orm/d1";
 import { scraperOperations, tweetsOperations } from "@comifuro/core";
-import {
-    InferenceConfidenceValues,
-    TweetClassificationValues,
-} from "@comifuro/core/schema";
+import { TweetClassificationValues } from "@comifuro/core/schema";
 import {
     TweetInsert,
     TweetSyncCursor,
@@ -60,15 +57,7 @@ const scraperTweetSchema = z.object({
     classificationReason: z.string().nullable().optional(),
     classifierPromptVersion: z.string().nullable().optional(),
     inferredFandoms: z.array(z.string().min(1)).nullable().optional(),
-    inferredFandomsConfidence: z
-        .enum(InferenceConfidenceValues)
-        .nullable()
-        .optional(),
     inferredBoothId: z.string().min(1).nullable().optional(),
-    inferredBoothIdConfidence: z
-        .enum(InferenceConfidenceValues)
-        .nullable()
-        .optional(),
     rootTweetId: z.string().min(1).nullable().optional(),
     parentTweetId: z.string().min(1).nullable().optional(),
     threadPosition: z.number().int().positive().nullable().optional(),
@@ -86,7 +75,7 @@ const exportPublicFeedSchema = z.object({
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-const currentSchemaVersion = 7;
+const currentSchemaVersion = 8;
 
 export function getDb(c: Context<{ Bindings: Bindings }>) {
     return drizzle(c.env.DB) as DrizzleD1Database;
@@ -190,11 +179,7 @@ async function buildPublicFeed(db: DrizzleD1Database, eventId: string) {
                 text: tweet.text,
                 url: tweet.tweetUrl,
                 inferredFandoms: tweet.inferredFandoms ?? [],
-                inferredFandomsConfidence:
-                    tweet.inferredFandomsConfidence ?? null,
                 inferredBoothId: tweet.inferredBoothId ?? null,
-                inferredBoothIdConfidence:
-                    tweet.inferredBoothIdConfidence ?? null,
                 rootTweetId: tweet.rootTweetId ?? null,
                 parentTweetId: tweet.parentTweetId ?? null,
                 threadPosition: tweet.threadPosition ?? null,
@@ -327,11 +312,7 @@ app.get("/", (c) => c.text("ok"))
                     inferredFandoms: Array.isArray(row.inferredFandoms)
                         ? row.inferredFandoms
                         : [],
-                    inferredFandomsConfidence:
-                        row.inferredFandomsConfidence ?? null,
                     inferredBoothId: row.inferredBoothId ?? null,
-                    inferredBoothIdConfidence:
-                        row.inferredBoothIdConfidence ?? null,
                     rootTweetId: row.rootTweetId ?? null,
                     parentTweetId: row.parentTweetId ?? null,
                     threadPosition: row.threadPosition ?? null,
@@ -425,11 +406,7 @@ app.get("/", (c) => c.text("ok"))
                 classificationReason: tweet.classificationReason ?? null,
                 classifierPromptVersion: tweet.classifierPromptVersion ?? null,
                 inferredFandoms: tweet.inferredFandoms ?? [],
-                inferredFandomsConfidence:
-                    tweet.inferredFandomsConfidence ?? null,
                 inferredBoothId: tweet.inferredBoothId ?? null,
-                inferredBoothIdConfidence:
-                    tweet.inferredBoothIdConfidence ?? null,
                 rootTweetId: tweet.rootTweetId ?? null,
                 parentTweetId: tweet.parentTweetId ?? null,
                 threadPosition: tweet.threadPosition ?? null,

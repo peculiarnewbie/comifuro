@@ -44,9 +44,7 @@ async function storeCatalogueTweet(params: {
     classificationReason: string;
     classifierPromptVersion: string;
     inferredFandoms: string[];
-    inferredFandomsConfidence: "low" | "medium" | "high" | null;
     inferredBoothId: string | null;
-    inferredBoothIdConfidence: "low" | "medium" | "high" | null;
     continueOnImageError?: boolean;
     skipUpsertWhenNoMedia?: boolean;
 }) {
@@ -58,9 +56,7 @@ async function storeCatalogueTweet(params: {
         classificationReason,
         classifierPromptVersion,
         inferredFandoms,
-        inferredFandomsConfidence,
         inferredBoothId,
-        inferredBoothIdConfidence,
         continueOnImageError,
         skipUpsertWhenNoMedia,
     } = params;
@@ -91,9 +87,7 @@ async function storeCatalogueTweet(params: {
                 : "classified as catalogue but no downloadable images were found",
         classifierPromptVersion,
         inferredFandoms,
-        inferredFandomsConfidence,
         inferredBoothId,
-        inferredBoothIdConfidence,
         rootTweetId: tweet.rootTweetId,
         parentTweetId: tweet.parentTweetId,
         threadPosition: tweet.threadPosition,
@@ -133,9 +127,7 @@ async function processSearchTweet(params: {
             classificationReason: classification.reason,
             classifierPromptVersion: classifier.promptVersion,
             inferredFandoms: [],
-            inferredFandomsConfidence: null,
             inferredBoothId: null,
-            inferredBoothIdConfidence: null,
             rootTweetId: null,
             parentTweetId: null,
             threadPosition: null,
@@ -157,9 +149,7 @@ async function processSearchTweet(params: {
         classificationReason: classification.reason,
         classifierPromptVersion: classifier.promptVersion,
         inferredFandoms: classification.inferredFandoms,
-        inferredFandomsConfidence: classification.inferredFandomsConfidence,
         inferredBoothId: classification.inferredBoothId,
-        inferredBoothIdConfidence: classification.inferredBoothIdConfidence,
     });
 
     console.log(
@@ -224,9 +214,7 @@ async function processThreadContinuations(params: {
             classificationReason: `inherited from root ${rootTweet.id}`,
             classifierPromptVersion,
             inferredFandoms: [],
-            inferredFandomsConfidence: null,
             inferredBoothId: null,
-            inferredBoothIdConfidence: null,
             continueOnImageError: true,
             skipUpsertWhenNoMedia: true,
         });
@@ -363,9 +351,7 @@ async function run(stagehand: Stagehand, config = loadConfig()) {
                         error instanceof Error ? error.message : String(error),
                     classifierPromptVersion: classifier.promptVersion,
                     inferredFandoms: [],
-                    inferredFandomsConfidence: null,
                     inferredBoothId: null,
-                    inferredBoothIdConfidence: null,
                     rootTweetId: null,
                     parentTweetId: null,
                     threadPosition: null,

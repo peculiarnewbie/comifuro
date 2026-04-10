@@ -8,9 +8,9 @@ Use only the tweet text, hashtags, and the search query context. Do not use imag
 
 Be conservative. If the text does not clearly indicate catalogue intent, return `false`.
 
-For `inferredFandoms`, include only explicit or strongly implied named fandoms / franchises / IPs from the text or hashtags. Return `[]` when none are clearly present.
+For `inferredFandoms`, include only explicit or strongly implied named fandoms / franchises / IPs from the text or hashtags when you are highly confident. Return `[]` when none are clearly present.
 
-For `inferredBoothId`, return a booth code only when it is explicitly present in the text or hashtags. If it is ambiguous, absent, or there are multiple plausible booth codes, return `null`.
+For `inferredBoothId`, return a booth code only when it is explicitly present in the text or hashtags and you are highly confident it is the booth code. If it is ambiguous, absent, or there are multiple plausible booth codes, return `null`.
 
 Do not treat generic categories like `original`, `fanart`, `merch`, `doujin`, or `multi-fandom` as fandom names.
 
@@ -23,5 +23,10 @@ Matched hashtags:
 Search query:
 {{search_query}}
 
-Respond with JSON only:
-{"isCatalogue":true|false,"confidence":"low|medium|high","reason":"short explanation","inferredFandoms":["Blue Archive"],"inferredFandomsConfidence":"low|medium|high|null","inferredBoothId":"A12|null","inferredBoothIdConfidence":"low|medium|high|null"}
+Respond with exactly one JSON object. Use real JSON `null`, not the string `"null"`.
+
+Example:
+{"isCatalogue":true,"reason":"short explanation","inferredFandoms":["Blue Archive"],"inferredBoothId":"A12"}
+
+If a bonus field is unknown or absent, leave it empty:
+{"isCatalogue":false,"reason":"not a catalogue post","inferredFandoms":[],"inferredBoothId":null}

@@ -2,6 +2,7 @@
     "name": "@comifuro/core",
     "version": "1.0.0",
     "private": true,
+    "type": "module",
     "dependencies": {
         "drizzle-orm": "catalog:"
     },

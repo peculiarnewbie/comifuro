@@ -10,24 +10,18 @@ describe("parseClassificationResponse", () => {
             \`\`\`json
             {
               "isCatalogue": true,
-              "confidence": "high",
               "reason": "catalogue post",
               "inferredFandoms": [" Blue Archive ", "blue archive", "", "Project Sekai"],
-              "inferredFandomsConfidence": "medium",
-              "inferredBoothId": " a12 ",
-              "inferredBoothIdConfidence": "low"
+              "inferredBoothId": " a12 "
             }
             \`\`\`
         `);
 
         expect(parsed).toEqual({
             isCatalogue: true,
-            confidence: "high",
             reason: "catalogue post",
             inferredFandoms: ["Blue Archive", "Project Sekai"],
-            inferredFandomsConfidence: "medium",
             inferredBoothId: "A12",
-            inferredBoothIdConfidence: "low",
         });
     });
 
@@ -35,19 +29,32 @@ describe("parseClassificationResponse", () => {
         const parsed = parseClassificationResponse(
             JSON.stringify({
                 isCatalogue: true,
-                confidence: "low",
                 reason: "uncertain",
                 inferredFandoms: ["", "   "],
-                inferredFandomsConfidence: "high",
                 inferredBoothId: "table near entrance",
-                inferredBoothIdConfidence: "medium",
             }),
         );
 
         expect(parsed.inferredFandoms).toEqual([]);
-        expect(parsed.inferredFandomsConfidence).toBeNull();
         expect(parsed.inferredBoothId).toBeNull();
-        expect(parsed.inferredBoothIdConfidence).toBeNull();
+    });
+
+    test("tolerates string nulls and bonus metadata format drift", () => {
+        const parsed = parseClassificationResponse(
+            JSON.stringify({
+                isCatalogue: true,
+                reason: "catalogue post",
+                inferredFandoms: "Blue Archive",
+                inferredBoothId: "null",
+            }),
+        );
+
+        expect(parsed).toEqual({
+            isCatalogue: true,
+            reason: "catalogue post",
+            inferredFandoms: ["Blue Archive"],
+            inferredBoothId: null,
+        });
     });
 });
 

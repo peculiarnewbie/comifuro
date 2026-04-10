@@ -1,22 +1,9 @@
-import { InferenceConfidenceValues } from "@comifuro/core/schema";
-import type { InferenceConfidence } from "@comifuro/core/types";
 import { z } from "zod";
 import type { ClassificationResult } from "./types";
 
-const classificationSchema = z.object({
+const requiredClassificationSchema = z.object({
     isCatalogue: z.boolean(),
-    confidence: z.enum(InferenceConfidenceValues),
     reason: z.string(),
-    inferredFandoms: z.array(z.string()).optional().nullable(),
-    inferredFandomsConfidence: z
-        .enum(InferenceConfidenceValues)
-        .optional()
-        .nullable(),
-    inferredBoothId: z.string().optional().nullable(),
-    inferredBoothIdConfidence: z
-        .enum(InferenceConfidenceValues)
-        .optional()
-        .nullable(),
 });
 
 const boothIdPattern = /^[A-Z]{1,3}-?\d{1,3}[A-Z]?$/;
@@ -34,17 +21,24 @@ function extractJsonObject(raw: string) {
     return JSON.parse(candidate.slice(start, end + 1)) as unknown;
 }
 
-function normalizeConfidence(
-    value: InferenceConfidence | null | undefined,
-): InferenceConfidence | null {
-    return value ?? null;
+function asObjectRecord(value: unknown): Record<string, unknown> | null {
+    return typeof value === "object" && value ? (value as Record<string, unknown>) : null;
 }
 
-export function normalizeInferredFandoms(value: string[] | null | undefined) {
+export function normalizeInferredFandoms(value: unknown) {
+    const candidates = Array.isArray(value)
+        ? value
+        : typeof value === "string"
+          ? [value]
+          : [];
     const normalized: string[] = [];
     const seen = new Set<string>();
 
-    for (const candidate of value ?? []) {
+    for (const candidate of candidates) {
+        if (typeof candidate !== "string") {
+            continue;
+        }
+
         const trimmed = candidate.trim();
         if (!trimmed) {
             continue;
@@ -66,12 +60,17 @@ export function normalizeInferredFandoms(value: string[] | null | undefined) {
     return normalized;
 }
 
-export function normalizeInferredBoothId(value: string | null | undefined) {
+export function normalizeInferredBoothId(value: unknown) {
     if (typeof value !== "string") {
         return null;
     }
 
-    const normalized = value.trim().toUpperCase();
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.toLowerCase() === "null") {
+        return null;
+    }
+
+    const normalized = trimmed.toUpperCase();
     if (!normalized) {
         return null;
     }
@@ -82,22 +81,16 @@ export function normalizeInferredBoothId(value: string | null | undefined) {
 export function parseClassificationResponse(
     raw: string,
 ): Omit<ClassificationResult, "raw"> {
-    const parsed = classificationSchema.parse(extractJsonObject(raw));
-    const inferredFandoms = normalizeInferredFandoms(parsed.inferredFandoms);
-    const inferredBoothId = normalizeInferredBoothId(parsed.inferredBoothId);
+    const parsed = extractJsonObject(raw);
+    const parsedRecord = asObjectRecord(parsed);
+    const required = requiredClassificationSchema.parse(parsed);
+    const inferredFandoms = normalizeInferredFandoms(parsedRecord?.inferredFandoms);
+    const inferredBoothId = normalizeInferredBoothId(parsedRecord?.inferredBoothId);
 
     return {
-        isCatalogue: parsed.isCatalogue,
-        confidence: parsed.confidence,
-        reason: parsed.reason.trim(),
+        isCatalogue: required.isCatalogue,
+        reason: required.reason.trim(),
         inferredFandoms,
-        inferredFandomsConfidence:
-            inferredFandoms.length > 0
-                ? normalizeConfidence(parsed.inferredFandomsConfidence)
-                : null,
         inferredBoothId,
-        inferredBoothIdConfidence: inferredBoothId
-            ? normalizeConfidence(parsed.inferredBoothIdConfidence)
-            : null,
     };
 }

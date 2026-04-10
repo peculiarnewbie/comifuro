@@ -43,9 +43,7 @@ describe("tweetsOperations inferred metadata", () => {
                 imageMask: 1,
                 classification: "catalogue",
                 inferredFandoms: ["Blue Archive"],
-                inferredFandomsConfidence: "medium",
                 inferredBoothId: "A12",
-                inferredBoothIdConfidence: "high",
                 updatedAt,
             },
         ]);
@@ -57,9 +55,7 @@ describe("tweetsOperations inferred metadata", () => {
         });
 
         expect(stored?.inferredFandoms).toEqual(["Blue Archive"]);
-        expect(stored?.inferredFandomsConfidence).toBe("medium");
         expect(stored?.inferredBoothId).toBe("A12");
-        expect(stored?.inferredBoothIdConfidence).toBe("high");
         expect(syncRows[0]?.inferredFandoms).toEqual(["Blue Archive"]);
         expect(syncRows[0]?.inferredBoothId).toBe("A12");
     });

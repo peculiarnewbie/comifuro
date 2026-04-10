@@ -139,10 +139,7 @@ const getTweetSnapshot = (store: Store): TweetStoreSnapshot => {
             inferredFandoms: Array.isArray(row.inferredFandoms)
                 ? row.inferredFandoms
                 : [],
-            inferredFandomsConfidence: row.inferredFandomsConfidence ?? null,
             inferredBoothId: row.inferredBoothId ?? null,
-            inferredBoothIdConfidence:
-                row.inferredBoothIdConfidence ?? null,
             rootTweetId: row.rootTweetId ?? null,
             parentTweetId: row.parentTweetId ?? null,
             threadPosition:
@@ -317,11 +314,7 @@ export async function createTweetStoreSession({
                     imageMask: item.imageMask,
                     classification: item.classification,
                     inferredFandoms: item.inferredFandoms,
-                    inferredFandomsConfidence:
-                        item.inferredFandomsConfidence,
                     inferredBoothId: item.inferredBoothId,
-                    inferredBoothIdConfidence:
-                        item.inferredBoothIdConfidence,
                     rootTweetId: item.rootTweetId,
                     parentTweetId: item.parentTweetId,
                     threadPosition: item.threadPosition,

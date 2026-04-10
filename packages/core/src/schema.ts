@@ -14,7 +14,6 @@ export const TweetClassificationValues = [
     "not_catalogue",
     "error",
 ] as const;
-export const InferenceConfidenceValues = ["low", "medium", "high"] as const;
 
 export const users = sqliteTable("users", {
     id: text("id").primaryKey(),
@@ -52,13 +51,7 @@ export const tweets = sqliteTable(
         inferredFandoms: text("inferred_fandoms", { mode: "json" }).$type<
             string[] | null
         >(),
-        inferredFandomsConfidence: text("inferred_fandoms_confidence", {
-            enum: InferenceConfidenceValues,
-        }),
         inferredBoothId: text("inferred_booth_id"),
-        inferredBoothIdConfidence: text("inferred_booth_id_confidence", {
-            enum: InferenceConfidenceValues,
-        }),
         rootTweetId: text("root_tweet_id"),
         parentTweetId: text("parent_tweet_id"),
         threadPosition: integer("thread_position"),

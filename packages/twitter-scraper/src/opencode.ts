@@ -46,7 +46,10 @@ Search query:
 ${input.searchQuery}
 
 Respond with JSON only:
-{"isCatalogue":true|false,"confidence":"low|medium|high","reason":"short explanation","inferredFandoms":["optional fandom"],"inferredFandomsConfidence":"low|medium|high|null","inferredBoothId":"A12|null","inferredBoothIdConfidence":"low|medium|high|null"}`;
+{"isCatalogue":true,"reason":"short explanation","inferredFandoms":["optional fandom"],"inferredBoothId":"A12"}
+
+Use real JSON null for unknown booth IDs, never the string "null". Leave bonus metadata empty when unsure:
+{"isCatalogue":false,"reason":"not a catalogue post","inferredFandoms":[],"inferredBoothId":null}`;
 }
 
 export async function createClassifier(config: ScraperConfig) {

@@ -213,15 +213,20 @@ async function extractTweetsFromPage(
     const rawTweets = await page.evaluate(
         ({ scopeSelector, discoverySource }) => {
             const scope =
-                (scopeSelector ? document.querySelector(scopeSelector) : null) ??
-                document.body;
+                (scopeSelector
+                    ? document.querySelector(scopeSelector)
+                    : null) ?? document.body;
             const articles = Array.from(
-                scope.querySelectorAll<HTMLElement>('article[data-testid="tweet"]'),
+                scope.querySelectorAll<HTMLElement>(
+                    'article[data-testid="tweet"]',
+                ),
             );
 
             return articles.map((article) => {
                 const statusLinks = Array.from(
-                    article.querySelectorAll<HTMLAnchorElement>('a[href*="/status/"]'),
+                    article.querySelectorAll<HTMLAnchorElement>(
+                        'a[href*="/status/"]',
+                    ),
                 );
                 const statusLink =
                     statusLinks.find((link) => link.querySelector("time")) ??
@@ -238,12 +243,17 @@ async function extractTweetsFromPage(
                 const userMatch = tweetUrl?.match(/x\.com\/([^/]+)\/status\//);
                 const user = userMatch?.[1] ?? null;
                 const text =
-                    article.querySelector('[data-testid="tweetText"]')?.textContent ?? "";
+                    article.querySelector('[data-testid="tweetText"]')
+                        ?.textContent ?? "";
                 const timestamp =
-                    article.querySelector("time")?.getAttribute("datetime") ?? null;
-                const userNameRoot = article.querySelector('[data-testid="User-Name"]');
+                    article.querySelector("time")?.getAttribute("datetime") ??
+                    null;
+                const userNameRoot = article.querySelector(
+                    '[data-testid="User-Name"]',
+                );
                 const displayName =
-                    userNameRoot?.querySelector("span")?.textContent?.trim() ?? null;
+                    userNameRoot?.querySelector("span")?.textContent?.trim() ??
+                    null;
 
                 const previewImageUrls = id
                     ? Array.from(
@@ -256,7 +266,11 @@ async function extractTweetsFromPage(
                     : [];
 
                 const matchedTags = Array.from(
-                    new Set((text.match(/#\w+/gi) ?? []).map((tag) => tag.toLowerCase())),
+                    new Set(
+                        (text.match(/#\w+/gi) ?? []).map((tag) =>
+                            tag.toLowerCase(),
+                        ),
+                    ),
                 );
                 const linkedStatusIds = Array.from(
                     new Set(
@@ -304,20 +318,64 @@ export async function extractVisibleTweets(page: Page) {
     });
 }
 
-export async function openTweetDetailPage(
-    sourcePage: Page,
-    tweetUrl: string,
-) {
-    const detailPage = await sourcePage.context().newPage();
-    await detailPage.goto(tweetUrl, {
+async function navigateToTweetDetailPage(page: Page, tweetUrl: string) {
+    await page.goto(tweetUrl, {
         waitUntil: "domcontentloaded",
         timeout: 60_000,
     });
-    await detailPage.waitForSelector(TWEET_ARTICLE_SELECTOR, {
+    await page.waitForSelector(TWEET_ARTICLE_SELECTOR, {
         timeout: 60_000,
     });
-    await detailPage.waitForTimeout(3_000);
-    return detailPage;
+    await page.waitForTimeout(3_000);
+    return page;
+}
+
+async function openBackgroundPage(sourcePage: Page) {
+    const browser = sourcePage.context().browser();
+    if (!browser) {
+        throw new Error(
+            "Browser instance is unavailable for background tab creation",
+        );
+    }
+
+    const existingPages = new Set(sourcePage.context().pages());
+    const nextPagePromise = sourcePage.context().waitForEvent("page", {
+        predicate: (page) => !existingPages.has(page),
+        timeout: 15_000,
+    });
+    const browserSession = await browser.newBrowserCDPSession();
+
+    try {
+        await browserSession.send("Target.createTarget", {
+            url: "about:blank",
+            background: true,
+            focus: false,
+            forTab: true,
+        });
+
+        return await nextPagePromise;
+    } finally {
+        await browserSession.detach().catch(() => {});
+    }
+}
+
+export async function openTweetDetailPage(sourcePage: Page, tweetUrl: string) {
+    let detailPage: Page | null = null;
+
+    try {
+        detailPage = await openBackgroundPage(sourcePage);
+        return await navigateToTweetDetailPage(detailPage, tweetUrl);
+    } catch (error) {
+        await detailPage?.close().catch(() => {});
+        console.warn(
+            `background tab creation failed, falling back to a normal tab: ${
+                error instanceof Error ? error.message : String(error)
+            }`,
+        );
+    }
+
+    const fallbackPage = await sourcePage.context().newPage();
+    return await navigateToTweetDetailPage(fallbackPage, tweetUrl);
 }
 
 export async function crawlThreadContinuations(params: {
@@ -337,9 +395,14 @@ export async function crawlThreadContinuations(params: {
         const visibleTweets = await extractTweetsFromPage(page, {
             discoverySource: "thread",
         });
-        const nextResult = buildThreadContinuationChain(rootTweet, visibleTweets);
+        const nextResult = buildThreadContinuationChain(
+            rootTweet,
+            visibleTweets,
+        );
+        const chainLengthChanged =
+            nextResult.chain.length > lastResult.chain.length;
 
-        if (nextResult.chain.length > lastResult.chain.length) {
+        if (chainLengthChanged) {
             lastResult = nextResult;
             idleScrolls = 0;
         } else {
@@ -351,7 +414,14 @@ export async function crawlThreadContinuations(params: {
             idleScrolls < idleScrollLimit &&
             lastResult.chain.length < MAX_THREAD_CONTINUATIONS
         ) {
-            await scrollTimeline(page, scrollDelayMs);
+            const scrollResult = await scrollTimeline(page, scrollDelayMs);
+            if (
+                !chainLengthChanged &&
+                scrollResult.atBottom &&
+                !scrollResult.moved
+            ) {
+                break;
+            }
         }
     }
 
@@ -359,6 +429,14 @@ export async function crawlThreadContinuations(params: {
 }
 
 export async function scrollTimeline(page: Page, delayMs: number) {
+    const beforeScroll = await page.evaluate(() => ({
+        scrollTop: window.scrollY,
+        viewportHeight: window.innerHeight,
+        scrollHeight:
+            document.scrollingElement?.scrollHeight ??
+            document.body.scrollHeight,
+    }));
+
     await page.evaluate(() => {
         window.scrollBy({
             top: Math.round(window.innerHeight * 0.85),
@@ -366,4 +444,19 @@ export async function scrollTimeline(page: Page, delayMs: number) {
         });
     });
     await page.waitForTimeout(delayMs);
+
+    const afterScroll = await page.evaluate(() => ({
+        scrollTop: window.scrollY,
+        viewportHeight: window.innerHeight,
+        scrollHeight:
+            document.scrollingElement?.scrollHeight ??
+            document.body.scrollHeight,
+    }));
+
+    return {
+        moved: afterScroll.scrollTop > beforeScroll.scrollTop + 2,
+        atBottom:
+            afterScroll.scrollTop + afterScroll.viewportHeight >=
+            afterScroll.scrollHeight - 4,
+    };
 }
