@@ -1,5 +1,9 @@
 {
     "name": "comifuro",
+    "scripts": {
+        "scrape": "pnpm --filter twitter-scraper run scrape",
+        "scrape:max-id": "pnpm --filter twitter-scraper run scrape:max-id"
+    },
     "catalog": {
         "wrangler": "^4.40.2",
         "drizzle-orm": "^0.44.6"

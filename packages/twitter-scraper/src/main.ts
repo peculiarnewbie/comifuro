@@ -11,6 +11,7 @@ import {
     openTweetDetailPage,
     scrollTimeline,
 } from "./browser";
+import { buildSearchQuery } from "./cli";
 import { loadConfig } from "./config";
 import { uploadTweetImages } from "./images";
 import { ensureOpencodeServer } from "./opencode-manager";
@@ -34,6 +35,22 @@ function buildImageMask(indices: number[]) {
     }
 
     return mask;
+}
+
+function selectOlderTweetId(left: string | null, right: string) {
+    if (!left) {
+        return right;
+    }
+
+    return compareTweetIds(left, right) <= 0 ? left : right;
+}
+
+function isTweetBeforeSinceDate(tweet: ExtractedTweet, sinceDate: string | null) {
+    if (!sinceDate) {
+        return false;
+    }
+
+    return Date.parse(tweet.timestamp) < Date.parse(`${sinceDate}T00:00:00.000Z`);
 }
 
 async function storeCatalogueTweet(params: {
@@ -237,14 +254,119 @@ async function processThreadContinuations(params: {
     return acceptedIds;
 }
 
-async function run(stagehand: Stagehand, config = loadConfig()) {
-    const apiClient = new ApiClient(config.apiBaseUrl, config.apiPassword);
-    const classifier = await createClassifier(config);
-    const state = await apiClient.getState(config.stateId);
-    const page = await findExistingPage(stagehand, config);
+async function processDiscoveredTweet(params: {
+    apiClient: ApiClient;
+    classifier: Awaited<ReturnType<typeof createClassifier>>;
+    page: Page;
+    tweet: ExtractedTweet;
+    eventId: string;
+    searchQuery: string;
+    threadScrollDelayMs: number;
+    threadIdleScrollLimit: number;
+    seenTweetIds: Set<string>;
+}) {
+    const {
+        apiClient,
+        classifier,
+        page,
+        tweet,
+        eventId,
+        searchQuery,
+        threadScrollDelayMs,
+        threadIdleScrollLimit,
+        seenTweetIds,
+    } = params;
 
-    console.log(`using page ${page.url() || "[blank]"}`);
-    await openLiveSearch(page, config.searchQuery);
+    try {
+        const result = await processSearchTweet({
+            apiClient,
+            classifier,
+            tweet,
+            eventId,
+            searchQuery,
+        });
+
+        if (!result.accepted) {
+            return 0;
+        }
+
+        let acceptedCount = 1;
+
+        try {
+            const detailPage = await openTweetDetailPage(page, tweet.tweetUrl);
+            try {
+                const acceptedThreadIds = await processThreadContinuations({
+                    apiClient,
+                    page: detailPage,
+                    rootTweet: tweet,
+                    eventId,
+                    searchQuery,
+                    classifierPromptVersion: result.classifierPromptVersion,
+                    scrollDelayMs: threadScrollDelayMs,
+                    idleScrollLimit: threadIdleScrollLimit,
+                });
+
+                for (const tweetId of acceptedThreadIds) {
+                    seenTweetIds.add(tweetId);
+                }
+
+                acceptedCount += acceptedThreadIds.length;
+            } finally {
+                await detailPage.close();
+            }
+        } catch (error) {
+            console.error(
+                JSON.stringify({
+                    type: "thread-crawl-failed",
+                    rootTweetId: tweet.id,
+                    tweetUrl: tweet.tweetUrl,
+                    error:
+                        error instanceof Error ? error.message : String(error),
+                }),
+            );
+        }
+
+        return acceptedCount;
+    } catch (error) {
+        console.error(`failed ${tweet.id}`, error);
+        await apiClient.upsertTweet({
+            id: tweet.id,
+            eventId,
+            user: tweet.user,
+            displayName: tweet.displayName,
+            timestamp: tweet.timestamp,
+            text: tweet.text,
+            tweetUrl: tweet.tweetUrl,
+            searchQuery,
+            matchedTags: tweet.matchedTags,
+            imageMask: 0,
+            classification: "error",
+            classificationReason:
+                error instanceof Error ? error.message : String(error),
+            classifierPromptVersion: classifier.promptVersion,
+            inferredFandoms: [],
+            inferredBoothId: null,
+            rootTweetId: null,
+            parentTweetId: null,
+            threadPosition: null,
+            media: [],
+        });
+
+        return 0;
+    }
+}
+
+async function runDefaultSearch(params: {
+    apiClient: ApiClient;
+    classifier: Awaited<ReturnType<typeof createClassifier>>;
+    page: Page;
+    config: ReturnType<typeof loadConfig>;
+    persistedSearchQuery: string;
+}) {
+    const { apiClient, classifier, page, config, persistedSearchQuery } = params;
+    const state = await apiClient.getState(config.stateId);
+
+    await openLiveSearch(page, persistedSearchQuery);
 
     let idleScrolls = 0;
     let stopAtKnownTweet = false;
@@ -276,6 +398,11 @@ async function run(stagehand: Stagehand, config = loadConfig()) {
                 latestSeenThisRun = tweet.id;
             }
 
+            if (isTweetBeforeSinceDate(tweet, config.searchSinceDate)) {
+                stopAtKnownTweet = true;
+                break;
+            }
+
             if (
                 state?.lastSeenTweetId &&
                 compareTweetIds(tweet.id, state.lastSeenTweetId) <= 0
@@ -284,80 +411,17 @@ async function run(stagehand: Stagehand, config = loadConfig()) {
                 break;
             }
 
-            try {
-                const result = await processSearchTweet({
-                    apiClient,
-                    classifier,
-                    tweet,
-                    eventId: config.eventId,
-                    searchQuery: config.searchQuery,
-                });
-
-                if (result.accepted) {
-                    acceptedCount += 1;
-
-                    try {
-                        const detailPage = await openTweetDetailPage(page, tweet.tweetUrl);
-                        try {
-                            const acceptedThreadIds = await processThreadContinuations({
-                                apiClient,
-                                page: detailPage,
-                                rootTweet: tweet,
-                                eventId: config.eventId,
-                                searchQuery: config.searchQuery,
-                                classifierPromptVersion:
-                                    result.classifierPromptVersion,
-                                scrollDelayMs: config.threadScrollDelayMs,
-                                idleScrollLimit: config.threadIdleScrollLimit,
-                            });
-
-                            for (const tweetId of acceptedThreadIds) {
-                                seenTweetIds.add(tweetId);
-                            }
-
-                            acceptedCount += acceptedThreadIds.length;
-                        } finally {
-                            await detailPage.close();
-                        }
-                    } catch (error) {
-                        console.error(
-                            JSON.stringify({
-                                type: "thread-crawl-failed",
-                                rootTweetId: tweet.id,
-                                tweetUrl: tweet.tweetUrl,
-                                error:
-                                    error instanceof Error
-                                        ? error.message
-                                        : String(error),
-                            }),
-                        );
-                    }
-                }
-            } catch (error) {
-                console.error(`failed ${tweet.id}`, error);
-                await apiClient.upsertTweet({
-                    id: tweet.id,
-                    eventId: config.eventId,
-                    user: tweet.user,
-                    displayName: tweet.displayName,
-                    timestamp: tweet.timestamp,
-                    text: tweet.text,
-                    tweetUrl: tweet.tweetUrl,
-                    searchQuery: config.searchQuery,
-                    matchedTags: tweet.matchedTags,
-                    imageMask: 0,
-                    classification: "error",
-                    classificationReason:
-                        error instanceof Error ? error.message : String(error),
-                    classifierPromptVersion: classifier.promptVersion,
-                    inferredFandoms: [],
-                    inferredBoothId: null,
-                    rootTweetId: null,
-                    parentTweetId: null,
-                    threadPosition: null,
-                    media: [],
-                });
-            }
+            acceptedCount += await processDiscoveredTweet({
+                apiClient,
+                classifier,
+                page,
+                tweet,
+                eventId: config.eventId,
+                searchQuery: persistedSearchQuery,
+                threadScrollDelayMs: config.threadScrollDelayMs,
+                threadIdleScrollLimit: config.threadIdleScrollLimit,
+                seenTweetIds,
+            });
         }
 
         if (!stopAtKnownTweet) {
@@ -365,7 +429,7 @@ async function run(stagehand: Stagehand, config = loadConfig()) {
         }
     }
 
-    if (latestSeenThisRun) {
+    if (latestSeenThisRun && config.updateState) {
         await apiClient.updateState(config.stateId, latestSeenThisRun);
     }
 
@@ -375,11 +439,185 @@ async function run(stagehand: Stagehand, config = loadConfig()) {
 
     console.log(
         JSON.stringify({
+            mode: config.runMode,
             acceptedCount,
             lastSeenBeforeRun: state?.lastSeenTweetId ?? null,
             lastSeenAfterRun: latestSeenThisRun,
+            sinceDate: config.searchSinceDate,
         }),
     );
+}
+
+async function runMaxIdSearch(params: {
+    apiClient: ApiClient;
+    classifier: Awaited<ReturnType<typeof createClassifier>>;
+    page: Page;
+    config: ReturnType<typeof loadConfig>;
+    persistedSearchQuery: string;
+}) {
+    const { apiClient, classifier, page, config, persistedSearchQuery } = params;
+    let cursor = config.searchMaxId;
+    let latestSeenThisRun: string | null = null;
+    let acceptedCount = 0;
+    let pageCount = 0;
+    let stopReason: string | null = null;
+    const seenTweetIds = new Set<string>();
+    const visitedCursors = new Set<string>();
+
+    while (pageCount < config.maxIdReloadPageLimit) {
+        const activeQuery = buildSearchQuery(persistedSearchQuery, {
+            maxId: cursor,
+        });
+        await openLiveSearch(page, activeQuery);
+        pageCount += 1;
+
+        let idleScrolls = 0;
+        let oldestTweetIdOnPage: string | null = null;
+        const pageSeenTweetIds = new Set<string>();
+
+        while (idleScrolls < config.idleScrollLimit) {
+            const visibleTweets = await extractVisibleTweets(page);
+
+            for (const tweet of visibleTweets) {
+                oldestTweetIdOnPage = selectOlderTweetId(oldestTweetIdOnPage, tweet.id);
+            }
+
+            const newPageTweets = visibleTweets.filter((tweet) => {
+                if (pageSeenTweetIds.has(tweet.id)) {
+                    return false;
+                }
+
+                pageSeenTweetIds.add(tweet.id);
+                return true;
+            });
+
+            if (newPageTweets.length === 0) {
+                idleScrolls += 1;
+            } else {
+                idleScrolls = 0;
+            }
+
+            for (const tweet of newPageTweets) {
+                if (!latestSeenThisRun) {
+                    latestSeenThisRun = tweet.id;
+                }
+
+                if (isTweetBeforeSinceDate(tweet, config.searchSinceDate)) {
+                    stopReason = "since-date-reached";
+                    break;
+                }
+
+                if (seenTweetIds.has(tweet.id)) {
+                    continue;
+                }
+
+                seenTweetIds.add(tweet.id);
+                acceptedCount += await processDiscoveredTweet({
+                    apiClient,
+                    classifier,
+                    page,
+                    tweet,
+                    eventId: config.eventId,
+                    searchQuery: persistedSearchQuery,
+                    threadScrollDelayMs: config.threadScrollDelayMs,
+                    threadIdleScrollLimit: config.threadIdleScrollLimit,
+                    seenTweetIds,
+                });
+            }
+
+            if (stopReason) {
+                break;
+            }
+
+            const scrollResult = await scrollTimeline(page, config.scrollDelayMs);
+            if (newPageTweets.length === 0 && scrollResult.atBottom && !scrollResult.moved) {
+                break;
+            }
+        }
+
+        console.log(
+            JSON.stringify({
+                type: "max-id-page-complete",
+                pageCount,
+                cursor,
+                oldestTweetIdOnPage,
+                stopReason,
+            }),
+        );
+
+        if (stopReason) {
+            break;
+        }
+
+        if (!oldestTweetIdOnPage) {
+            stopReason = "no-tweets-visible";
+            break;
+        }
+
+        if (cursor === oldestTweetIdOnPage || visitedCursors.has(oldestTweetIdOnPage)) {
+            stopReason = "cursor-stalled";
+            break;
+        }
+
+        visitedCursors.add(oldestTweetIdOnPage);
+        cursor = oldestTweetIdOnPage;
+    }
+
+    if (pageCount >= config.maxIdReloadPageLimit && !stopReason) {
+        stopReason = "page-limit-reached";
+    }
+
+    if (latestSeenThisRun && config.updateState) {
+        await apiClient.updateState(config.stateId, latestSeenThisRun);
+    }
+
+    if (acceptedCount > 0) {
+        await apiClient.exportPublicFeed(config.eventId);
+    }
+
+    console.log(
+        JSON.stringify({
+            mode: config.runMode,
+            acceptedCount,
+            lastSeenAfterRun: latestSeenThisRun,
+            sinceDate: config.searchSinceDate,
+            initialMaxId: config.searchMaxId,
+            finalMaxId: cursor,
+            pageCount,
+            stopReason,
+            stateUpdated: config.updateState,
+        }),
+    );
+}
+
+async function run(stagehand: Stagehand, config = loadConfig()) {
+    const apiClient = new ApiClient(config.apiBaseUrl, config.apiPassword);
+    const classifier = await createClassifier(config);
+    const page = await findExistingPage(stagehand, config);
+    const persistedSearchQuery = buildSearchQuery(config.searchQuery, {
+        since: config.searchSinceDate,
+    });
+
+    console.log(`using page ${page.url() || "[blank]"}`);
+
+    if (config.runMode === "max-id") {
+        await runMaxIdSearch({
+            apiClient,
+            classifier,
+            page,
+            config,
+            persistedSearchQuery,
+        });
+        return;
+    }
+
+    await runDefaultSearch({
+        apiClient,
+        classifier,
+        page,
+        config,
+        persistedSearchQuery,
+    });
 }
 
 let stagehand: Stagehand | null = null;

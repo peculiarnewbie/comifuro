@@ -38,6 +38,8 @@ export type ScraperState = {
     updatedAt: string;
 };
 
+export type ScraperRunMode = "default" | "max-id";
+
 export type ScraperConfig = {
     apiBaseUrl: string;
     apiPassword: string;
@@ -59,4 +61,9 @@ export type ScraperConfig = {
     opencodeUsername?: string;
     opencodePassword?: string;
     classifierPromptPath: string;
+    runMode: ScraperRunMode;
+    searchMaxId: string | null;
+    searchSinceDate: string | null;
+    updateState: boolean;
+    maxIdReloadPageLimit: number;
 };

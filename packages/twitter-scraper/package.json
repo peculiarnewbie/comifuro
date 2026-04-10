@@ -18,6 +18,7 @@
     },
     "scripts": {
         "scrape": "tsx src/main.ts",
+        "scrape:max-id": "tsx src/main.ts --mode=max-id",
         "dev": "tsx watch src/main.ts"
     }
 }

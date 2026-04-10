@@ -78,6 +78,27 @@ The scraper:
 - stores tweet/media metadata in D1
 - rebuilds the public `tweets.json` feed in R2 if new accepted tweets were found
 
+Backfill mode with explicit `max_id` reloads:
+
+```bash
+pnpm run scrape:max-id -- --max-id=2039968911693861364 --since=2026-01-01
+```
+
+In `max-id` mode the scraper:
+
+- opens search with your base query plus `since:` and `max_id:` operators
+- scrolls until the page stops yielding older tweets
+- reloads search with `max_id` set to the oldest tweet seen on that page
+- keeps deduping tweet ids across page reloads
+- does not update `SCRAPER_STATE_ID` unless you add `--update-state`
+
+Supported CLI flags:
+
+- `--max-id` or `--max_id`
+- `--since` or `--since:YYYY-MM-DD`
+- `--max-pages`
+- `--update-state` / `--no-update-state`
+
 ## Managed Opencode
 
 Default behavior:
