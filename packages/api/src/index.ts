@@ -280,68 +280,80 @@ app.get("/", (c) => c.text("ok"))
                   } satisfies TweetSyncCursor)
                 : undefined;
 
-        const db = getDb(c);
-        const rows = await tweetsOperations.listTweetsForSync(db, {
-            eventId,
-            cursor,
-            limit: limit + 1,
-        });
+        try {
+            const db = getDb(c);
+            const rows = await tweetsOperations.listTweetsForSync(db, {
+                eventId,
+                cursor,
+                limit: limit + 1,
+            });
 
-        const hasMore = rows.length > limit;
-        const pageRows = hasMore ? rows.slice(0, limit) : rows;
-        const imagesByTweet = await tweetsOperations.listTweetImages(
-            db,
-            pageRows.map((row) => ({
-                id: row.id,
-                imageMask: row.imageMask,
-            })),
-        );
-
-        const items = pageRows.map(
-            (row) =>
-                ({
+            const hasMore = rows.length > limit;
+            const pageRows = hasMore ? rows.slice(0, limit) : rows;
+            const imagesByTweet = await tweetsOperations.listTweetImages(
+                db,
+                pageRows.map((row) => ({
                     id: row.id,
-                    eventId: row.eventId,
-                    user: row.user,
-                    displayName: row.displayName,
-                    timestamp: row.timestamp.getTime(),
-                    text: row.text,
-                    tweetUrl: row.tweetUrl,
                     imageMask: row.imageMask,
-                    classification: row.classification,
-                    inferredFandoms: Array.isArray(row.inferredFandoms)
-                        ? row.inferredFandoms
-                        : [],
-                    inferredBoothId: row.inferredBoothId ?? null,
-                    rootTweetId: row.rootTweetId ?? null,
-                    parentTweetId: row.parentTweetId ?? null,
-                    threadPosition: row.threadPosition ?? null,
-                    updatedAt: (row.updatedAt ?? row.createdAt).getTime(),
-                    deleted:
-                        Boolean(row.deleted) ||
-                        row.classification !== "catalogue" ||
-                        row.imageMask <= 0,
-                    images: imagesByTweet.get(row.id) ?? [],
-                }) satisfies TweetSyncItem,
-        );
+                })),
+            );
 
-        const lastItem = items[items.length - 1];
-        const response = {
-            eventId,
-            syncToken: `${currentSchemaVersion}:${eventId}`,
-            items,
-            nextCursor: lastItem
-                ? {
-                      updatedAt: lastItem.updatedAt,
-                      id: lastItem.id,
-                  }
-                : null,
-            hasMore,
-            serverTime: Date.now(),
-        } satisfies TweetSyncResponse;
+            const items = pageRows.map(
+                (row) =>
+                    ({
+                        id: row.id,
+                        eventId: row.eventId,
+                        user: row.user,
+                        displayName: row.displayName,
+                        timestamp: row.timestamp.getTime(),
+                        text: row.text,
+                        tweetUrl: row.tweetUrl,
+                        imageMask: row.imageMask,
+                        classification: row.classification,
+                        inferredFandoms: Array.isArray(row.inferredFandoms)
+                            ? row.inferredFandoms
+                            : [],
+                        inferredBoothId: row.inferredBoothId ?? null,
+                        rootTweetId: row.rootTweetId ?? null,
+                        parentTweetId: row.parentTweetId ?? null,
+                        threadPosition: row.threadPosition ?? null,
+                        updatedAt: (row.updatedAt ?? row.createdAt).getTime(),
+                        deleted:
+                            Boolean(row.deleted) ||
+                            row.classification !== "catalogue" ||
+                            row.imageMask <= 0,
+                        images: imagesByTweet.get(row.id) ?? [],
+                    }) satisfies TweetSyncItem,
+            );
 
-        c.header("Cache-Control", "no-store");
-        return c.json(response);
+            const lastItem = items[items.length - 1];
+            const response = {
+                eventId,
+                syncToken: `${currentSchemaVersion}:${eventId}`,
+                items,
+                nextCursor: lastItem
+                    ? {
+                          updatedAt: lastItem.updatedAt,
+                          id: lastItem.id,
+                      }
+                    : null,
+                hasMore,
+                serverTime: Date.now(),
+            } satisfies TweetSyncResponse;
+
+            c.header("Cache-Control", "no-store");
+            return c.json(response);
+        } catch (error) {
+            console.error("[tweets/sync] error", { eventId, cursor }, error);
+            return c.json(
+                {
+                    error: "sync failed",
+                    message:
+                        error instanceof Error ? error.message : String(error),
+                },
+                500,
+            );
+        }
     })
     .post("/tweets/upsert", async (c) => {
         const authError = requirePassword(c);

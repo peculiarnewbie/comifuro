@@ -185,11 +185,20 @@ export namespace tweetsOperations {
             return [];
         }
 
-        return await db
-            .select()
-            .from(tweetMedia)
-            .where(inArray(tweetMedia.tweetId, tweetIds))
-            .orderBy(tweetMedia.tweetId, tweetMedia.mediaIndex);
+        // D1 has a maximum of 100 bound parameters per statement.
+        // Chunk the IDs to stay within that limit.
+        const CHUNK_SIZE = 100;
+        const allResults = [];
+        for (let i = 0; i < tweetIds.length; i += CHUNK_SIZE) {
+            const chunk = tweetIds.slice(i, i + CHUNK_SIZE);
+            const results = await db
+                .select()
+                .from(tweetMedia)
+                .where(inArray(tweetMedia.tweetId, chunk))
+                .orderBy(tweetMedia.tweetId, tweetMedia.mediaIndex);
+            allResults.push(...results);
+        }
+        return allResults;
     };
 
     export const listPublicTweets = async (
@@ -223,11 +232,20 @@ export namespace tweetsOperations {
             return [];
         }
 
-        return await db
-            .select()
-            .from(tweetMedia)
-            .where(inArray(tweetMedia.tweetId, tweetIds))
-            .orderBy(tweetMedia.tweetId, tweetMedia.mediaIndex);
+        // D1 has a maximum of 100 bound parameters per statement.
+        // Chunk the IDs to stay within that limit.
+        const CHUNK_SIZE = 100;
+        const allResults = [];
+        for (let i = 0; i < tweetIds.length; i += CHUNK_SIZE) {
+            const chunk = tweetIds.slice(i, i + CHUNK_SIZE);
+            const results = await db
+                .select()
+                .from(tweetMedia)
+                .where(inArray(tweetMedia.tweetId, chunk))
+                .orderBy(tweetMedia.tweetId, tweetMedia.mediaIndex);
+            allResults.push(...results);
+        }
+        return allResults;
     };
 
     export const listTweetsForSync = async (
