@@ -202,17 +202,14 @@ export function AppRouteComponent() {
                 }
 
                 const previous = indexedDocuments.get(tweetId);
-                if (!previous) {
+                if (!nextIndex.has(tweetId)) {
                     nextIndex.add(tweet);
                 } else if (
+                    !previous ||
                     previous.searchText !== tweet.searchText ||
                     previous.updatedAt !== tweet.updatedAt
                 ) {
-                    if (nextIndex.has(tweetId)) {
-                        nextIndex.replace(tweet);
-                    } else {
-                        nextIndex.add(tweet);
-                    }
+                    nextIndex.replace(tweet);
                 }
 
                 processed += 1;
