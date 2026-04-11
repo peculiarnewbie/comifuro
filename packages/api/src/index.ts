@@ -73,9 +73,26 @@ const exportPublicFeedSchema = z.object({
     eventId: z.string().min(1).optional(),
 });
 
+const adminTweetMetadataSchema = z
+    .object({
+        inferredFandoms: z.array(z.string().min(1)).optional(),
+        matchedTags: z.array(z.string().min(1)).optional(),
+    })
+    .refine(
+        (value) =>
+            value.inferredFandoms !== undefined || value.matchedTags !== undefined,
+        {
+            message: "at least one metadata field is required",
+        },
+    );
+
+const rerootThreadSchema = z.object({
+    newRootTweetId: z.string().min(1),
+});
+
 const app = new Hono<{ Bindings: Bindings }>();
 
-const currentSchemaVersion = 8;
+const currentSchemaVersion = 9;
 
 export function getDb(c: Context<{ Bindings: Bindings }>) {
     return drizzle(c.env.DB) as DrizzleD1Database;
@@ -131,6 +148,16 @@ function normalizeEventId(value: string | null | undefined, fallback = "cf21") {
     return value?.trim().toLowerCase() || fallback;
 }
 
+function normalizeTagList(values: string[] | undefined) {
+    if (values === undefined) {
+        return undefined;
+    }
+
+    return Array.from(
+        new Set(values.map((value) => value.trim()).filter(Boolean)),
+    );
+}
+
 function maskToFallbackR2Keys(tweetId: string, mask: number, maxBits = 8) {
     const keys: string[] = [];
 
@@ -178,6 +205,7 @@ async function buildPublicFeed(db: DrizzleD1Database, eventId: string) {
                 user: tweet.user,
                 text: tweet.text,
                 url: tweet.tweetUrl,
+                matchedTags: tweet.matchedTags ?? [],
                 inferredFandoms: tweet.inferredFandoms ?? [],
                 inferredBoothId: tweet.inferredBoothId ?? null,
                 rootTweetId: tweet.rootTweetId ?? null,
@@ -308,6 +336,9 @@ app.get("/", (c) => c.text("ok"))
                         timestamp: row.timestamp.getTime(),
                         text: row.text,
                         tweetUrl: row.tweetUrl,
+                        matchedTags: Array.isArray(row.matchedTags)
+                            ? row.matchedTags
+                            : [],
                         imageMask: row.imageMask,
                         classification: row.classification,
                         inferredFandoms: Array.isArray(row.inferredFandoms)
@@ -354,6 +385,97 @@ app.get("/", (c) => c.text("ok"))
                 500,
             );
         }
+    })
+    .patch("/admin/tweets/:id/metadata", async (c) => {
+        const authError = requirePassword(c);
+        if (authError) {
+            return authError;
+        }
+
+        const body = await c.req.json();
+        const parsed = adminTweetMetadataSchema.safeParse(body);
+        if (!parsed.success) {
+            return c.json({ error: parsed.error.issues[0]?.message }, 400);
+        }
+
+        const [tweet] = await tweetsOperations.updateTweetAdminMetadata(getDb(c), {
+            id: c.req.param("id"),
+            inferredFandoms: normalizeTagList(parsed.data.inferredFandoms),
+            matchedTags: normalizeTagList(parsed.data.matchedTags),
+            updatedAt: new Date(),
+        });
+
+        if (!tweet) {
+            return c.json({ error: "tweet not found" }, 404);
+        }
+
+        return c.json({ ok: true, tweet });
+    })
+    .post("/admin/threads/:id/reroot", async (c) => {
+        const authError = requirePassword(c);
+        if (authError) {
+            return authError;
+        }
+
+        const body = await c.req.json();
+        const parsed = rerootThreadSchema.safeParse(body);
+        if (!parsed.success) {
+            return c.json({ error: parsed.error.issues[0]?.message }, 400);
+        }
+
+        try {
+            const tweets = await tweetsOperations.rerootThread(getDb(c), {
+                rootTweetId: c.req.param("id"),
+                newRootTweetId: parsed.data.newRootTweetId,
+                updatedAt: new Date(),
+            });
+
+            return c.json({ ok: true, tweets });
+        } catch (error) {
+            return c.json(
+                {
+                    error:
+                        error instanceof Error ? error.message : "reroot failed",
+                },
+                400,
+            );
+        }
+    })
+    .post("/admin/tweets/:id/uncatalogue", async (c) => {
+        const authError = requirePassword(c);
+        if (authError) {
+            return authError;
+        }
+
+        const [tweet] = await tweetsOperations.manualUncatalogueTweet(getDb(c), {
+            id: c.req.param("id"),
+            reason: "uncatalogued manually",
+            updatedAt: new Date(),
+        });
+
+        if (!tweet) {
+            return c.json({ error: "tweet not found" }, 404);
+        }
+
+        return c.json({ ok: true, tweet });
+    })
+    .post("/admin/tweets/:id/remove-follow-up", async (c) => {
+        const authError = requirePassword(c);
+        if (authError) {
+            return authError;
+        }
+
+        const [tweet] = await tweetsOperations.manualUncatalogueTweet(getDb(c), {
+            id: c.req.param("id"),
+            reason: "removed from follow ups manually",
+            updatedAt: new Date(),
+        });
+
+        if (!tweet) {
+            return c.json({ error: "tweet not found" }, 404);
+        }
+
+        return c.json({ ok: true, tweet });
     })
     .post("/tweets/upsert", async (c) => {
         const authError = requirePassword(c);

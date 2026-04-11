@@ -9,12 +9,15 @@ describe("createTweetSearchText", () => {
         const searchText = createTweetSearchText({
             user: "artist",
             text: "new catalogue",
+            matchedTags: ["manual", "#cf22"],
             inferredFandoms: ["Blue Archive", "Project Sekai"],
             inferredBoothId: "A12",
         });
 
         expect(searchText).toContain("artist");
         expect(searchText).toContain("new catalogue");
+        expect(searchText).toContain("manual");
+        expect(searchText).toContain("#cf22");
         expect(searchText).toContain("Blue Archive");
         expect(searchText).toContain("Project Sekai");
         expect(searchText).toContain("A12");
@@ -24,6 +27,7 @@ describe("createTweetSearchText", () => {
         const searchText = createTweetSearchText({
             user: "artist",
             text: "new catalogue",
+            matchedTags: null,
             inferredFandoms: null,
             inferredBoothId: null,
         });
@@ -36,6 +40,7 @@ describe("createTweetSearchText", () => {
             {
                 user: "artist",
                 text: "catalogue part 1",
+                matchedTags: ["manual"],
                 inferredFandoms: ["Blue Archive"],
                 inferredBoothId: "A12",
             },
@@ -43,6 +48,7 @@ describe("createTweetSearchText", () => {
                 {
                     user: "artist",
                     text: "catalogue part 2",
+                    matchedTags: ["booth"],
                     inferredFandoms: null,
                     inferredBoothId: null,
                 },
@@ -51,6 +57,8 @@ describe("createTweetSearchText", () => {
 
         expect(searchText).toContain("catalogue part 1");
         expect(searchText).toContain("catalogue part 2");
+        expect(searchText).toContain("manual");
+        expect(searchText).toContain("booth");
         expect(searchText).toContain("Blue Archive");
         expect(searchText).toContain("A12");
     });

@@ -134,6 +134,7 @@ const getTweetSnapshot = (store: Store): TweetStoreSnapshot => {
             timestamp: Number(row.timestamp),
             text: row.text,
             tweetUrl: row.tweetUrl,
+            matchedTags: Array.isArray(row.matchedTags) ? row.matchedTags : [],
             imageMask: Number(row.imageMask),
             classification: row.classification,
             inferredFandoms: Array.isArray(row.inferredFandoms)
@@ -311,6 +312,7 @@ export async function createTweetStoreSession({
                     timestamp: item.timestamp,
                     text: item.text,
                     tweetUrl: item.tweetUrl,
+                    matchedTags: item.matchedTags,
                     imageMask: item.imageMask,
                     classification: item.classification,
                     inferredFandoms: item.inferredFandoms,

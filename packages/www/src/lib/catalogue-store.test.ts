@@ -14,6 +14,7 @@ function makeTweet(
         timestamp: 1,
         text: `tweet ${id}`,
         tweetUrl: `https://x.com/artist/status/${id}`,
+        matchedTags: [],
         imageMask: 1,
         classification: "catalogue",
         inferredFandoms: [],

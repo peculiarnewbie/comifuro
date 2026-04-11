@@ -41,6 +41,7 @@ export type TweetSyncItem = {
     timestamp: number;
     text: string;
     tweetUrl: string;
+    matchedTags: string[];
     imageMask: number;
     classification: TweetClassification;
     inferredFandoms: string[];

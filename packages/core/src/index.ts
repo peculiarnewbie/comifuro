@@ -177,6 +177,19 @@ export namespace tweetsOperations {
             .orderBy(tweetMedia.mediaIndex);
     };
 
+    export const listThreadTweets = async (
+        db: SupportedDb,
+        rootTweetId: string,
+    ) => {
+        return await db
+            .select()
+            .from(tweets)
+            .where(
+                or(eq(tweets.id, rootTweetId), eq(tweets.rootTweetId, rootTweetId)),
+            )
+            .orderBy(asc(tweets.threadPosition), asc(tweets.id));
+    };
+
     export const listTweetMediaByTweetIds = async (
         db: SupportedDb,
         tweetIds: string[],
@@ -384,6 +397,118 @@ export namespace tweetsOperations {
             )
             .orderBy(desc(tweets.id))
             .limit(limit);
+    };
+
+    export const updateTweetAdminMetadata = async (
+        db: SupportedDb,
+        input: {
+            id: string;
+            matchedTags?: string[];
+            inferredFandoms?: string[];
+            updatedAt?: Date;
+        },
+    ) => {
+        const updatedAt = input.updatedAt ?? new Date();
+
+        return await db
+            .update(tweets)
+            .set({
+                matchedTags: input.matchedTags,
+                inferredFandoms: input.inferredFandoms,
+                updatedAt,
+            })
+            .where(eq(tweets.id, input.id))
+            .returning();
+    };
+
+    export const manualUncatalogueTweet = async (
+        db: SupportedDb,
+        input: {
+            id: string;
+            reason: string;
+            updatedAt?: Date;
+        },
+    ) => {
+        const updatedAt = input.updatedAt ?? new Date();
+
+        return await db
+            .update(tweets)
+            .set({
+                classification: "not_catalogue",
+                classificationReason: input.reason,
+                rootTweetId: null,
+                parentTweetId: null,
+                threadPosition: null,
+                updatedAt,
+            })
+            .where(eq(tweets.id, input.id))
+            .returning();
+    };
+
+    export const rerootThread = async (
+        db: SupportedDb,
+        input: {
+            rootTweetId: string;
+            newRootTweetId: string;
+            updatedAt?: Date;
+        },
+    ) => {
+        const updatedAt = input.updatedAt ?? new Date();
+        const threadTweets = await listThreadTweets(db, input.rootTweetId);
+        const orderedTweets = threadTweets.sort((left, right) => {
+            const leftPosition =
+                left.id === input.rootTweetId
+                    ? 0
+                    : (left.threadPosition ?? Number.MAX_SAFE_INTEGER) + 1;
+            const rightPosition =
+                right.id === input.rootTweetId
+                    ? 0
+                    : (right.threadPosition ?? Number.MAX_SAFE_INTEGER) + 1;
+
+            if (leftPosition !== rightPosition) {
+                return leftPosition - rightPosition;
+            }
+
+            if (left.id === right.id) {
+                return 0;
+            }
+
+            return BigInt(left.id) > BigInt(right.id) ? 1 : -1;
+        });
+        const newRoot = orderedTweets.find(
+            (tweet) => tweet.id === input.newRootTweetId,
+        );
+
+        if (!newRoot) {
+            throw new Error("new root tweet is not part of the thread");
+        }
+
+        const nextOrder = [
+            newRoot,
+            ...orderedTweets.filter((tweet) => tweet.id !== input.newRootTweetId),
+        ];
+
+        const updatedTweets = [];
+        for (const [index, tweet] of nextOrder.entries()) {
+            const parentTweetId = index === 0 ? null : nextOrder[index - 1]?.id ?? null;
+            const [updatedTweet] = await db
+                .update(tweets)
+                .set({
+                    classification: "catalogue",
+                    rootTweetId: index === 0 ? null : input.newRootTweetId,
+                    parentTweetId,
+                    threadPosition: index === 0 ? null : index,
+                    updatedAt,
+                })
+                .where(eq(tweets.id, tweet.id))
+                .returning();
+
+            if (updatedTweet) {
+                updatedTweets.push(updatedTweet);
+            }
+        }
+
+        return updatedTweets;
     };
 }
 

@@ -201,4 +201,96 @@ describe("tweetsOperations inferred metadata", () => {
         expect(stored?.threadPosition).toBe(3);
         expect(media).toHaveLength(1);
     });
+
+    test("allows manual admin updates for fandoms, rerooting, and uncataloguing", async () => {
+        const dbPath = createTempDbPath();
+        runBunMigrations(dbPath);
+
+        const db = getBunSqlite(dbPath);
+
+        await tweetsOperations.upsertMultipleTweets(db, [
+            {
+                id: "300",
+                eventId: "cf22",
+                user: "artist",
+                displayName: "Artist",
+                timestamp: new Date("2026-04-09T10:00:00.000Z"),
+                text: "root",
+                tweetUrl: "https://x.com/artist/status/300",
+                matchedTags: ["initial"],
+                imageMask: 1,
+                classification: "catalogue",
+                inferredFandoms: ["Blue Archive"],
+                updatedAt: new Date("2026-04-09T10:01:00.000Z"),
+            },
+            {
+                id: "301",
+                eventId: "cf22",
+                user: "artist",
+                displayName: "Artist",
+                timestamp: new Date("2026-04-09T10:02:00.000Z"),
+                text: "reply one",
+                tweetUrl: "https://x.com/artist/status/301",
+                imageMask: 1,
+                classification: "catalogue",
+                rootTweetId: "300",
+                parentTweetId: "300",
+                threadPosition: 1,
+                inferredFandoms: [],
+                updatedAt: new Date("2026-04-09T10:03:00.000Z"),
+            },
+            {
+                id: "302",
+                eventId: "cf22",
+                user: "artist",
+                displayName: "Artist",
+                timestamp: new Date("2026-04-09T10:04:00.000Z"),
+                text: "reply two",
+                tweetUrl: "https://x.com/artist/status/302",
+                imageMask: 1,
+                classification: "catalogue",
+                rootTweetId: "300",
+                parentTweetId: "301",
+                threadPosition: 2,
+                inferredFandoms: [],
+                updatedAt: new Date("2026-04-09T10:05:00.000Z"),
+            },
+        ]);
+
+        await tweetsOperations.updateTweetAdminMetadata(db, {
+            id: "300",
+            matchedTags: ["manual", "featured"],
+            inferredFandoms: ["Uma Musume", "Blue Archive"],
+            updatedAt: new Date("2026-04-09T11:00:00.000Z"),
+        });
+
+        await tweetsOperations.rerootThread(db, {
+            rootTweetId: "300",
+            newRootTweetId: "302",
+            updatedAt: new Date("2026-04-09T11:05:00.000Z"),
+        });
+
+        await tweetsOperations.manualUncatalogueTweet(db, {
+            id: "301",
+            reason: "removed from follow ups manually",
+            updatedAt: new Date("2026-04-09T11:10:00.000Z"),
+        });
+
+        const rerootedRoot = await tweetsOperations.getTweet(db, "302");
+        const oldRoot = await tweetsOperations.getTweet(db, "300");
+        const removedReply = await tweetsOperations.getTweet(db, "301");
+
+        expect(oldRoot?.matchedTags).toEqual(["manual", "featured"]);
+        expect(oldRoot?.inferredFandoms).toEqual(["Uma Musume", "Blue Archive"]);
+        expect(rerootedRoot?.rootTweetId).toBeNull();
+        expect(rerootedRoot?.parentTweetId).toBeNull();
+        expect(rerootedRoot?.threadPosition).toBeNull();
+        expect(oldRoot?.rootTweetId).toBe("302");
+        expect(oldRoot?.parentTweetId).toBe("302");
+        expect(oldRoot?.threadPosition).toBe(1);
+        expect(removedReply?.classification).toBe("not_catalogue");
+        expect(removedReply?.rootTweetId).toBeNull();
+        expect(removedReply?.parentTweetId).toBeNull();
+        expect(removedReply?.threadPosition).toBeNull();
+    });
 });
