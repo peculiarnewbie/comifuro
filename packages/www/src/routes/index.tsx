@@ -329,6 +329,14 @@ export function AppRouteComponent() {
     const [lastSyncedAt, setLastSyncedAt] = createSignal<number | null>(null);
     const [bootstrapComplete, setBootstrapComplete] = createSignal(false);
     const [searchValue, setSearchValue] = createSignal("");
+    const [debouncedSearchValue, setDebouncedSearchValue] = createSignal("");
+    createEffect(() => {
+        const value = searchValue();
+        const timeoutId = setTimeout(() => {
+            setDebouncedSearchValue(value);
+        }, 200);
+        onCleanup(() => clearTimeout(timeoutId));
+    });
     const [miniSearch] = createSignal(createSearchIndex());
     const [searchIndexState, setSearchIndexState] = createSignal<SearchIndexState>({
         ready: false,
@@ -508,7 +516,7 @@ export function AppRouteComponent() {
     });
 
     const filteredThreads = createMemo(() => {
-        const filter = searchValue().trim();
+        const filter = debouncedSearchValue().trim();
         if (!filter) {
             return groupedThreads();
         }
@@ -532,6 +540,52 @@ export function AppRouteComponent() {
             .map((result) => threadMap.get(result.id))
             .filter((thread): thread is CatalogueTweetThread => Boolean(thread));
     });
+
+    const allTags = createMemo(() => {
+        const set = new Set<string>();
+        for (const tweet of tweets()) {
+            tweet.matchedTags?.forEach((tag) => {
+                if (tag) set.add(tag);
+            });
+            tweet.inferredFandoms?.forEach((tag) => {
+                if (tag) set.add(tag);
+            });
+            if (tweet.inferredBoothId) set.add(tweet.inferredBoothId);
+        }
+        return Array.from(set).sort((a, b) => a.localeCompare(b));
+    });
+
+    const [searchFocused, setSearchFocused] = createSignal(false);
+
+    const tagSuggestions = createMemo(() => {
+        if (!searchFocused()) return [];
+        const tokens = searchValue().split(/\s+/);
+        const lastToken = (tokens[tokens.length - 1] ?? "").toLowerCase();
+        if (!lastToken) return [];
+        const startsWith: string[] = [];
+        const contains: string[] = [];
+        for (const tag of allTags()) {
+            const lower = tag.toLowerCase();
+            if (lower === lastToken) continue;
+            if (lower.startsWith(lastToken)) {
+                startsWith.push(tag);
+            } else if (lower.includes(lastToken)) {
+                contains.push(tag);
+            }
+            if (startsWith.length + contains.length >= 32) break;
+        }
+        return [...startsWith, ...contains].slice(0, 8);
+    });
+
+    const applyTagSuggestion = (tag: string) => {
+        const tokens = searchValue().split(/\s+/);
+        if (tokens.length === 0) {
+            setSearchValue(`${tag} `);
+            return;
+        }
+        tokens[tokens.length - 1] = tag;
+        setSearchValue(`${tokens.join(" ")} `);
+    };
 
     const setEvent = (nextEventId: string) => {
         setEventId(nextEventId);
@@ -754,15 +808,37 @@ export function AppRouteComponent() {
                             </Show>
                         </div>
 
-                        <input
-                            type="text"
-                            placeholder="Search tweets"
-                            value={searchValue()}
-                            onInput={(event) =>
-                                setSearchValue(event.currentTarget.value)
-                            }
-                            class="w-full rounded border p-2 sm:max-w-sm"
-                        />
+                        <div class="relative w-full sm:max-w-sm">
+                            <input
+                                type="text"
+                                placeholder="Search tweets"
+                                value={searchValue()}
+                                onInput={(event) =>
+                                    setSearchValue(event.currentTarget.value)
+                                }
+                                onFocus={() => setSearchFocused(true)}
+                                onBlur={() => setSearchFocused(false)}
+                                class="w-full rounded border p-2"
+                            />
+                            <Show when={tagSuggestions().length > 0}>
+                                <div class="absolute left-0 right-0 top-full z-10 mt-1 max-h-64 overflow-auto rounded border border-stone-200 bg-white shadow-lg">
+                                    <For each={tagSuggestions()}>
+                                        {(tag) => (
+                                            <button
+                                                type="button"
+                                                class="block w-full px-3 py-2 text-left text-sm text-stone-800 hover:bg-stone-100"
+                                                onMouseDown={(event) => {
+                                                    event.preventDefault();
+                                                    applyTagSuggestion(tag);
+                                                }}
+                                            >
+                                                {tag}
+                                            </button>
+                                        )}
+                                    </For>
+                                </div>
+                            </Show>
+                        </div>
                     </div>
 
                     <Show
@@ -895,15 +971,37 @@ export function AppRouteComponent() {
                                     <span class="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-400">
                                         search
                                     </span>
-                                    <input
-                                        type="text"
-                                        placeholder="Search user, text, fandom, booth, or manual tag"
-                                        value={searchValue()}
-                                        onInput={(event) =>
-                                            setSearchValue(event.currentTarget.value)
-                                        }
-                                        class="w-full rounded-2xl border border-stone-700 bg-stone-900 px-4 py-3 text-sm text-stone-50 outline-none transition focus:border-amber-400"
-                                    />
+                                    <div class="relative">
+                                        <input
+                                            type="text"
+                                            placeholder="Search user, text, fandom, booth, or manual tag"
+                                            value={searchValue()}
+                                            onInput={(event) =>
+                                                setSearchValue(event.currentTarget.value)
+                                            }
+                                            onFocus={() => setSearchFocused(true)}
+                                            onBlur={() => setSearchFocused(false)}
+                                            class="w-full rounded-2xl border border-stone-700 bg-stone-900 px-4 py-3 text-sm text-stone-50 outline-none transition focus:border-amber-400"
+                                        />
+                                        <Show when={tagSuggestions().length > 0}>
+                                            <div class="absolute left-0 right-0 top-full z-10 mt-1 max-h-64 overflow-auto rounded-2xl border border-stone-700 bg-stone-900 shadow-[0_20px_80px_-40px_rgba(0,0,0,0.9)]">
+                                                <For each={tagSuggestions()}>
+                                                    {(tag) => (
+                                                        <button
+                                                            type="button"
+                                                            class="block w-full px-4 py-2 text-left text-sm text-stone-100 hover:bg-stone-800"
+                                                            onMouseDown={(event) => {
+                                                                event.preventDefault();
+                                                                applyTagSuggestion(tag);
+                                                            }}
+                                                        >
+                                                            {tag}
+                                                        </button>
+                                                    )}
+                                                </For>
+                                            </div>
+                                        </Show>
+                                    </div>
                                 </label>
                                 <div class="space-y-1 text-xs text-stone-400">
                                     <div>
