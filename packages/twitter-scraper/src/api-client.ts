@@ -106,4 +106,51 @@ export class ApiClient {
             },
         );
     }
+
+    async listMediaMissingThumbnails(params?: {
+        limit?: number;
+        cursor?: { tweetId: string; mediaIndex: number };
+    }) {
+        const searchParams = new URLSearchParams();
+        if (params?.limit) {
+            searchParams.set("limit", String(params.limit));
+        }
+        if (params?.cursor) {
+            searchParams.set("cursorTweetId", params.cursor.tweetId);
+            searchParams.set(
+                "cursorMediaIndex",
+                String(params.cursor.mediaIndex),
+            );
+        }
+        const query = searchParams.toString();
+        return await this.request<{
+            items: {
+                tweetId: string;
+                mediaIndex: number;
+                r2Key: string;
+            }[];
+            nextCursor: { tweetId: string; mediaIndex: number } | null;
+        }>(
+            `/admin/media/missing-thumbnails${query ? `?${query}` : ""}`,
+        );
+    }
+
+    async setMediaThumbnail(input: {
+        tweetId: string;
+        mediaIndex: number;
+        thumbnailR2Key: string;
+    }) {
+        return await this.request<{ ok: true }>(
+            `/admin/media/${encodeURIComponent(input.tweetId)}/${input.mediaIndex}/thumbnail`,
+            {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    thumbnailR2Key: input.thumbnailR2Key,
+                }),
+            },
+        );
+    }
 }

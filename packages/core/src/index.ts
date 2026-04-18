@@ -8,6 +8,7 @@ import {
     eq,
     gt,
     inArray,
+    isNull,
     lt,
     or,
     sql,
@@ -175,6 +176,55 @@ export namespace tweetsOperations {
             .from(tweetMedia)
             .where(eq(tweetMedia.tweetId, tweetId))
             .orderBy(tweetMedia.mediaIndex);
+    };
+
+    export const listTweetMediaMissingThumbnails = async (
+        db: SupportedDb,
+        opts: {
+            limit: number;
+            cursor?: { tweetId: string; mediaIndex: number };
+        },
+    ) => {
+        const { limit, cursor } = opts;
+        const condition = cursor
+            ? and(
+                  isNull(tweetMedia.thumbnailR2Key),
+                  or(
+                      gt(tweetMedia.tweetId, cursor.tweetId),
+                      and(
+                          eq(tweetMedia.tweetId, cursor.tweetId),
+                          gt(tweetMedia.mediaIndex, cursor.mediaIndex),
+                      ),
+                  ),
+              )
+            : isNull(tweetMedia.thumbnailR2Key);
+
+        return await db
+            .select()
+            .from(tweetMedia)
+            .where(condition)
+            .orderBy(asc(tweetMedia.tweetId), asc(tweetMedia.mediaIndex))
+            .limit(limit);
+    };
+
+    export const setTweetMediaThumbnail = async (
+        db: SupportedDb,
+        input: {
+            tweetId: string;
+            mediaIndex: number;
+            thumbnailR2Key: string;
+        },
+    ) => {
+        return await db
+            .update(tweetMedia)
+            .set({ thumbnailR2Key: input.thumbnailR2Key })
+            .where(
+                and(
+                    eq(tweetMedia.tweetId, input.tweetId),
+                    eq(tweetMedia.mediaIndex, input.mediaIndex),
+                ),
+            )
+            .returning();
     };
 
     export const listThreadTweets = async (

@@ -401,6 +401,79 @@ app.get("/", (c) => c.text("ok"))
             );
         }
     })
+    .get("/admin/media/missing-thumbnails", async (c) => {
+        const authError = requirePassword(c);
+        if (authError) {
+            return authError;
+        }
+
+        const limit = Math.min(
+            Math.max(Number(c.req.query("limit") ?? 100), 1),
+            500,
+        );
+        const cursorTweetId = c.req.query("cursorTweetId");
+        const cursorMediaIndex = toNumberParam(c.req.query("cursorMediaIndex"));
+        const cursor =
+            cursorTweetId && cursorMediaIndex != null
+                ? { tweetId: cursorTweetId, mediaIndex: cursorMediaIndex }
+                : undefined;
+
+        const rows = await tweetsOperations.listTweetMediaMissingThumbnails(
+            getDb(c),
+            { limit, cursor },
+        );
+        const lastRow = rows[rows.length - 1];
+
+        return c.json({
+            items: rows.map((row) => ({
+                tweetId: row.tweetId,
+                mediaIndex: row.mediaIndex,
+                r2Key: row.r2Key,
+            })),
+            nextCursor:
+                lastRow && rows.length === limit
+                    ? {
+                          tweetId: lastRow.tweetId,
+                          mediaIndex: lastRow.mediaIndex,
+                      }
+                    : null,
+        });
+    })
+    .patch("/admin/media/:tweetId/:mediaIndex/thumbnail", async (c) => {
+        const authError = requirePassword(c);
+        if (authError) {
+            return authError;
+        }
+
+        const tweetId = c.req.param("tweetId");
+        const mediaIndex = Number(c.req.param("mediaIndex"));
+        if (!Number.isInteger(mediaIndex) || mediaIndex < 0) {
+            return c.json({ error: "invalid mediaIndex" }, 400);
+        }
+
+        const body = await c.req.json();
+        const parsed = z
+            .object({ thumbnailR2Key: z.string().min(1) })
+            .safeParse(body);
+        if (!parsed.success) {
+            return c.json({ error: parsed.error.issues[0]?.message }, 400);
+        }
+
+        const updated = await tweetsOperations.setTweetMediaThumbnail(
+            getDb(c),
+            {
+                tweetId,
+                mediaIndex,
+                thumbnailR2Key: parsed.data.thumbnailR2Key,
+            },
+        );
+
+        if (updated.length === 0) {
+            return c.json({ error: "media not found" }, 404);
+        }
+
+        return c.json({ ok: true });
+    })
     .patch("/admin/tweets/:id/metadata", async (c) => {
         const authError = requirePassword(c);
         if (authError) {
