@@ -147,6 +147,9 @@ const getTweetSnapshot = (store: Store): TweetStoreSnapshot => {
                 row.threadPosition == null ? null : Number(row.threadPosition),
             updatedAt: Number(row.updatedAt),
             images: Array.isArray(row.images) ? row.images : [],
+            thumbnails: Array.isArray(row.thumbnails)
+                ? (row.thumbnails as (string | null)[])
+                : [],
         }))
         .sort((left, right) => compareTweetIdsDesc(left.id, right.id));
 
@@ -322,6 +325,7 @@ export async function createTweetStoreSession({
                     threadPosition: item.threadPosition,
                     updatedAt: item.updatedAt,
                     images: item.images,
+                    thumbnails: item.thumbnails ?? [],
                 });
             }
 

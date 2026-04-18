@@ -92,6 +92,7 @@ export const tweetMedia = sqliteTable(
             .references(() => tweets.id, { onDelete: "cascade" }),
         mediaIndex: integer("media_index").notNull(),
         r2Key: text("r2_key").notNull(),
+        thumbnailR2Key: text("thumbnail_r2_key"),
         sourceUrl: text("source_url").notNull(),
         contentType: text("content_type"),
         width: integer("width"),

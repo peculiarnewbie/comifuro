@@ -144,7 +144,8 @@ function AdminTweetRow(props: {
         setTagDraft(props.tweet.matchedTags.join(", "));
     });
 
-    const firstImage = () => props.tweet.images[0];
+    const firstImage = () =>
+        props.tweet.thumbnails?.[0] ?? props.tweet.images[0];
 
     return (
         <section class="rounded-[1.5rem] border border-stone-200 bg-white/90 p-4 shadow-[0_20px_60px_-50px_rgba(41,37,36,0.45)]">

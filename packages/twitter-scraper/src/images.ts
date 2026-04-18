@@ -55,6 +55,10 @@ async function fetchBestImage(previewUrl: string) {
     throw lastError ?? new Error(`could not resolve image for ${previewUrl}`);
 }
 
+const WEBP_QUALITY = 85;
+const WEBP_EFFORT = 6;
+const THUMBNAIL_MAX_DIMENSION = 720;
+
 export async function uploadTweetImages(
     apiClient: ApiClient,
     tweet: ExtractedTweet,
@@ -71,15 +75,26 @@ export async function uploadTweetImages(
             const metadata = await sharp(image.buffer).metadata();
             const webpBuffer = await sharp(image.buffer)
                 .rotate()
-                .webp({ quality: 92 })
+                .webp({ quality: WEBP_QUALITY, effort: WEBP_EFFORT })
+                .toBuffer();
+            const thumbnailBuffer = await sharp(image.buffer)
+                .rotate()
+                .resize(THUMBNAIL_MAX_DIMENSION, THUMBNAIL_MAX_DIMENSION, {
+                    fit: "inside",
+                    withoutEnlargement: true,
+                })
+                .webp({ quality: WEBP_QUALITY, effort: WEBP_EFFORT })
                 .toBuffer();
             const key = `${tweet.id}/${mediaIndex}.webp`;
+            const thumbnailKey = `${tweet.id}/${mediaIndex}.thumb.webp`;
 
             await apiClient.uploadImage(key, webpBuffer);
+            await apiClient.uploadImage(thumbnailKey, thumbnailBuffer);
 
             uploaded.push({
                 mediaIndex,
                 r2Key: key,
+                thumbnailR2Key: thumbnailKey,
                 sourceUrl: image.sourceUrl,
                 contentType: "image/webp",
                 width: metadata.width,

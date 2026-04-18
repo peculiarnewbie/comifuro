@@ -299,6 +299,11 @@ export namespace tweetsOperations {
             .limit(limit);
     };
 
+    export type TweetImageRef = {
+        r2Key: string;
+        thumbnailR2Key: string | null;
+    };
+
     export const listTweetImages = async (
         db: SupportedDb,
         rows: {
@@ -311,17 +316,20 @@ export namespace tweetsOperations {
             rows.map((row) => row.id),
         );
 
-        const mediaByTweet = new Map<string, string[]>();
+        const mediaByTweet = new Map<string, TweetImageRef[]>();
         for (const item of media) {
             const current = mediaByTweet.get(item.tweetId) ?? [];
-            current.push(item.r2Key);
+            current.push({
+                r2Key: item.r2Key,
+                thumbnailR2Key: item.thumbnailR2Key ?? null,
+            });
             mediaByTweet.set(item.tweetId, current);
         }
 
         return new Map(
             rows.map((row) => [
                 row.id,
-                mediaByTweet.get(row.id) ?? maskToFallbackR2Keys(row.id, row.imageMask),
+                mediaByTweet.get(row.id) ?? maskToFallbackImageRefs(row.id, row.imageMask),
             ]),
         );
     };
@@ -540,6 +548,25 @@ function maskToFallbackR2Keys(tweetId: string, mask: number, maxBits = 8) {
     }
 
     return keys;
+}
+
+function maskToFallbackImageRefs(
+    tweetId: string,
+    mask: number,
+    maxBits = 8,
+): tweetsOperations.TweetImageRef[] {
+    const refs: tweetsOperations.TweetImageRef[] = [];
+
+    for (let index = 0; index < maxBits; index += 1) {
+        if ((mask & (1 << index)) !== 0) {
+            refs.push({
+                r2Key: `${tweetId}/${index}.webp`,
+                thumbnailR2Key: null,
+            });
+        }
+    }
+
+    return refs;
 }
 
 export namespace replicacheOperations {

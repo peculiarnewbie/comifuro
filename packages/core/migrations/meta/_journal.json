@@ -113,6 +113,13 @@
             "when": 1775750400000,
             "tag": "0015_threaded_catalogues",
             "breakpoints": true
+        },
+        {
+            "idx": 16,
+            "version": "7",
+            "when": 1776470400000,
+            "tag": "0016_tweet_media_thumbnail",
+            "breakpoints": true
         }
     ]
 }

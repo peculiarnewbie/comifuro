@@ -36,6 +36,7 @@ const legacyTweetSchema = z.array(
 const scraperMediaSchema = z.object({
     mediaIndex: z.number().int().nonnegative(),
     r2Key: z.string().min(1),
+    thumbnailR2Key: z.string().min(1).optional(),
     sourceUrl: z.string().url(),
     contentType: z.string().min(1).optional(),
     width: z.number().int().positive().optional(),
@@ -193,32 +194,45 @@ async function buildPublicFeed(db: DrizzleD1Database, eventId: string) {
         publicTweets.map((tweet) => tweet.id),
     );
 
-    const mediaByTweet = new Map<string, string[]>();
+    const mediaByTweet = new Map<
+        string,
+        { r2Key: string; thumbnailR2Key: string | null }[]
+    >();
     for (const item of media) {
         const current = mediaByTweet.get(item.tweetId) ?? [];
-        current.push(item.r2Key);
+        current.push({
+            r2Key: item.r2Key,
+            thumbnailR2Key: item.thumbnailR2Key ?? null,
+        });
         mediaByTweet.set(item.tweetId, current);
     }
 
     return Object.fromEntries(
-        publicTweets.map((tweet) => [
-            tweet.id,
-            {
-                eventId: tweet.eventId,
-                user: tweet.user,
-                text: tweet.text,
-                url: tweet.tweetUrl,
-                matchedTags: tweet.matchedTags ?? [],
-                inferredFandoms: tweet.inferredFandoms ?? [],
-                inferredBoothId: tweet.inferredBoothId ?? null,
-                rootTweetId: tweet.rootTweetId ?? null,
-                parentTweetId: tweet.parentTweetId ?? null,
-                threadPosition: tweet.threadPosition ?? null,
-                images:
-                    mediaByTweet.get(tweet.id) ??
-                    maskToFallbackR2Keys(tweet.id, tweet.imageMask),
-            },
-        ]),
+        publicTweets.map((tweet) => {
+            const refs =
+                mediaByTweet.get(tweet.id) ??
+                maskToFallbackR2Keys(tweet.id, tweet.imageMask).map((key) => ({
+                    r2Key: key,
+                    thumbnailR2Key: null,
+                }));
+            return [
+                tweet.id,
+                {
+                    eventId: tweet.eventId,
+                    user: tweet.user,
+                    text: tweet.text,
+                    url: tweet.tweetUrl,
+                    matchedTags: tweet.matchedTags ?? [],
+                    inferredFandoms: tweet.inferredFandoms ?? [],
+                    inferredBoothId: tweet.inferredBoothId ?? null,
+                    rootTweetId: tweet.rootTweetId ?? null,
+                    parentTweetId: tweet.parentTweetId ?? null,
+                    threadPosition: tweet.threadPosition ?? null,
+                    images: refs.map((ref) => ref.r2Key),
+                    thumbnails: refs.map((ref) => ref.thumbnailR2Key),
+                },
+            ];
+        }),
     );
 }
 
@@ -304,36 +318,37 @@ api.get("/", (c) => c.text("ok"))
                 })),
             );
 
-            const items = pageRows.map(
-                (row) =>
-                    ({
-                        id: row.id,
-                        eventId: row.eventId,
-                        user: row.user,
-                        displayName: row.displayName,
-                        timestamp: row.timestamp.getTime(),
-                        text: row.text,
-                        tweetUrl: row.tweetUrl,
-                        matchedTags: Array.isArray(row.matchedTags)
-                            ? row.matchedTags
-                            : [],
-                        imageMask: row.imageMask,
-                        classification: row.classification,
-                        inferredFandoms: Array.isArray(row.inferredFandoms)
-                            ? row.inferredFandoms
-                            : [],
-                        inferredBoothId: row.inferredBoothId ?? null,
-                        rootTweetId: row.rootTweetId ?? null,
-                        parentTweetId: row.parentTweetId ?? null,
-                        threadPosition: row.threadPosition ?? null,
-                        updatedAt: (row.updatedAt ?? row.createdAt).getTime(),
-                        deleted:
-                            Boolean(row.deleted) ||
-                            row.classification !== "catalogue" ||
-                            row.imageMask <= 0,
-                        images: imagesByTweet.get(row.id) ?? [],
-                    }) satisfies TweetSyncItem,
-            );
+            const items = pageRows.map((row) => {
+                const refs = imagesByTweet.get(row.id) ?? [];
+                return {
+                    id: row.id,
+                    eventId: row.eventId,
+                    user: row.user,
+                    displayName: row.displayName,
+                    timestamp: row.timestamp.getTime(),
+                    text: row.text,
+                    tweetUrl: row.tweetUrl,
+                    matchedTags: Array.isArray(row.matchedTags)
+                        ? row.matchedTags
+                        : [],
+                    imageMask: row.imageMask,
+                    classification: row.classification,
+                    inferredFandoms: Array.isArray(row.inferredFandoms)
+                        ? row.inferredFandoms
+                        : [],
+                    inferredBoothId: row.inferredBoothId ?? null,
+                    rootTweetId: row.rootTweetId ?? null,
+                    parentTweetId: row.parentTweetId ?? null,
+                    threadPosition: row.threadPosition ?? null,
+                    updatedAt: (row.updatedAt ?? row.createdAt).getTime(),
+                    deleted:
+                        Boolean(row.deleted) ||
+                        row.classification !== "catalogue" ||
+                        row.imageMask <= 0,
+                    images: refs.map((ref) => ref.r2Key),
+                    thumbnails: refs.map((ref) => ref.thumbnailR2Key),
+                } satisfies TweetSyncItem;
+            });
 
             const lastItem = items[items.length - 1];
             const response = {
@@ -530,6 +545,7 @@ api.get("/", (c) => c.text("ok"))
                 tweetId: tweet.id,
                 mediaIndex: media.mediaIndex,
                 r2Key: media.r2Key,
+                thumbnailR2Key: media.thumbnailR2Key ?? null,
                 sourceUrl: media.sourceUrl,
                 contentType: media.contentType,
                 width: media.width,

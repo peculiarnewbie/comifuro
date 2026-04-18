@@ -52,6 +52,7 @@ export type TweetSyncItem = {
     updatedAt: number;
     deleted: boolean;
     images: string[];
+    thumbnails: (string | null)[];
 };
 
 export type TweetSyncResponse = {

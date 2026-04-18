@@ -30,6 +30,9 @@ export default function Tweet(props: {
     const rootTweet = () => props.thread.root;
     const threadTweets = () => [props.thread.root, ...props.thread.replies];
     const firstImage = (tweet: CatalogueTweet) => tweet.images[0];
+    const thumbnailFor = (tweet: CatalogueTweet, index: number) =>
+        tweet.thumbnails?.[index] ?? tweet.images[index] ?? null;
+    const firstThumbnail = (tweet: CatalogueTweet) => thumbnailFor(tweet, 0);
     const markClass = (mark: Marks) =>
         props.mark === mark
             ? "bg-blue-600 text-white border-blue-600"
@@ -112,7 +115,7 @@ export default function Tweet(props: {
                             {firstImage(rootTweet()) ? (
                                 <img
                                     class="aspect-[4/5] w-full object-cover"
-                                    src={createImageUrl(firstImage(rootTweet())!)}
+                                    src={createImageUrl(firstThumbnail(rootTweet())!)}
                                     loading="lazy"
                                 />
                             ) : (
@@ -229,11 +232,11 @@ export default function Tweet(props: {
                                             </a>
                                         </div>
                                         <Show when={firstImage(tweet)}>
-                                            {(image) => (
+                                            {(_image) => (
                                                 <div class="relative overflow-hidden rounded-lg">
                                                     <img
                                                         class="aspect-[4/5] w-full rounded-lg object-cover"
-                                                        src={createImageUrl(image())}
+                                                        src={createImageUrl(firstThumbnail(tweet)!)}
                                                         loading="lazy"
                                                     />
                                                     <Show when={tweet.images.length > 1}>
@@ -339,7 +342,7 @@ export default function Tweet(props: {
                                             </div>
                                             <div class="flex flex-wrap justify-center gap-2">
                                                 <For each={tweet().images}>
-                                                    {(image, index) => (
+                                                    {(_image, index) => (
                                                         <button
                                                             type="button"
                                                             class={`overflow-hidden rounded-2xl border transition ${
@@ -354,7 +357,9 @@ export default function Tweet(props: {
                                                         >
                                                             <img
                                                                 class="h-12 w-12 object-cover"
-                                                                src={createImageUrl(image)}
+                                                                src={createImageUrl(
+                                                                    thumbnailFor(tweet(), index())!,
+                                                                )}
                                                                 alt=""
                                                             />
                                                         </button>

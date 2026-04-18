@@ -25,6 +25,7 @@ export type ClassificationResult = {
 export type UploadedMedia = {
     mediaIndex: number;
     r2Key: string;
+    thumbnailR2Key?: string;
     sourceUrl: string;
     contentType: string;
     width?: number;

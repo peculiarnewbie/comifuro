@@ -24,6 +24,7 @@ function makeTweet(
         threadPosition: null,
         updatedAt: 1,
         images: [`${id}/0.webp`],
+        thumbnails: [`${id}/0.thumb.webp`],
         ...overrides,
     };
 }
