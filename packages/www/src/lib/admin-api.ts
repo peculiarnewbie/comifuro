@@ -1,14 +1,17 @@
 const PASSWORD_HEADER = "pec-password";
+const ACCOUNT_ID_HEADER = "x-account-id";
 
 type AdminRequestInput = {
     apiHost: string;
     password: string;
+    accountId: string;
 };
 
-function buildHeaders(password: string) {
+function buildHeaders(input: AdminRequestInput) {
     return {
         "Content-Type": "application/json",
-        [PASSWORD_HEADER]: password,
+        [PASSWORD_HEADER]: input.password,
+        [ACCOUNT_ID_HEADER]: input.accountId,
     };
 }
 
@@ -51,7 +54,7 @@ export async function updateTweetMetadata(
         `${input.apiHost}/admin/tweets/${input.tweetId}/metadata`,
         {
             method: "PATCH",
-            headers: buildHeaders(input.password),
+            headers: buildHeaders(input),
             body: JSON.stringify({
                 inferredFandoms: input.inferredFandoms,
                 matchedTags: input.matchedTags,
@@ -76,7 +79,7 @@ export async function rerootThread(
         `${input.apiHost}/admin/threads/${input.rootTweetId}/reroot`,
         {
             method: "POST",
-            headers: buildHeaders(input.password),
+            headers: buildHeaders(input),
             body: JSON.stringify({
                 newRootTweetId: input.newRootTweetId,
             }),
@@ -99,7 +102,7 @@ export async function uncatalogueTweet(
         `${input.apiHost}/admin/tweets/${input.tweetId}/uncatalogue`,
         {
             method: "POST",
-            headers: buildHeaders(input.password),
+            headers: buildHeaders(input),
         },
     );
 
@@ -119,7 +122,7 @@ export async function removeFollowUpTweet(
         `${input.apiHost}/admin/tweets/${input.tweetId}/remove-follow-up`,
         {
             method: "POST",
-            headers: buildHeaders(input.password),
+            headers: buildHeaders(input),
         },
     );
 

@@ -3,12 +3,8 @@ import { Portal } from "solid-js/web";
 import type { Marks } from "@comifuro/core/types";
 import type { CatalogueTweet, CatalogueTweetThread } from "../lib/catalogue-store";
 
-const MEDIA_HOST = "https://r2.comifuro.peculiarnewbie.com";
-
-const createImageUrl = (image: string) => `${MEDIA_HOST}/${image}`;
-
-const formatTimestamp = (timestamp: number) =>
-    new Date(timestamp).toLocaleString();
+import { createImageUrl } from "../lib/media";
+import { formatTimestamp } from "../lib/time";
 
 const handleActivationKey = (event: KeyboardEvent, action: () => void) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -16,6 +12,17 @@ const handleActivationKey = (event: KeyboardEvent, action: () => void) => {
         action();
     }
 };
+
+function makeAltText(tweet: CatalogueTweet, context?: string) {
+    const text = tweet.text.slice(0, 100);
+    const booth = tweet.inferredBoothId
+        ? ` — Booth ${tweet.inferredBoothId}`
+        : "";
+    const prefix = context
+        ? `${context} by @${tweet.user}`
+        : `Art catalogue by @${tweet.user}`;
+    return `${prefix}: ${text}${booth}`;
+}
 
 export default function Tweet(props: {
     thread: CatalogueTweetThread;
@@ -71,6 +78,15 @@ export default function Tweet(props: {
         const previousOverflow = document.body.style.overflow;
         document.body.style.overflow = "hidden";
 
+        // Save trigger element and move focus into modal
+        const previousFocus = document.activeElement as HTMLElement | null;
+        const dialog = document.querySelector('[role="dialog"]') as HTMLElement | null;
+        const closeButton = dialog?.querySelector('button[type="button"]') as HTMLElement | null;
+        closeButton?.focus();
+
+        const focusableSelectors =
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
         const handleWindowKeyDown = (event: KeyboardEvent) => {
             if (event.key === "Escape") {
                 closeDetail();
@@ -86,6 +102,24 @@ export default function Tweet(props: {
             if (event.key === "ArrowRight") {
                 event.preventDefault();
                 cycleImage(1);
+                return;
+            }
+
+            // Focus trap
+            if (event.key === "Tab" && dialog) {
+                const focusable = Array.from(
+                    dialog.querySelectorAll(focusableSelectors),
+                ).filter((el) => !(el as HTMLElement).hasAttribute("disabled")) as HTMLElement[];
+                if (focusable.length === 0) return;
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
             }
         };
 
@@ -94,6 +128,7 @@ export default function Tweet(props: {
         onCleanup(() => {
             window.removeEventListener("keydown", handleWindowKeyDown);
             document.body.style.overflow = previousOverflow;
+            previousFocus?.focus(); // Restore focus to trigger element
         });
     });
 
@@ -116,6 +151,7 @@ export default function Tweet(props: {
                                 <img
                                     class="aspect-[4/5] w-full object-cover"
                                     src={createImageUrl(firstThumbnail(rootTweet())!)}
+                                    alt={makeAltText(rootTweet())}
                                     loading="lazy"
                                 />
                             ) : (
@@ -237,6 +273,7 @@ export default function Tweet(props: {
                                                     <img
                                                         class="aspect-[4/5] w-full rounded-lg object-cover"
                                                         src={createImageUrl(firstThumbnail(tweet)!)}
+                                                        alt={makeAltText(tweet, "Follow-up")}
                                                         loading="lazy"
                                                     />
                                                     <Show when={tweet.images.length > 1}>
@@ -315,7 +352,10 @@ export default function Tweet(props: {
                                             <img
                                                 class="max-h-[calc(100vh-6rem)] w-full object-contain"
                                                 src={createImageUrl(image())}
-                                                alt={`Tweet media ${activeImageIndex() + 1}`}
+                                                alt={makeAltText(
+                                                    tweet(),
+                                                    `Image ${activeImageIndex() + 1} of ${tweet().images.length}`,
+                                                )}
                                             />
                                         )}
                                     </Show>

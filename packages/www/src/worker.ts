@@ -1,4 +1,9 @@
-import { workerApp, type WorkerBindings } from "./api";
+import { DurableObject } from "cloudflare:workers";
+import { workerApp } from "./api";
+import type { WorkerBindings } from "./api/types";
+import { RateLimiter } from "./rate-limiter";
+
+export { RateLimiter };
 
 export default {
     fetch(request, env, ctx) {

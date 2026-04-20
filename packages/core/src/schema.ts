@@ -17,15 +17,16 @@ export const TweetClassificationValues = [
 
 export const users = sqliteTable("users", {
     id: text("id").primaryKey(),
-    username: text("username").notNull().unique(),
-    email: text("email").notNull().unique(),
+    username: text("username").unique(),
+    email: text("email").unique(),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
         .notNull()
         .$defaultFn(() => new Date()),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
         .notNull()
         .$defaultFn(() => new Date()),
-    version: integer("version").notNull(),
+    version: integer("version").notNull().default(0),
+    isAdmin: integer("is_admin", { mode: "boolean" }).notNull().default(false),
 });
 
 export const tweets = sqliteTable(
@@ -51,7 +52,9 @@ export const tweets = sqliteTable(
         inferredFandoms: text("inferred_fandoms", { mode: "json" }).$type<
             string[] | null
         >(),
+        inferredFandomsConfidence: text("inferred_fandoms_confidence"),
         inferredBoothId: text("inferred_booth_id"),
+        inferredBoothIdConfidence: text("inferred_booth_id_confidence"),
         rootTweetId: text("root_tweet_id"),
         parentTweetId: text("parent_tweet_id"),
         threadPosition: integer("thread_position"),

@@ -7,6 +7,10 @@
             "pattern": "cf.peculiarnewbie.com",
             "custom_domain": true,
         },
+        {
+            "pattern": "api.cf.peculiarnewbie.com",
+            "custom_domain": true,
+        },
     ],
     "assets": {
         "directory": "./dist",
@@ -19,6 +23,7 @@
             "binding": "DB",
             "database_name": "comifuro",
             "database_id": "38c664e4-1a62-4942-849b-b493e76a97de",
+            "migrations_dir": "../core/migrations",
         },
     ],
     "r2_buckets": [
@@ -32,4 +37,12 @@
         "enabled": true,
         "head_sampling_rate": 1,
     },
+    "durable_objects": {
+        "bindings": [
+            { "name": "RATE_LIMITER", "class_name": "RateLimiter" }
+        ]
+    },
+    "migrations": [
+        { "tag": "v1", "new_sqlite_classes": ["RateLimiter"] }
+    ]
 }

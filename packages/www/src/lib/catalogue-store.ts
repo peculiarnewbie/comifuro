@@ -22,6 +22,11 @@ const VALUE_SYNC_ERROR = "syncError";
 
 export type SyncStatus = "idle" | "loading" | "syncing" | "error";
 
+export type SearchIndexState = {
+    ready: boolean;
+    count: number;
+};
+
 export type CatalogueTweet = Omit<TweetSyncItem, "deleted">;
 export type CatalogueTweetThread = {
     groupId: string;
@@ -495,20 +500,157 @@ export type MarksStoreSession = {
     destroy: () => Promise<void>;
 };
 
-export async function createMarksStoreSession(): Promise<MarksStoreSession> {
+export async function createMarksStoreSession({
+    accountId,
+    apiHost,
+}: {
+    accountId: string;
+    apiHost: string;
+}): Promise<MarksStoreSession> {
     const store = createStore();
     const persister: IndexedDbPersister = createIndexedDbPersister(
         store,
-        "comifuro-user",
+        `comifuro-marks-${accountId}`,
     );
 
     await persister.load(defaultMarksContent);
     await persister.startAutoSave();
 
     const listeners = new Set<MarksStoreListener>();
-    store.addDidFinishTransactionListener(() => {
+    let destroyed = false;
+    let syncPromise: Promise<void> | null = null;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastKnownVersion = 0;
+    let pendingMarks = new Map<string, { mark: Marks | null }>();
+
+    const emit = () => {
         emitListeners(listeners, getMarksSnapshot(store));
+    };
+
+    store.addDidFinishTransactionListener(() => {
+        emit();
     });
+
+    const clearPollTimer = () => {
+        if (pollTimer) {
+            clearTimeout(pollTimer);
+            pollTimer = null;
+        }
+    };
+
+    const scheduleSync = () => {
+        clearPollTimer();
+        if (destroyed) {
+            return;
+        }
+
+        const delay =
+            typeof document !== "undefined" && document.visibilityState === "visible"
+                ? 30_000
+                : 300_000;
+        pollTimer = setTimeout(() => {
+            void syncOnce();
+        }, delay);
+    };
+
+    const flushPending = async () => {
+        if (pendingMarks.size === 0) {
+            return;
+        }
+
+        const marks = Array.from(pendingMarks.entries())
+            .filter(([, v]) => v.mark !== null)
+            .map(([tweetId, v]) => ({
+                tweetId,
+                mark: v.mark as Marks,
+            }));
+
+        pendingMarks.clear();
+
+        if (marks.length === 0) {
+            return;
+        }
+
+        const response = await fetch(`${apiHost}/marks/sync`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-account-id": accountId,
+            },
+            body: JSON.stringify({ marks }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`marks sync failed with status ${response.status}`);
+        }
+
+        const result = (await response.json()) as { serverTime?: number };
+        if (result.serverTime) {
+            lastKnownVersion = Math.max(lastKnownVersion, Date.now());
+        }
+    };
+
+    const syncOnce = async () => {
+        if (syncPromise) {
+            return syncPromise;
+        }
+
+        syncPromise = (async () => {
+            try {
+                await flushPending();
+
+                const params = new URLSearchParams();
+                params.set("version", String(lastKnownVersion));
+
+                const response = await fetch(`${apiHost}/marks?${params.toString()}`, {
+                    headers: { "x-account-id": accountId },
+                });
+
+                if (!response.ok) {
+                    throw new Error(`marks fetch failed with status ${response.status}`);
+                }
+
+                const data = (await response.json()) as {
+                    marks?: { tweetId: string; mark: string }[];
+                    serverTime?: number;
+                };
+                if (data.marks && Array.isArray(data.marks)) {
+                    store.transaction(() => {
+                        for (const m of data.marks!) {
+                            store.setRow(MARKS_TABLE, m.tweetId, { mark: m.mark });
+                        }
+                    });
+
+                    if (data.serverTime) {
+                        lastKnownVersion = Math.max(
+                            lastKnownVersion,
+                            data.serverTime,
+                        );
+                    }
+                }
+            } catch (error) {
+                console.error("[marks] sync error", error);
+            } finally {
+                syncPromise = null;
+                scheduleSync();
+            }
+        })();
+
+        return syncPromise;
+    };
+
+    const onWindowSync = () => {
+        void syncOnce();
+    };
+
+    if (typeof window !== "undefined") {
+        window.addEventListener("focus", onWindowSync);
+        window.addEventListener("online", onWindowSync);
+        document.addEventListener("visibilitychange", onWindowSync);
+    }
+
+    emit();
+    void syncOnce();
 
     return {
         store,
@@ -522,11 +664,28 @@ export async function createMarksStoreSession(): Promise<MarksStoreSession> {
         },
         setMark(tweetId, mark) {
             store.setRow(MARKS_TABLE, tweetId, { mark });
+            pendingMarks.set(tweetId, { mark });
+            void syncOnce();
         },
         clearMark(tweetId) {
             store.delRow(MARKS_TABLE, tweetId);
+            pendingMarks.set(tweetId, { mark: null });
+            void syncOnce();
         },
         async destroy() {
+            if (destroyed) {
+                return;
+            }
+
+            destroyed = true;
+            clearPollTimer();
+
+            if (typeof window !== "undefined") {
+                window.removeEventListener("focus", onWindowSync);
+                window.removeEventListener("online", onWindowSync);
+                document.removeEventListener("visibilitychange", onWindowSync);
+            }
+
             await persister.destroy();
         },
     };

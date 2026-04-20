@@ -20,6 +20,7 @@ import {
     tweets,
     users,
     userToTweet,
+    MarkValues,
 } from "./schema";
 import type {
     ScraperStateInsert,
@@ -163,11 +164,13 @@ export namespace tweetsOperations {
         db: SupportedDb,
         input: ScrapedTweetUpsert,
     ) => {
-        const [tweet] = await upsertTweet(db, input.tweet);
-        if (input.media.length > 0) {
-            await replaceTweetMedia(db, input.tweet.id, input.media);
-        }
-        return tweet;
+        return (db as any).transaction(async (tx: SupportedDb) => {
+            const [tweet] = await upsertTweet(tx, input.tweet);
+            if (input.media.length > 0) {
+                await replaceTweetMedia(tx, input.tweet.id, input.media);
+            }
+            return tweet;
+        });
     };
 
     export const listTweetMedia = async (db: SupportedDb, tweetId: string) => {
@@ -512,61 +515,79 @@ export namespace tweetsOperations {
         },
     ) => {
         const updatedAt = input.updatedAt ?? new Date();
-        const threadTweets = await listThreadTweets(db, input.rootTweetId);
-        const orderedTweets = threadTweets.sort((left, right) => {
-            const leftPosition =
-                left.id === input.rootTweetId
-                    ? 0
-                    : (left.threadPosition ?? Number.MAX_SAFE_INTEGER) + 1;
-            const rightPosition =
-                right.id === input.rootTweetId
-                    ? 0
-                    : (right.threadPosition ?? Number.MAX_SAFE_INTEGER) + 1;
 
-            if (leftPosition !== rightPosition) {
-                return leftPosition - rightPosition;
+        return (db as any).transaction(async (tx: SupportedDb) => {
+            const threadTweets = await tx
+                .select()
+                .from(tweets)
+                .where(
+                    or(
+                        eq(tweets.id, input.rootTweetId),
+                        eq(tweets.rootTweetId, input.rootTweetId),
+                    ),
+                )
+                .orderBy(asc(tweets.threadPosition), asc(tweets.id));
+
+            const orderedTweets = threadTweets.sort((left, right) => {
+                const leftPosition =
+                    left.id === input.rootTweetId
+                        ? 0
+                        : (left.threadPosition ?? Number.MAX_SAFE_INTEGER) + 1;
+                const rightPosition =
+                    right.id === input.rootTweetId
+                        ? 0
+                        : (right.threadPosition ?? Number.MAX_SAFE_INTEGER) + 1;
+
+                if (leftPosition !== rightPosition) {
+                    return leftPosition - rightPosition;
+                }
+
+                if (left.id === right.id) {
+                    return 0;
+                }
+
+                return BigInt(left.id) > BigInt(right.id) ? 1 : -1;
+            });
+            const newRoot = orderedTweets.find(
+                (tweet) => tweet.id === input.newRootTweetId,
+            );
+
+            if (!newRoot) {
+                throw new Error("new root tweet is not part of the thread");
             }
 
-            if (left.id === right.id) {
-                return 0;
+            const nextOrder = [
+                newRoot,
+                ...orderedTweets.filter((tweet) => tweet.id !== input.newRootTweetId),
+            ];
+
+            for (const [index, tweet] of nextOrder.entries()) {
+                const parentTweetId =
+                    index === 0 ? null : (nextOrder[index - 1]?.id ?? null);
+                await tx
+                    .update(tweets)
+                    .set({
+                        classification: "catalogue",
+                        rootTweetId: index === 0 ? null : input.newRootTweetId,
+                        parentTweetId,
+                        threadPosition: index === 0 ? null : index,
+                        updatedAt,
+                    })
+                    .where(eq(tweets.id, tweet.id));
             }
 
-            return BigInt(left.id) > BigInt(right.id) ? 1 : -1;
+            // Return updated tweets via a final select for reliability
+            return tx
+                .select()
+                .from(tweets)
+                .where(
+                    or(
+                        eq(tweets.id, input.newRootTweetId),
+                        eq(tweets.rootTweetId, input.newRootTweetId),
+                    ),
+                )
+                .orderBy(asc(tweets.threadPosition), asc(tweets.id));
         });
-        const newRoot = orderedTweets.find(
-            (tweet) => tweet.id === input.newRootTweetId,
-        );
-
-        if (!newRoot) {
-            throw new Error("new root tweet is not part of the thread");
-        }
-
-        const nextOrder = [
-            newRoot,
-            ...orderedTweets.filter((tweet) => tweet.id !== input.newRootTweetId),
-        ];
-
-        const updatedTweets = [];
-        for (const [index, tweet] of nextOrder.entries()) {
-            const parentTweetId = index === 0 ? null : nextOrder[index - 1]?.id ?? null;
-            const [updatedTweet] = await db
-                .update(tweets)
-                .set({
-                    classification: "catalogue",
-                    rootTweetId: index === 0 ? null : input.newRootTweetId,
-                    parentTweetId,
-                    threadPosition: index === 0 ? null : index,
-                    updatedAt,
-                })
-                .where(eq(tweets.id, tweet.id))
-                .returning();
-
-            if (updatedTweet) {
-                updatedTweets.push(updatedTweet);
-            }
-        }
-
-        return updatedTweets;
     };
 }
 
@@ -585,6 +606,88 @@ export namespace marksOperations {
                     gt(userToTweet.lastModifiedVersion, prevVersion),
                 ),
             );
+    };
+
+    export const upsertUserMark = async (
+        db: SupportedDb,
+        input: {
+            userId: string;
+            tweetId: string;
+            mark: string;
+            version: number;
+        },
+    ) => {
+        return await db
+            .insert(userToTweet)
+            .values({
+                userId: input.userId,
+                tweetId: input.tweetId,
+                mark: input.mark as typeof MarkValues[number],
+                lastModifiedVersion: input.version,
+                updatedAt: new Date(),
+            })
+            .onConflictDoUpdate({
+                target: [userToTweet.userId, userToTweet.tweetId],
+                set: {
+                    mark: sql.raw(`excluded.${userToTweet.mark.name}`),
+                    lastModifiedVersion: sql.raw(
+                        `excluded.${userToTweet.lastModifiedVersion.name}`,
+                    ),
+                    updatedAt: sql.raw(`excluded.${userToTweet.updatedAt.name}`),
+                },
+            })
+            .returning();
+    };
+
+    export const deleteUserMark = async (
+        db: SupportedDb,
+        userId: string,
+        tweetId: string,
+    ) => {
+        return await db
+            .delete(userToTweet)
+            .where(
+                and(
+                    eq(userToTweet.userId, userId),
+                    eq(userToTweet.tweetId, tweetId),
+                ),
+            )
+            .returning();
+    };
+
+    export const batchUpsertUserMarks = async (
+        db: SupportedDb,
+        userId: string,
+        marks: { tweetId: string; mark: string }[],
+        version: number,
+    ) => {
+        if (marks.length === 0) {
+            return [];
+        }
+
+        const now = new Date();
+        const values = marks.map((m) => ({
+            userId,
+            tweetId: m.tweetId,
+            mark: m.mark as typeof MarkValues[number],
+            lastModifiedVersion: version,
+            updatedAt: now,
+        }));
+
+        return await db
+            .insert(userToTweet)
+            .values(values)
+            .onConflictDoUpdate({
+                target: [userToTweet.userId, userToTweet.tweetId],
+                set: {
+                    mark: sql.raw(`excluded.${userToTweet.mark.name}`),
+                    lastModifiedVersion: sql.raw(
+                        `excluded.${userToTweet.lastModifiedVersion.name}`,
+                    ),
+                    updatedAt: sql.raw(`excluded.${userToTweet.updatedAt.name}`),
+                },
+            })
+            .returning();
     };
 }
 
