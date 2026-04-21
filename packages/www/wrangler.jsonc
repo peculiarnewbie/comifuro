@@ -7,10 +7,6 @@
             "pattern": "cf.peculiarnewbie.com",
             "custom_domain": true,
         },
-        {
-            "pattern": "api.cf.peculiarnewbie.com",
-            "custom_domain": true,
-        },
     ],
     "assets": {
         "directory": "./dist",
