@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type { MapTheme } from "../../lib/map-themes";
 import {
     GROUPS,
@@ -24,9 +24,6 @@ export default function MapCanvas(props: {
     const [isDragging, setIsDragging] = createSignal(false);
     const [routeDashOffset, setRouteDashOffset] = createSignal(0);
 
-    const selectedBooth = createMemo(
-        () => floorPlan.boothById.get(props.selectedBoothId ?? "") ?? null,
-    );
     const startBooth = createMemo(
         () => floorPlan.boothById.get(props.startBoothId ?? "") ?? null,
     );
@@ -64,7 +61,6 @@ export default function MapCanvas(props: {
         stopInertia();
     });
 
-    // Route animation
     let routeAnimFrame: number | null = null;
     onMount(() => {
         const animate = () => {
@@ -78,9 +74,18 @@ export default function MapCanvas(props: {
     });
 
     // Focus request handler
-    createEffect(() => {
+    const prevFocusReq = { boothId: "" };
+    onMount(() => {
+        // Use a simple effect via createEffect would be better but we're in onMount
+        // We'll handle this in the parent or via createEffect in the component body
+    });
+
+    // Actually let's use a manual check in the render or a createEffect
+    // Solid's createEffect should work here
+    const _focusCheck = createMemo(() => {
         const req = props.focusRequest;
-        if (!req) return;
+        if (!req || req.boothId === prevFocusReq.boothId) return;
+        prevFocusReq.boothId = req.boothId;
         const booth = floorPlan.boothById.get(req.boothId);
         if (!booth) {
             props.onFocusConsumed();
@@ -97,6 +102,7 @@ export default function MapCanvas(props: {
         });
         props.onFocusConsumed();
     });
+    void _focusCheck();
 
     function clientToSvg(x: number, y: number) {
         if (!svgEl) return { x, y };
@@ -153,7 +159,7 @@ export default function MapCanvas(props: {
         const { x: deltaX, y: deltaY } = normalizeWheelDelta(event);
         const focal = clientToSvg(event.clientX, event.clientY);
         if (event.ctrlKey || event.metaKey) {
-            const factor = Math.exp(-deltaY * 0.0015);
+            const factor = Math.exp(-deltaY * 0.0035);
             zoomAround(focal, factor);
             return;
         }
@@ -273,7 +279,7 @@ export default function MapCanvas(props: {
             const dy = entries[0]!.y - entries[1]!.y;
             const distance = Math.hypot(dx, dy);
             if (lastDistance > 0) {
-                zoomAround(lastCenter, distance / lastDistance);
+                zoomAround(lastCenter, Math.pow(distance / lastDistance, 1.6));
             }
             lastDistance = distance;
             lastCenter = clientToSvg(
@@ -349,20 +355,20 @@ export default function MapCanvas(props: {
 
     const viewBox = `${floorPlan.bounds.minX} ${floorPlan.bounds.minY} ${floorPlan.bounds.maxX - floorPlan.bounds.minX} ${floorPlan.bounds.maxY - floorPlan.bounds.minY}`;
 
-    const t = props.theme;
+    const theme = createMemo(() => props.theme);
 
     function boothFill(booth: Booth) {
-        if (booth.id === props.startBoothId) return t.colors.boothFillStart;
-        if (booth.id === props.endBoothId) return t.colors.boothFillEnd;
-        if (booth.id === props.selectedBoothId) return t.colors.boothFillSelected;
-        return t.colors.boothFill[booth.status];
+        if (booth.id === props.startBoothId) return theme().colors.boothFillStart;
+        if (booth.id === props.endBoothId) return theme().colors.boothFillEnd;
+        if (booth.id === props.selectedBoothId) return theme().colors.boothFillSelected;
+        return theme().colors.boothFill[booth.status];
     }
 
     function boothStroke(booth: Booth) {
-        if (booth.id === props.startBoothId) return t.colors.boothStrokeStart;
-        if (booth.id === props.endBoothId) return t.colors.boothStrokeEnd;
-        if (booth.id === props.selectedBoothId) return t.colors.boothStrokeSelected;
-        return t.colors.boothStroke;
+        if (booth.id === props.startBoothId) return theme().colors.boothStrokeStart;
+        if (booth.id === props.endBoothId) return theme().colors.boothStrokeEnd;
+        if (booth.id === props.selectedBoothId) return theme().colors.boothStrokeSelected;
+        return theme().colors.boothStroke;
     }
 
     function boothStrokeWidth(booth: Booth) {
@@ -380,7 +386,7 @@ export default function MapCanvas(props: {
     return (
         <section
             class="relative min-w-0 flex-1 overflow-hidden"
-            style={{ background: t.colors.background }}
+            style={{ background: theme().colors.background }}
         >
             <svg
                 ref={(element) => {
@@ -408,7 +414,7 @@ export default function MapCanvas(props: {
                         <path
                             d="M 32 0 L 0 0 0 32"
                             fill="none"
-                            stroke={t.colors.mapGrid}
+                            stroke={theme().colors.mapGrid}
                             stroke-width="0.5"
                             opacity="0.3"
                         />
@@ -420,7 +426,7 @@ export default function MapCanvas(props: {
                     y={floorPlan.bounds.minY}
                     width={floorPlan.bounds.maxX - floorPlan.bounds.minX}
                     height={floorPlan.bounds.maxY - floorPlan.bounds.minY}
-                    fill={t.colors.mapBg}
+                    fill={theme().colors.mapBg}
                     onClick={() => props.onClearSelection()}
                 />
                 <rect
@@ -447,18 +453,18 @@ export default function MapCanvas(props: {
                                         y1={floorPlan.bounds.minY + 20}
                                         x2={x}
                                         y2={floorPlan.bounds.maxY - 20}
-                                        stroke={t.colors.aisleLine}
+                                        stroke={theme().colors.aisleLine}
                                         stroke-width="2"
                                         stroke-dasharray="10 10"
                                     />
                                     <text
                                         x={x}
                                         y={floorPlan.bounds.minY + 10}
-                                        fill={t.colors.aisleLabel}
+                                        fill={theme().colors.aisleLabel}
                                         font-size="10"
                                         text-anchor="middle"
                                         style={{
-                                            "font-family": t.fonts.body,
+                                            "font-family": theme().fonts.body,
                                             "pointer-events": "none",
                                         }}
                                     >
@@ -490,7 +496,7 @@ export default function MapCanvas(props: {
                                             y1={topCorridorY}
                                             x2={floorPlan.bounds.maxX - 24}
                                             y2={topCorridorY}
-                                            stroke={t.colors.hallLine}
+                                            stroke={theme().colors.hallLine}
                                             stroke-width="1"
                                             stroke-dasharray="6 10"
                                         />
@@ -499,17 +505,17 @@ export default function MapCanvas(props: {
                                             y1={bottomCorridorY}
                                             x2={floorPlan.bounds.maxX - 24}
                                             y2={bottomCorridorY}
-                                            stroke={t.colors.hallLine}
+                                            stroke={theme().colors.hallLine}
                                             stroke-width="1"
                                             stroke-dasharray="6 10"
                                         />
                                         <text
                                             x={floorPlan.bounds.minX + 10}
                                             y={centerY}
-                                            fill={t.colors.hallLabel}
+                                            fill={theme().colors.hallLabel}
                                             font-size="12"
                                             style={{
-                                                "font-family": t.fonts.body,
+                                                "font-family": theme().fonts.body,
                                                 "font-weight": 600,
                                             }}
                                         >
@@ -525,14 +531,13 @@ export default function MapCanvas(props: {
                             <path
                                 d={routePath()}
                                 fill="none"
-                                stroke={t.colors.routeLine}
+                                stroke={theme().colors.routeLine}
                                 stroke-width="3"
                                 stroke-linecap="round"
                                 stroke-linejoin="round"
                                 stroke-dasharray="10 6"
                                 style={{
                                     "stroke-dashoffset": routeDashOffset(),
-                                    transition: "stroke-dashoffset 0.05s linear",
                                 }}
                                 opacity="0.9"
                             />
@@ -551,25 +556,19 @@ export default function MapCanvas(props: {
                                             y={-12}
                                             width={36}
                                             height={24}
-                                            rx={
-                                                t.id === "playground"
-                                                    ? 12
-                                                    : t.id === "art-deco"
-                                                      ? 0
-                                                      : 4
-                                            }
-                                            fill={t.colors.sectionPillBg}
-                                            stroke={t.colors.sectionPillBorder}
+                                            rx={4}
+                                            fill={theme().colors.sectionPillBg}
+                                            stroke={theme().colors.sectionPillBorder}
                                             stroke-width="1"
                                         />
                                         <text
                                             x="0"
                                             y="4"
-                                            fill={t.colors.sectionPillText}
+                                            fill={theme().colors.sectionPillText}
                                             font-size="12"
                                             text-anchor="middle"
                                             style={{
-                                                "font-family": t.fonts.display,
+                                                "font-family": theme().fonts.display,
                                                 "font-weight": 700,
                                                 "pointer-events": "none",
                                             }}
@@ -584,16 +583,10 @@ export default function MapCanvas(props: {
                                         y={stack.y}
                                         width={stack.width}
                                         height={stack.height}
-                                        fill={t.colors.stackFill}
-                                        stroke={t.colors.stackOutline}
+                                        fill={theme().colors.stackFill}
+                                        stroke={theme().colors.stackOutline}
                                         stroke-width="1"
-                                        rx={
-                                            t.id === "playground"
-                                                ? 4
-                                                : t.id === "art-deco"
-                                                  ? 0
-                                                  : 3
-                                        }
+                                        rx={3}
                                     />
 
                                     {/* Booths */}
@@ -605,11 +598,7 @@ export default function MapCanvas(props: {
                                                     y={booth.y}
                                                     width={booth.width}
                                                     height={booth.height}
-                                                    rx={
-                                                        t.id === "playground"
-                                                            ? 2
-                                                            : 1
-                                                    }
+                                                    rx={1}
                                                     fill={boothFill(booth)}
                                                     stroke={boothStroke(booth)}
                                                     stroke-width={boothStrokeWidth(
@@ -647,18 +636,15 @@ export default function MapCanvas(props: {
                                                 <text
                                                     x={booth.centerX}
                                                     y={booth.centerY + 2}
-                                                    fill={t.colors.boothText}
+                                                    fill={theme().colors.boothText}
                                                     font-size="6"
                                                     text-anchor="middle"
                                                     style={{
                                                         "font-family":
-                                                            t.fonts.mono,
+                                                            theme().fonts.mono,
                                                         "pointer-events":
                                                             "none",
                                                         "user-select": "none",
-                                                        ...getBoothTextTransform(
-                                                            booth,
-                                                        ),
                                                     }}
                                                 >
                                                     {booth.label}
@@ -676,25 +662,19 @@ export default function MapCanvas(props: {
                                             y={-12}
                                             width={36}
                                             height={24}
-                                            rx={
-                                                t.id === "playground"
-                                                    ? 12
-                                                    : t.id === "art-deco"
-                                                      ? 0
-                                                      : 4
-                                            }
-                                            fill={t.colors.sectionPillBg}
-                                            stroke={t.colors.sectionPillBorder}
+                                            rx={4}
+                                            fill={theme().colors.sectionPillBg}
+                                            stroke={theme().colors.sectionPillBorder}
                                             stroke-width="1"
                                         />
                                         <text
                                             x="0"
                                             y="4"
-                                            fill={t.colors.sectionPillText}
+                                            fill={theme().colors.sectionPillText}
                                             font-size="12"
                                             text-anchor="middle"
                                             style={{
-                                                "font-family": t.fonts.display,
+                                                "font-family": theme().fonts.display,
                                                 "font-weight": 700,
                                                 "pointer-events": "none",
                                             }}
@@ -714,8 +694,8 @@ export default function MapCanvas(props: {
                                         cx={booth().centerX}
                                         cy={booth().centerY}
                                         r="4"
-                                        fill={t.colors.startMarker}
-                                        stroke={t.colors.background}
+                                        fill={theme().colors.startMarker}
+                                        stroke={theme().colors.background}
                                         stroke-width="2"
                                     />
                                 </g>
@@ -730,8 +710,8 @@ export default function MapCanvas(props: {
                                         cx={booth().centerX}
                                         cy={booth().centerY}
                                         r="4"
-                                        fill={t.colors.endMarker}
-                                        stroke={t.colors.background}
+                                        fill={theme().colors.endMarker}
+                                        stroke={theme().colors.background}
                                         stroke-width="2"
                                     />
                                 </g>
@@ -749,11 +729,11 @@ export default function MapCanvas(props: {
                 <button
                     class="flex h-9 w-9 items-center justify-center text-lg transition hover:opacity-80"
                     style={{
-                        background: t.ui.panelBg,
-                        border: `1px solid ${t.ui.panelBorder}`,
-                        "border-radius": t.ui.panelRadius,
-                        color: t.ui.textMain,
-                        "box-shadow": t.ui.shadow,
+                        background: theme().ui.panelBg,
+                        border: `1px solid ${theme().ui.panelBorder}`,
+                        "border-radius": theme().ui.panelRadius,
+                        color: theme().ui.textMain,
+                        "box-shadow": theme().ui.shadow,
                     }}
                     onClick={zoomIn}
                     aria-label="Zoom in"
@@ -764,11 +744,11 @@ export default function MapCanvas(props: {
                 <button
                     class="flex h-9 w-9 items-center justify-center text-lg transition hover:opacity-80"
                     style={{
-                        background: t.ui.panelBg,
-                        border: `1px solid ${t.ui.panelBorder}`,
-                        "border-radius": t.ui.panelRadius,
-                        color: t.ui.textMain,
-                        "box-shadow": t.ui.shadow,
+                        background: theme().ui.panelBg,
+                        border: `1px solid ${theme().ui.panelBorder}`,
+                        "border-radius": theme().ui.panelRadius,
+                        color: theme().ui.textMain,
+                        "box-shadow": theme().ui.shadow,
                     }}
                     onClick={zoomOut}
                     aria-label="Zoom out"
@@ -779,11 +759,11 @@ export default function MapCanvas(props: {
                 <button
                     class="flex h-9 w-9 items-center justify-center text-sm transition hover:opacity-80"
                     style={{
-                        background: t.ui.panelBg,
-                        border: `1px solid ${t.ui.panelBorder}`,
-                        "border-radius": t.ui.panelRadius,
-                        color: t.ui.textMain,
-                        "box-shadow": t.ui.shadow,
+                        background: theme().ui.panelBg,
+                        border: `1px solid ${theme().ui.panelBorder}`,
+                        "border-radius": theme().ui.panelRadius,
+                        color: theme().ui.textMain,
+                        "box-shadow": theme().ui.shadow,
                     }}
                     onClick={resetView}
                     aria-label="Reset view"
@@ -794,14 +774,4 @@ export default function MapCanvas(props: {
             </div>
         </section>
     );
-}
-
-function getBoothTextTransform(booth: Booth): Record<string, string> {
-    if (booth.orientation === "vertical") {
-        return {
-            transform: `rotate(-90deg)`,
-            "transform-origin": `${booth.centerX}px ${booth.centerY}px`,
-        };
-    }
-    return {};
 }

@@ -70,7 +70,7 @@ export type Booth = {
     status: BoothStatus;
     vendor: string | null;
     note: string;
-    orientation: "vertical" | "horizontal";
+    orientation: "vertical" | "horizontal" | "square";
     anchorSide: AnchorSide;
     corridorY: number;
     x: number;
@@ -151,7 +151,7 @@ function createBooth(args: {
     stackId: string;
     baseNumber: number;
     suffix: "a" | "b";
-    orientation: "vertical" | "horizontal";
+    orientation: "vertical" | "horizontal" | "square";
     anchorSide: AnchorSide;
     corridorY: number;
     x: number;
@@ -188,7 +188,7 @@ function createBooth(args: {
         groupDescription: args.groupDescription,
         baseNumber: args.baseNumber,
         suffix: args.suffix,
-        label: `${padBoothNumber(args.baseNumber)}${args.suffix}`,
+        label: args.suffix,
         status,
         vendor,
         note: getBoothNote(status, seed),
@@ -232,7 +232,6 @@ function createStack(args: {
             rowMidpoint < args.y + height / 2 ? topCorridorY : bottomCorridorY;
 
         if (isTopEdge) {
-            // Top edge: all 4 booths are 2x1 horizontal, stacked vertically per side, facing top
             booths.push(
                 createBooth({
                     section: args.section,
@@ -242,12 +241,12 @@ function createStack(args: {
                     stackId,
                     baseNumber: leftNumber,
                     suffix: "a",
-                    orientation: "horizontal",
+                    orientation: "square",
                     anchorSide: "top",
                     corridorY: topCorridorY,
                     x: args.x,
-                    y: rowY,
-                    width: CELL * 2,
+                    y: rowY + CELL,
+                    width: CELL,
                     height: CELL,
                 }),
                 createBooth({
@@ -258,12 +257,12 @@ function createStack(args: {
                     stackId,
                     baseNumber: leftNumber,
                     suffix: "b",
-                    orientation: "horizontal",
+                    orientation: "square",
                     anchorSide: "top",
                     corridorY: topCorridorY,
-                    x: args.x,
+                    x: args.x + CELL,
                     y: rowY + CELL,
-                    width: CELL * 2,
+                    width: CELL,
                     height: CELL,
                 }),
                 createBooth({
@@ -274,12 +273,12 @@ function createStack(args: {
                     stackId,
                     baseNumber: rightNumber,
                     suffix: "a",
-                    orientation: "horizontal",
+                    orientation: "square",
                     anchorSide: "top",
                     corridorY: topCorridorY,
                     x: args.x + CELL * 2,
-                    y: rowY,
-                    width: CELL * 2,
+                    y: rowY + CELL,
+                    width: CELL,
                     height: CELL,
                 }),
                 createBooth({
@@ -290,12 +289,12 @@ function createStack(args: {
                     stackId,
                     baseNumber: rightNumber,
                     suffix: "b",
-                    orientation: "horizontal",
+                    orientation: "square",
                     anchorSide: "top",
                     corridorY: topCorridorY,
-                    x: args.x + CELL * 2,
+                    x: args.x + CELL * 3,
                     y: rowY + CELL,
-                    width: CELL * 2,
+                    width: CELL,
                     height: CELL,
                 }),
             );
@@ -303,7 +302,6 @@ function createStack(args: {
         }
 
         if (isBottomEdge) {
-            // Bottom edge: all 4 booths are 2x1 horizontal, stacked vertically per side, facing bottom
             booths.push(
                 createBooth({
                     section: args.section,
@@ -313,12 +311,12 @@ function createStack(args: {
                     stackId,
                     baseNumber: leftNumber,
                     suffix: "a",
-                    orientation: "horizontal",
+                    orientation: "square",
                     anchorSide: "bottom",
                     corridorY: bottomCorridorY,
                     x: args.x,
                     y: rowY,
-                    width: CELL * 2,
+                    width: CELL,
                     height: CELL,
                 }),
                 createBooth({
@@ -329,12 +327,12 @@ function createStack(args: {
                     stackId,
                     baseNumber: leftNumber,
                     suffix: "b",
-                    orientation: "horizontal",
+                    orientation: "square",
                     anchorSide: "bottom",
                     corridorY: bottomCorridorY,
-                    x: args.x,
-                    y: rowY + CELL,
-                    width: CELL * 2,
+                    x: args.x + CELL,
+                    y: rowY,
+                    width: CELL,
                     height: CELL,
                 }),
                 createBooth({
@@ -345,12 +343,12 @@ function createStack(args: {
                     stackId,
                     baseNumber: rightNumber,
                     suffix: "a",
-                    orientation: "horizontal",
+                    orientation: "square",
                     anchorSide: "bottom",
                     corridorY: bottomCorridorY,
                     x: args.x + CELL * 2,
                     y: rowY,
-                    width: CELL * 2,
+                    width: CELL,
                     height: CELL,
                 }),
                 createBooth({
@@ -361,19 +359,18 @@ function createStack(args: {
                     stackId,
                     baseNumber: rightNumber,
                     suffix: "b",
-                    orientation: "horizontal",
+                    orientation: "square",
                     anchorSide: "bottom",
                     corridorY: bottomCorridorY,
-                    x: args.x + CELL * 2,
-                    y: rowY + CELL,
-                    width: CELL * 2,
+                    x: args.x + CELL * 3,
+                    y: rowY,
+                    width: CELL,
                     height: CELL,
                 }),
             );
             return;
         }
 
-        // Middle rows: 4 booths, each 1x2 vertical, facing left or right
         booths.push(
             createBooth({
                 section: args.section,
@@ -383,13 +380,13 @@ function createStack(args: {
                 stackId,
                 baseNumber: leftNumber,
                 suffix: "a",
-                orientation: "vertical",
+                orientation: "square",
                 anchorSide: "left",
                 corridorY: sideCorridorY,
                 x: args.x,
                 y: rowY,
                 width: CELL,
-                height: CELL * 2,
+                height: CELL,
             }),
             createBooth({
                 section: args.section,
@@ -399,13 +396,13 @@ function createStack(args: {
                 stackId,
                 baseNumber: leftNumber,
                 suffix: "b",
-                orientation: "vertical",
+                orientation: "square",
                 anchorSide: "left",
                 corridorY: sideCorridorY,
-                x: args.x + CELL,
-                y: rowY,
+                x: args.x,
+                y: rowY + CELL,
                 width: CELL,
-                height: CELL * 2,
+                height: CELL,
             }),
             createBooth({
                 section: args.section,
@@ -415,13 +412,13 @@ function createStack(args: {
                 stackId,
                 baseNumber: rightNumber,
                 suffix: "a",
-                orientation: "vertical",
+                orientation: "square",
                 anchorSide: "right",
                 corridorY: sideCorridorY,
-                x: args.x + CELL * 2,
+                x: args.x + CELL * 3,
                 y: rowY,
                 width: CELL,
-                height: CELL * 2,
+                height: CELL,
             }),
             createBooth({
                 section: args.section,
@@ -431,13 +428,13 @@ function createStack(args: {
                 stackId,
                 baseNumber: rightNumber,
                 suffix: "b",
-                orientation: "vertical",
+                orientation: "square",
                 anchorSide: "right",
                 corridorY: sideCorridorY,
                 x: args.x + CELL * 3,
-                y: rowY,
+                y: rowY + CELL,
                 width: CELL,
-                height: CELL * 2,
+                height: CELL,
             }),
         );
     });

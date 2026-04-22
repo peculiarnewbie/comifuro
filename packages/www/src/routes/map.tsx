@@ -1,30 +1,22 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import { createSignal, createMemo } from "solid-js";
+import { createSignal } from "solid-js";
 import MapCanvas from "../components/map/MapCanvas";
 import Sidebar from "../components/map/Sidebar";
-import ThemeSwitcher from "../components/map/ThemeSwitcher";
-import {
-    type ThemeKey,
-    DEFAULT_THEME,
-    getTheme,
-} from "../lib/map-themes";
+import { NIGHT_MARKET_THEME } from "../lib/map-themes";
 import {
     floorPlan,
-    buildRoutePoints,
-    routeDistance,
     DEFAULT_SELECTED_BOOTH,
     DEFAULT_START_BOOTH,
     DEFAULT_END_BOOTH,
 } from "../lib/map-data";
+
+const theme = NIGHT_MARKET_THEME;
 
 export const Route = createFileRoute("/map")({
     component: RouteComponent,
 });
 
 function RouteComponent() {
-    const [themeKey, setThemeKey] = createSignal<ThemeKey>(DEFAULT_THEME);
-    const theme = createMemo(() => getTheme(themeKey()));
-
     const [selectedBoothId, setSelectedBoothId] = createSignal<string | null>(
         DEFAULT_SELECTED_BOOTH,
     );
@@ -38,17 +30,6 @@ function RouteComponent() {
         boothId: string;
         scale?: number;
     } | null>(null);
-
-    const startBooth = createMemo(
-        () => floorPlan.boothById.get(startBoothId() ?? "") ?? null,
-    );
-    const endBooth = createMemo(
-        () => floorPlan.boothById.get(endBoothId() ?? "") ?? null,
-    );
-    const routePoints = createMemo(() =>
-        buildRoutePoints(startBooth(), endBooth(), floorPlan.mainAisleXs),
-    );
-    const routeDist = createMemo(() => routeDistance(routePoints()));
 
     function handleSelectBooth(id: string) {
         setSelectedBoothId(id);
@@ -82,31 +63,18 @@ function RouteComponent() {
         setFocusRequest(null);
     }
 
-    const t = theme();
-
     return (
         <main
-            class="h-screen w-screen overflow-hidden"
+            class="relative h-screen w-screen overflow-hidden"
             style={{
-                background: t.ui.pageBg,
-                color: t.ui.textMain,
-                "font-family": t.fonts.body,
+                background: theme.ui.pageBg,
+                color: theme.ui.textMain,
+                "font-family": theme.fonts.body,
             }}
         >
             <div class="flex h-full w-full">
-                <Sidebar
-                    theme={t}
-                    selectedBoothId={selectedBoothId()}
-                    startBoothId={startBoothId()}
-                    endBoothId={endBoothId()}
-                    onSelectBooth={handleSelectBooth}
-                    onSetStart={handleSetStart}
-                    onSetEnd={handleSetEnd}
-                    onSwapRoute={handleSwapRoute}
-                    onFocusBooth={handleFocusBooth}
-                />
                 <MapCanvas
-                    theme={t}
+                    theme={theme}
                     selectedBoothId={selectedBoothId()}
                     startBoothId={startBoothId()}
                     endBoothId={endBoothId()}
@@ -115,10 +83,16 @@ function RouteComponent() {
                     onClearSelection={handleClearSelection}
                     onFocusConsumed={handleFocusConsumed}
                 />
-                <ThemeSwitcher
-                    theme={t}
-                    current={themeKey()}
-                    onChange={setThemeKey}
+                <Sidebar
+                    theme={theme}
+                    selectedBoothId={selectedBoothId()}
+                    startBoothId={startBoothId()}
+                    endBoothId={endBoothId()}
+                    onSelectBooth={handleSelectBooth}
+                    onSetStart={handleSetStart}
+                    onSetEnd={handleSetEnd}
+                    onSwapRoute={handleSwapRoute}
+                    onFocusBooth={handleFocusBooth}
                 />
             </div>
         </main>
