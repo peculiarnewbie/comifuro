@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 
 export interface RateLimiterEnv {
-    RATE_LIMITER: DurableObjectNamespace<RateLimiter>;
+    RATE_LIMITER?: DurableObjectNamespace<RateLimiter>;
 }
 
 export class RateLimiter extends DurableObject<RateLimiterEnv> {
@@ -63,6 +63,16 @@ export async function isRateLimited(
     maxRequests = 60,
     windowMs = 60000,
 ): Promise<boolean> {
-    const stub = env.RATE_LIMITER.getByName("global");
-    return !(await stub.check(ip, endpoint, maxRequests, windowMs));
+    if (!env.RATE_LIMITER) {
+        console.warn("RATE_LIMITER binding is missing; skipping rate limit check");
+        return false;
+    }
+
+    try {
+        const stub = env.RATE_LIMITER.getByName("global");
+        return !(await stub.check(ip, endpoint, maxRequests, windowMs));
+    } catch (error) {
+        console.error("rate limiter check failed; allowing request", error);
+        return false;
+    }
 }
