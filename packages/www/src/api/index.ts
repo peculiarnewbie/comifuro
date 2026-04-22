@@ -26,6 +26,7 @@ import {
     removeFollowUp,
 } from "./routes/admin";
 import { getMarks, syncMarks } from "./routes/marks";
+import { listBooths, getBooth, rebuildBooths } from "./routes/booths";
 
 function getAllowedOrigins(): string[] {
     const base = ["https://cf.peculiarnewbie.com"];
@@ -105,5 +106,8 @@ api.put("/scraper/state/:id", putScraperState);
 api.post("/scraper/export-public-feed", exportPublicFeed);
 api.get("/marks", getMarks);
 api.post("/marks/sync", syncMarks);
+api.get("/booths", listBooths);
+api.get("/booths/:id", getBooth);
+api.post("/admin/booths/rebuild", rebuildBooths);
 
 export const workerApp = new Hono<Env>().route("/api", api);

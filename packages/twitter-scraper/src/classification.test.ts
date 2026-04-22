@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+    extractBoothIdsFromText,
     normalizeInferredBoothId,
     parseClassificationResponse,
 } from "./classification";
@@ -22,6 +23,7 @@ describe("parseClassificationResponse", () => {
             reason: "catalogue post",
             inferredFandoms: ["Blue Archive", "Project Sekai"],
             inferredBoothId: "A12",
+            inferredBoothIdConfidence: null,
         });
     });
 
@@ -54,7 +56,29 @@ describe("parseClassificationResponse", () => {
             reason: "catalogue post",
             inferredFandoms: ["Blue Archive"],
             inferredBoothId: null,
+            inferredBoothIdConfidence: null,
         });
+    });
+});
+
+describe("extractBoothIdsFromText", () => {
+    test("finds booth codes in free-form text", () => {
+        expect(
+            extractBoothIdsFromText("Come visit us at booth E-31a!"),
+        ).toEqual(["E-31A"]);
+        expect(
+            extractBoothIdsFromText("We are at A12 and B-58b today"),
+        ).toEqual(["A-12", "B-58B"]);
+    });
+
+    test("returns empty array when no booth codes are present", () => {
+        expect(extractBoothIdsFromText("Just some random text")).toEqual([]);
+    });
+
+    test("deduplicates multiple mentions of the same booth", () => {
+        expect(
+            extractBoothIdsFromText("E-31a and E-31a again"),
+        ).toEqual(["E-31A"]);
     });
 });
 

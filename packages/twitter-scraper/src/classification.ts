@@ -8,6 +8,30 @@ const requiredClassificationSchema = z.object({
 
 const boothIdPattern = /^[A-Z]{1,3}-?\d{1,3}[A-Z]?$/;
 
+// Loose pattern for finding candidate booth codes inside free-form text.
+// Looks for things like "booth E-31a", "at A12", "B-58b", etc.
+const looseBoothPattern = /\b([A-Z]{1,3})[-\s]?(\d{1,3})([A-Z]?)\b/gi;
+
+export function extractBoothIdsFromText(text: string): string[] {
+    const matches: string[] = [];
+    const seen = new Set<string>();
+
+    let match: RegExpExecArray | null;
+    while ((match = looseBoothPattern.exec(text)) !== null) {
+        const section = match[1]!.toUpperCase();
+        const number = match[2]!;
+        const suffix = match[3]!.toUpperCase();
+        const normalized = `${section}-${number}${suffix}`;
+
+        if (boothIdPattern.test(normalized) && !seen.has(normalized)) {
+            seen.add(normalized);
+            matches.push(normalized);
+        }
+    }
+
+    return matches;
+}
+
 function extractJsonObject(raw: string) {
     const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
     const candidate = fenced?.[1] ?? raw;
@@ -92,5 +116,6 @@ export function parseClassificationResponse(
         reason: required.reason.trim(),
         inferredFandoms,
         inferredBoothId,
+        inferredBoothIdConfidence: null as string | null,
     };
 }

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createOpencodeClient } from "@opencode-ai/sdk";
 import type { Part } from "@opencode-ai/sdk";
-import { parseClassificationResponse } from "./classification";
+import { extractBoothIdsFromText, parseClassificationResponse } from "./classification";
 import type { ClassificationResult, ScraperConfig } from "./types";
 
 function encodeBasicAuth(username: string, password: string) {
@@ -136,9 +136,26 @@ export async function createClassifier(config: ScraperConfig) {
 
                 const raw = extractText(chatResult.data.parts);
                 const parsed = parseClassificationResponse(raw);
+                const regexBooths = extractBoothIdsFromText(input.tweetText);
+
+                let inferredBoothId = parsed.inferredBoothId;
+                let inferredBoothIdConfidence: string | null = null;
+
+                if (inferredBoothId) {
+                    inferredBoothIdConfidence = "llm";
+                } else if (regexBooths.length === 1) {
+                    inferredBoothId = regexBooths[0]!;
+                    inferredBoothIdConfidence = "regex_single";
+                } else if (regexBooths.length > 1) {
+                    inferredBoothIdConfidence = "regex_multiple";
+                } else {
+                    inferredBoothIdConfidence = "none";
+                }
 
                 return {
                     ...parsed,
+                    inferredBoothId,
+                    inferredBoothIdConfidence,
                     raw,
                 };
             } finally {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Result } from "better-result";
-import { tweetsOperations, scraperOperations } from "@comifuro/core";
+import { tweetsOperations, scraperOperations, boothsOperations } from "@comifuro/core";
 import { TweetClassificationValues } from "@comifuro/core/schema";
 import { getDb, requirePassword } from "../auth";
 import { ValidationError, InternalError } from "../errors";
@@ -39,6 +39,7 @@ const scraperTweetSchema = z.object({
     classifierPromptVersion: z.string().nullable().optional(),
     inferredFandoms: z.array(z.string().min(1)).nullable().optional(),
     inferredBoothId: z.string().min(1).nullable().optional(),
+    inferredBoothIdConfidence: z.string().min(1).nullable().optional(),
     rootTweetId: z.string().min(1).nullable().optional(),
     parentTweetId: z.string().min(1).nullable().optional(),
     threadPosition: z.number().int().positive().nullable().optional(),
@@ -89,6 +90,7 @@ export async function upsertScraperTweet(c: AppContext) {
             classifierPromptVersion: tweet.classifierPromptVersion ?? null,
             inferredFandoms: tweet.inferredFandoms ?? [],
             inferredBoothId: tweet.inferredBoothId ?? null,
+            inferredBoothIdConfidence: tweet.inferredBoothIdConfidence ?? null,
             rootTweetId: tweet.rootTweetId ?? null,
             parentTweetId: tweet.parentTweetId ?? null,
             threadPosition: tweet.threadPosition ?? null,
@@ -105,6 +107,19 @@ export async function upsertScraperTweet(c: AppContext) {
             height: media.height,
         })),
     });
+
+    if (
+        tweet.classification === "catalogue" &&
+        tweet.inferredBoothId
+    ) {
+        await boothsOperations.upsertBoothFromTweet(db, {
+            eventId: normalizeEventId(tweet.eventId),
+            inferredBoothId: tweet.inferredBoothId,
+            user: tweet.user,
+            displayName: tweet.displayName ?? null,
+            id: tweet.id,
+        });
+    }
 
     return c.json({ ok: true, id: tweet.id });
 }

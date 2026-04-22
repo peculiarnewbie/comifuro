@@ -1,2 +1,1 @@
-ALTER TABLE `tweets` ADD `inferred_fandoms_confidence` text;--> statement-breakpoint
-ALTER TABLE `tweets` ADD `inferred_booth_id_confidence` text;
+SELECT 1;

@@ -16,6 +16,7 @@ type ScrapedTweetPayload = {
     classifierPromptVersion: string;
     inferredFandoms: string[];
     inferredBoothId: string | null;
+    inferredBoothIdConfidence: string | null;
     rootTweetId?: string | null;
     parentTweetId?: string | null;
     threadPosition?: number | null;

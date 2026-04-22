@@ -110,6 +110,40 @@ export const tweetMedia = sqliteTable(
     ],
 );
 
+export const BoothStatusValues = [
+    "unknown",
+    "available",
+    "occupied",
+    "reserved",
+] as const;
+
+export const booths = sqliteTable(
+    "booths",
+    {
+        eventId: text("event_id").notNull(),
+        id: text("id").notNull(),
+        section: text("section").notNull(),
+        status: text("status", { enum: BoothStatusValues })
+            .notNull()
+            .default("unknown"),
+        exhibitorUser: text("exhibitor_user"),
+        exhibitorDisplayName: text("exhibitor_display_name"),
+        primaryTweetId: text("primary_tweet_id").references(() => tweets.id),
+        createdAt: integer("created_at", { mode: "timestamp_ms" })
+            .notNull()
+            .$defaultFn(() => new Date()),
+        updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+            .notNull()
+            .$defaultFn(() => new Date()),
+    },
+    (table) => [
+        primaryKey({ columns: [table.eventId, table.id] }),
+        index("booths_event_id_idx").on(table.eventId),
+        index("booths_status_idx").on(table.status),
+        index("booths_primary_tweet_idx").on(table.primaryTweetId),
+    ],
+);
+
 export const scraperState = sqliteTable("scraper_state", {
     id: text("id").primaryKey(),
     lastSeenTweetId: text("last_seen_tweet_id"),
@@ -156,6 +190,14 @@ export const usersRelations = relations(users, ({ many }) => ({
 export const tweetsRelations = relations(tweets, ({ many }) => ({
     userPostRelations: many(userToTweet),
     media: many(tweetMedia),
+    booth: many(booths),
+}));
+
+export const boothsRelations = relations(booths, ({ one }) => ({
+    primaryTweet: one(tweets, {
+        fields: [booths.primaryTweetId],
+        references: [tweets.id],
+    }),
 }));
 
 export const tweetMediaRelations = relations(tweetMedia, ({ one }) => ({

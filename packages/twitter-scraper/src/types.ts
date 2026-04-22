@@ -19,6 +19,7 @@ export type ClassificationResult = {
     reason: string;
     inferredFandoms: string[];
     inferredBoothId: string | null;
+    inferredBoothIdConfidence: string | null;
     raw: string;
 };
 

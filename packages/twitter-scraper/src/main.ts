@@ -61,6 +61,7 @@ async function storeCatalogueTweet(params: {
     classifierPromptVersion: string;
     inferredFandoms: string[];
     inferredBoothId: string | null;
+    inferredBoothIdConfidence: string | null;
     continueOnImageError?: boolean;
     skipUpsertWhenNoMedia?: boolean;
 }) {
@@ -73,6 +74,7 @@ async function storeCatalogueTweet(params: {
         classifierPromptVersion,
         inferredFandoms,
         inferredBoothId,
+        inferredBoothIdConfidence,
         continueOnImageError,
         skipUpsertWhenNoMedia,
     } = params;
@@ -104,6 +106,7 @@ async function storeCatalogueTweet(params: {
         classifierPromptVersion,
         inferredFandoms,
         inferredBoothId,
+        inferredBoothIdConfidence,
         rootTweetId: tweet.rootTweetId,
         parentTweetId: tweet.parentTweetId,
         threadPosition: tweet.threadPosition,
@@ -143,7 +146,8 @@ async function processSearchTweet(params: {
             classificationReason: classification.reason,
             classifierPromptVersion: classifier.promptVersion,
             inferredFandoms: [],
-            inferredBoothId: null,
+            inferredBoothId: classification.inferredBoothId,
+            inferredBoothIdConfidence: classification.inferredBoothIdConfidence,
             rootTweetId: null,
             parentTweetId: null,
             threadPosition: null,
@@ -154,6 +158,8 @@ async function processSearchTweet(params: {
             accepted: false,
             classifierPromptVersion: classifier.promptVersion,
             classificationReason: classification.reason,
+            inferredBoothId: classification.inferredBoothId,
+            inferredBoothIdConfidence: classification.inferredBoothIdConfidence,
         };
     }
 
@@ -166,6 +172,7 @@ async function processSearchTweet(params: {
         classifierPromptVersion: classifier.promptVersion,
         inferredFandoms: classification.inferredFandoms,
         inferredBoothId: classification.inferredBoothId,
+        inferredBoothIdConfidence: classification.inferredBoothIdConfidence,
     });
 
     console.log(
@@ -181,6 +188,8 @@ async function processSearchTweet(params: {
         accepted,
         classifierPromptVersion: classifier.promptVersion,
         classificationReason: classification.reason,
+        inferredBoothId: classification.inferredBoothId,
+        inferredBoothIdConfidence: classification.inferredBoothIdConfidence,
     };
 }
 
@@ -191,6 +200,8 @@ async function processThreadContinuations(params: {
     eventId: string;
     searchQuery: string;
     classifierPromptVersion: string;
+    rootInferredBoothId: string | null;
+    rootInferredBoothIdConfidence: string | null;
     scrollDelayMs: number;
     idleScrollLimit: number;
 }) {
@@ -201,6 +212,8 @@ async function processThreadContinuations(params: {
         eventId,
         searchQuery,
         classifierPromptVersion,
+        rootInferredBoothId,
+        rootInferredBoothIdConfidence,
         scrollDelayMs,
         idleScrollLimit,
     } = params;
@@ -230,7 +243,8 @@ async function processThreadContinuations(params: {
             classificationReason: `inherited from root ${rootTweet.id}`,
             classifierPromptVersion,
             inferredFandoms: [],
-            inferredBoothId: null,
+            inferredBoothId: rootInferredBoothId,
+            inferredBoothIdConfidence: rootInferredBoothIdConfidence,
             continueOnImageError: true,
             skipUpsertWhenNoMedia: true,
         });
@@ -301,6 +315,8 @@ async function processDiscoveredTweet(params: {
                     eventId,
                     searchQuery,
                     classifierPromptVersion: result.classifierPromptVersion,
+                    rootInferredBoothId: result.inferredBoothId,
+                    rootInferredBoothIdConfidence: result.inferredBoothIdConfidence,
                     scrollDelayMs: threadScrollDelayMs,
                     idleScrollLimit: threadIdleScrollLimit,
                 });
@@ -346,6 +362,7 @@ async function processDiscoveredTweet(params: {
                 classifierPromptVersion: classifier.promptVersion,
                 inferredFandoms: [],
                 inferredBoothId: null,
+                inferredBoothIdConfidence: null,
                 rootTweetId: null,
                 parentTweetId: null,
                 threadPosition: null,
