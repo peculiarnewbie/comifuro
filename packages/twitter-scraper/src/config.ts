@@ -6,6 +6,33 @@ import type { ScraperConfig } from "./types";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 
+let envLoaded = false;
+
+function loadEnvFiles() {
+    if (envLoaded || typeof process.loadEnvFile !== "function") {
+        return;
+    }
+
+    envLoaded = true;
+
+    for (const path of [
+        resolve(currentDir, "../.env"),
+        resolve(currentDir, "../../.env"),
+    ]) {
+        try {
+            process.loadEnvFile(path);
+        } catch (error) {
+            if (
+                !(error instanceof Error) ||
+                !("code" in error) ||
+                error.code !== "ENOENT"
+            ) {
+                throw error;
+            }
+        }
+    }
+}
+
 const envSchema = z.object({
     API_BASE_URL: z.string().url().default("https://cf.peculiarnewbie.com/api"),
     API_PASSWORD: z
@@ -20,7 +47,8 @@ const envSchema = z.object({
         .string()
         .min(1)
         .default("(#comifuro22catalogue OR #cf22) filter:images"),
-    STAGEHAND_CDP_URL: z.string().min(1).default("http://127.0.0.1:9222"),
+    BROWSER_CDP_URL: z.string().min(1).optional(),
+    STAGEHAND_CDP_URL: z.string().min(1).optional(),
     SCRAPER_BROWSER_COMMAND: z.string().min(1).optional(),
     SCRAPER_PAGE_URL_MATCH: z.string().min(1).default("https://x.com/"),
     SCRAPER_SCROLL_DELAY_MS: z.coerce.number().int().positive().default(3000),
@@ -47,6 +75,8 @@ const envSchema = z.object({
 });
 
 export function loadConfig(argv = process.argv.slice(2)): ScraperConfig {
+    loadEnvFiles();
+
     const parsed = envSchema.safeParse(process.env);
     if (!parsed.success) {
         throw new Error(parsed.error.issues[0]?.message ?? "invalid scraper config");
@@ -63,7 +93,10 @@ export function loadConfig(argv = process.argv.slice(2)): ScraperConfig {
         eventId: parsed.data.EVENT_ID.trim().toLowerCase(),
         stateId: parsed.data.SCRAPER_STATE_ID,
         searchQuery: parsed.data.SEARCH_QUERY,
-        stagehandCdpUrl: parsed.data.STAGEHAND_CDP_URL,
+        browserCdpUrl:
+            parsed.data.BROWSER_CDP_URL ??
+            parsed.data.STAGEHAND_CDP_URL ??
+            "http://127.0.0.1:9222",
         scraperBrowserCommand: parsed.data.SCRAPER_BROWSER_COMMAND,
         scraperPageUrlMatch: parsed.data.SCRAPER_PAGE_URL_MATCH,
         scrollDelayMs: parsed.data.SCRAPER_SCROLL_DELAY_MS,

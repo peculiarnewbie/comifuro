@@ -6,9 +6,9 @@
         "typescript": "^5"
     },
     "dependencies": {
-        "@browserbasehq/stagehand": "^2.4.1",
         "@comifuro/core": "workspace:*",
         "@opencode-ai/sdk": "^0.5.19",
+        "playwright": "^1.59.1",
         "sharp": "^0.34.1",
         "zod": "^4.1.12"
     },

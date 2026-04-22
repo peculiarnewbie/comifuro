@@ -2,7 +2,8 @@ import { DrizzleD1Database } from "drizzle-orm/d1";
 import { tweetsOperations } from "@comifuro/core";
 import type { TweetSyncCursor } from "@comifuro/core/types";
 
-export const TWEET_MEDIA_KEY_REGEX = /^[A-Za-z0-9_-]+\/\d+\.webp$/;
+export const TWEET_MEDIA_KEY_REGEX =
+    /^[A-Za-z0-9_-]+\/\d+(?:\.thumb)?\.webp$/;
 export const CURRENT_SCHEMA_VERSION = 9;
 
 export function toDate(value: number | string | Date | null | undefined) {

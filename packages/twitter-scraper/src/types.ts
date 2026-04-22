@@ -47,7 +47,7 @@ export type ScraperConfig = {
     eventId: string;
     stateId: string;
     searchQuery: string;
-    stagehandCdpUrl: string;
+    browserCdpUrl: string;
     scraperBrowserCommand?: string;
     scraperPageUrlMatch: string;
     scrollDelayMs: number;

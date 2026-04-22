@@ -1,6 +1,6 @@
 # twitter-scraper
 
-Stagehand-based X scraper for Comifuro catalogue tweets.
+Playwright CDP-based X scraper for Comifuro catalogue tweets.
 
 ## What Changed
 
@@ -30,7 +30,7 @@ This is optional now. By default the scraper will start its own dedicated `openc
 ```bash
 API_BASE_URL=https://cf.peculiarnewbie.com/api
 API_PASSWORD=...
-STAGEHAND_CDP_URL=http://127.0.0.1:9222
+BROWSER_CDP_URL=http://127.0.0.1:9222
 SCRAPER_BROWSER_COMMAND='helium-browser --remote-debugging-port=9222'
 SEARCH_QUERY='(#comifuro22catalogue OR #cf22) filter:images'
 SCRAPER_STATE_ID=x-search:cf22
@@ -68,7 +68,7 @@ pnpm run scrape
 
 The scraper:
 
-- launches your configured browser command if `STAGEHAND_CDP_URL` is not already reachable
+- launches your configured browser command if `BROWSER_CDP_URL` is not already reachable
 - opens the live search for the configured query
 - walks visible tweets from newest to older
 - stops once it reaches the last seen tweet id stored in D1
@@ -113,3 +113,5 @@ If you want to bring your own opencode server instead:
 OPENCODE_MANAGED=false
 OPENCODE_BASE_URL=http://127.0.0.1:4096
 ```
+
+`STAGEHAND_CDP_URL` is still accepted as a fallback alias for `BROWSER_CDP_URL` so existing env files keep working.

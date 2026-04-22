@@ -1,9 +1,8 @@
-import type { Stagehand } from "@browserbasehq/stagehand";
-import type { Page } from "playwright";
+import type { Browser, Page } from "playwright";
 import { ApiClient } from "./api-client";
 import {
     crawlThreadContinuations,
-    connectStagehand,
+    connectBrowser,
     ensureBrowserAvailable,
     extractVisibleTweets,
     findExistingPage,
@@ -329,28 +328,35 @@ async function processDiscoveredTweet(params: {
         return acceptedCount;
     } catch (error) {
         console.error(`failed ${tweet.id}`, error);
-        await apiClient.upsertTweet({
-            id: tweet.id,
-            eventId,
-            user: tweet.user,
-            displayName: tweet.displayName,
-            timestamp: tweet.timestamp,
-            text: tweet.text,
-            tweetUrl: tweet.tweetUrl,
-            searchQuery,
-            matchedTags: tweet.matchedTags,
-            imageMask: 0,
-            classification: "error",
-            classificationReason:
-                error instanceof Error ? error.message : String(error),
-            classifierPromptVersion: classifier.promptVersion,
-            inferredFandoms: [],
-            inferredBoothId: null,
-            rootTweetId: null,
-            parentTweetId: null,
-            threadPosition: null,
-            media: [],
-        });
+        try {
+            await apiClient.upsertTweet({
+                id: tweet.id,
+                eventId,
+                user: tweet.user,
+                displayName: tweet.displayName,
+                timestamp: tweet.timestamp,
+                text: tweet.text,
+                tweetUrl: tweet.tweetUrl,
+                searchQuery,
+                matchedTags: tweet.matchedTags,
+                imageMask: 0,
+                classification: "error",
+                classificationReason:
+                    error instanceof Error ? error.message : String(error),
+                classifierPromptVersion: classifier.promptVersion,
+                inferredFandoms: [],
+                inferredBoothId: null,
+                rootTweetId: null,
+                parentTweetId: null,
+                threadPosition: null,
+                media: [],
+            });
+        } catch (upsertError) {
+            console.error(
+                `failed to persist scraper error for ${tweet.id}`,
+                upsertError,
+            );
+        }
 
         return 0;
     }
@@ -590,10 +596,10 @@ async function runMaxIdSearch(params: {
     );
 }
 
-async function run(stagehand: Stagehand, config = loadConfig()) {
+async function run(browser: Browser, config = loadConfig()) {
     const apiClient = new ApiClient(config.apiBaseUrl, config.apiPassword);
     const classifier = await createClassifier(config);
-    const page = await findExistingPage(stagehand, config);
+    const page = await findExistingPage(browser, config);
     const persistedSearchQuery = buildSearchQuery(config.searchQuery, {
         since: config.searchSinceDate,
     });
@@ -620,7 +626,7 @@ async function run(stagehand: Stagehand, config = loadConfig()) {
     });
 }
 
-let stagehand: Stagehand | null = null;
+let browser: Browser | null = null;
 let stopManagedOpencode: (() => void) | null = null;
 let cleanupRegistered = false;
 
@@ -654,14 +660,12 @@ async function main() {
         const managedOpencode = await ensureOpencodeServer(config);
         stopManagedOpencode = managedOpencode.stop;
         await ensureBrowserAvailable(config);
-        stagehand = await connectStagehand(config);
-        await run(stagehand, config);
+        browser = await connectBrowser(config);
+        await run(browser, config);
         process.exit(0);
     } finally {
         stopManagedOpencode?.();
-        // Stagehand closes the connected browser on close(). When we attach to an
-        // existing authenticated Chrome instance over CDP, leaving cleanup to the
-        // process exit avoids killing the user's browser session.
+        browser = null;
     }
 }
 

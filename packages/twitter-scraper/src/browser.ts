@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
-import { Stagehand } from "@browserbasehq/stagehand";
-import type { Page } from "playwright";
+import { chromium, type Browser, type Page } from "playwright";
 import type { ExtractedTweet, ScraperConfig } from "./types";
 
 const SEARCH_TIMELINE_SELECTOR = '[aria-label="Timeline: Search timeline"]';
@@ -116,17 +115,8 @@ export function buildThreadContinuationChain(
     };
 }
 
-export async function connectStagehand(config: ScraperConfig) {
-    const stagehand = new Stagehand({
-        env: "LOCAL",
-        verbose: 1,
-        localBrowserLaunchOptions: {
-            cdpUrl: config.stagehandCdpUrl,
-        },
-    });
-
-    await stagehand.init();
-    return stagehand;
+export async function connectBrowser(config: ScraperConfig) {
+    return await chromium.connectOverCDP(config.browserCdpUrl);
 }
 
 async function isCdpReachable(cdpUrl: string) {
@@ -141,13 +131,13 @@ async function isCdpReachable(cdpUrl: string) {
 }
 
 export async function ensureBrowserAvailable(config: ScraperConfig) {
-    if (await isCdpReachable(config.stagehandCdpUrl)) {
+    if (await isCdpReachable(config.browserCdpUrl)) {
         return;
     }
 
     if (!config.scraperBrowserCommand) {
         throw new Error(
-            `CDP browser is not reachable at ${config.stagehandCdpUrl}. Start your browser with remote debugging enabled or set SCRAPER_BROWSER_COMMAND.`,
+            `CDP browser is not reachable at ${config.browserCdpUrl}. Start your browser with remote debugging enabled or set SCRAPER_BROWSER_COMMAND.`,
         );
     }
 
@@ -161,7 +151,7 @@ export async function ensureBrowserAvailable(config: ScraperConfig) {
 
     const startedAt = Date.now();
     while (Date.now() - startedAt < CDP_READY_TIMEOUT_MS) {
-        if (await isCdpReachable(config.stagehandCdpUrl)) {
+        if (await isCdpReachable(config.browserCdpUrl)) {
             return;
         }
 
@@ -169,15 +159,15 @@ export async function ensureBrowserAvailable(config: ScraperConfig) {
     }
 
     throw new Error(
-        `Timed out waiting for a browser CDP endpoint at ${config.stagehandCdpUrl} after running SCRAPER_BROWSER_COMMAND.`,
+        `Timed out waiting for a browser CDP endpoint at ${config.browserCdpUrl} after running SCRAPER_BROWSER_COMMAND.`,
     );
 }
 
 export async function findExistingPage(
-    stagehand: Stagehand,
+    browser: Browser,
     config: ScraperConfig,
 ) {
-    const pages = stagehand.context.pages();
+    const pages = browser.contexts().flatMap((context) => context.pages());
     const matched =
         pages.find((page) => page.url().includes(config.scraperPageUrlMatch)) ??
         pages[0];
