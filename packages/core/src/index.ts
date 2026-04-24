@@ -168,13 +168,11 @@ export namespace tweetsOperations {
         db: SupportedDb,
         input: ScrapedTweetUpsert,
     ) => {
-        return (db as any).transaction(async (tx: SupportedDb) => {
-            const [tweet] = await upsertTweet(tx, input.tweet);
-            if (input.media.length > 0) {
-                await replaceTweetMedia(tx, input.tweet.id, input.media);
-            }
-            return tweet;
-        });
+        const [tweet] = await upsertTweet(db, input.tweet);
+        if (input.media.length > 0) {
+            await replaceTweetMedia(db, input.tweet.id, input.media);
+        }
+        return tweet;
     };
 
     export const listTweetMedia = async (db: SupportedDb, tweetId: string) => {

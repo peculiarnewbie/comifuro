@@ -27,13 +27,13 @@ export class RateLimiter extends DurableObject<RateLimiterEnv> {
         const key = `${ip}:${endpoint}`;
         const now = Date.now();
 
-        const result = this.ctx.storage.sql.exec<{
+        const [result] = this.ctx.storage.sql.exec<{
             count: number;
             reset_at: number;
         }>(
             `SELECT count, reset_at FROM rate_limits WHERE key = ?`,
             key,
-        ).one();
+        ).toArray();
 
         if (!result || now > result.reset_at) {
             this.ctx.storage.sql.exec(
