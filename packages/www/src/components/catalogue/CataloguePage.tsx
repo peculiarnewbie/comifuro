@@ -63,6 +63,9 @@ export default function CataloguePage(props: {
                 >
                     sync now
                 </button>
+                <a class="rounded border px-3 py-1" href={`/tags?event=${props.eventId}`}>
+                    tags
+                </a>
             </div>
 
             <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

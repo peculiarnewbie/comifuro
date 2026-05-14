@@ -61,7 +61,9 @@ export const tweets = sqliteTable(
         createdAt: integer("created_at", { mode: "timestamp_ms" })
             .notNull()
             .$defaultFn(() => new Date()),
-        updatedAt: integer("updated_at", { mode: "timestamp_ms" }),
+        updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+            .notNull()
+            .$defaultFn(() => new Date()),
         deleted: integer("deleted", { mode: "boolean" }),
     },
     (table) => [

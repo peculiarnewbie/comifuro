@@ -141,6 +141,20 @@
       "when": 1776800000000,
       "tag": "0019_add_booths_table",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1778803200000,
+      "tag": "0020_backfill_tweet_updated_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1778780897278,
+      "tag": "0021_eager_the_leader",
+      "breakpoints": true
     }
   ]
 }

@@ -26,7 +26,10 @@ import {
     uncatalogueTweet,
     updateTweetMetadata,
 } from "../lib/admin-api";
-import { createTweetThreadSearchText } from "../lib/tweet-search";
+import {
+    createTweetThreadSearchText,
+    matchesTweetSearchText,
+} from "../lib/tweet-search";
 import { getOrCreateAccountId } from "../lib/account";
 import CataloguePage from "../components/catalogue/CataloguePage";
 import AdminPanel from "../components/admin/AdminPanel";
@@ -286,7 +289,12 @@ export function AppRouteComponent() {
         }
 
         if (!searchIndexState().ready) {
-            return groupedThreads();
+            return groupedThreads().filter((thread) =>
+                matchesTweetSearchText(
+                    createTweetThreadSearchText(thread.root, thread.replies),
+                    filter,
+                ),
+            );
         }
 
         const queries = filter

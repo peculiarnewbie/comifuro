@@ -39,7 +39,6 @@ export type ScrapedTweetUpsert = {
 };
 
 export namespace tweetsOperations {
-    const effectiveUpdatedAt = sql<number>`coalesce(${tweets.updatedAt}, ${tweets.createdAt})`;
     const excludedColumn = (column: { name: string }) =>
         sql.raw(`excluded.${column.name}`);
     const classificationRank = (value: SQLWrapper) =>
@@ -339,9 +338,9 @@ export namespace tweetsOperations {
                     eq(tweets.eventId, eventId),
                     cursor
                         ? or(
-                              gt(effectiveUpdatedAt, cursor.updatedAt),
+                              gt(tweets.updatedAt, new Date(cursor.updatedAt)),
                               and(
-                                  eq(effectiveUpdatedAt, cursor.updatedAt),
+                                  eq(tweets.updatedAt, new Date(cursor.updatedAt)),
                                   gt(tweets.id, cursor.id),
                               ),
                           )
@@ -350,7 +349,7 @@ export namespace tweetsOperations {
             );
 
         return await baseQuery
-            .orderBy(asc(effectiveUpdatedAt), asc(tweets.id))
+            .orderBy(asc(tweets.updatedAt), asc(tweets.id))
             .limit(limit);
     };
 

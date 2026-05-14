@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
     createTweetSearchText,
     createTweetThreadSearchText,
+    matchesTweetSearchText,
 } from "./tweet-search";
 
 describe("createTweetSearchText", () => {
@@ -61,5 +62,14 @@ describe("createTweetSearchText", () => {
         expect(searchText).toContain("booth");
         expect(searchText).toContain("Blue Archive");
         expect(searchText).toContain("A12");
+    });
+});
+
+describe("matchesTweetSearchText", () => {
+    test("requires every query token while allowing partial matches", () => {
+        const searchText = "artist\nBlue Archive\nA12";
+
+        expect(matchesTweetSearchText(searchText, "blue a1")).toBe(true);
+        expect(matchesTweetSearchText(searchText, "blue z9")).toBe(false);
     });
 });
