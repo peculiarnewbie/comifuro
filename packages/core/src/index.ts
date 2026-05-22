@@ -25,6 +25,7 @@ import {
     userToTweet,
     MarkValues,
 } from "./schema";
+import type { TweetId, UserId, EventId, BoothId } from "./schema";
 import type {
     BoothInsert,
     ScraperStateInsert,
@@ -103,7 +104,7 @@ export namespace tweetsOperations {
 
     export const getTweet = async (
         db: SupportedDb,
-        id: string,
+        id: TweetId,
     ) => {
         const tweet = await db
             .select()
@@ -154,7 +155,7 @@ export namespace tweetsOperations {
 
     export const replaceTweetMedia = async (
         db: SupportedDb,
-        tweetId: string,
+        tweetId: TweetId,
         media: TweetMediaInsert[],
     ) => {
         await db.delete(tweetMedia).where(eq(tweetMedia.tweetId, tweetId));
@@ -177,7 +178,7 @@ export namespace tweetsOperations {
         return tweet;
     };
 
-    export const listTweetMedia = async (db: SupportedDb, tweetId: string) => {
+    export const listTweetMedia = async (db: SupportedDb, tweetId: TweetId) => {
         return await db
             .select()
             .from(tweetMedia)
@@ -189,7 +190,7 @@ export namespace tweetsOperations {
         db: SupportedDb,
         opts: {
             limit: number;
-            cursor?: { tweetId: string; mediaIndex: number };
+            cursor?: { tweetId: TweetId; mediaIndex: number };
         },
     ) => {
         const { limit, cursor } = opts;
@@ -217,7 +218,7 @@ export namespace tweetsOperations {
     export const setTweetMediaThumbnail = async (
         db: SupportedDb,
         input: {
-            tweetId: string;
+            tweetId: TweetId;
             mediaIndex: number;
             thumbnailR2Key: string;
         },
@@ -236,7 +237,7 @@ export namespace tweetsOperations {
 
     export const listThreadTweets = async (
         db: SupportedDb,
-        rootTweetId: string,
+        rootTweetId: TweetId,
     ) => {
         return await db
             .select()
@@ -249,7 +250,7 @@ export namespace tweetsOperations {
 
     export const listTweetMediaByTweetIds = async (
         db: SupportedDb,
-        tweetIds: string[],
+        tweetIds: TweetId[],
     ) => {
         if (tweetIds.length === 0) {
             return [];
@@ -274,7 +275,7 @@ export namespace tweetsOperations {
     export const listPublicTweets = async (
         db: SupportedDb,
         classification: TweetClassification = "catalogue",
-        eventId?: string,
+        eventId?: EventId,
     ) => {
         return await db
             .select()
@@ -296,7 +297,7 @@ export namespace tweetsOperations {
 
     export const listPublicTweetMedia = async (
         db: SupportedDb,
-        tweetIds: string[],
+        tweetIds: TweetId[],
     ) => {
         if (tweetIds.length === 0) {
             return [];
@@ -325,10 +326,10 @@ export namespace tweetsOperations {
             cursor,
             limit,
         }: {
-            eventId: string;
+            eventId: EventId;
             cursor?: {
                 updatedAt: number;
-                id: string;
+                id: TweetId;
             };
             limit: number;
         },
@@ -364,7 +365,7 @@ export namespace tweetsOperations {
     export const listTweetImages = async (
         db: SupportedDb,
         rows: {
-            id: string;
+            id: TweetId;
             imageMask: number;
         }[],
     ) => {
@@ -373,7 +374,7 @@ export namespace tweetsOperations {
             rows.map((row) => row.id),
         );
 
-        const mediaByTweet = new Map<string, TweetImageRef[]>();
+        const mediaByTweet = new Map<TweetId, TweetImageRef[]>();
         for (const item of media) {
             const current = mediaByTweet.get(item.tweetId) ?? [];
             current.push({
@@ -396,7 +397,7 @@ export namespace tweetsOperations {
         opt?: {
             offset?: number;
             limit?: number;
-            eventId?: string;
+            eventId?: EventId;
         },
     ) => {
         const { offset = 0, limit = 100, eventId } = opt || {};
@@ -411,7 +412,7 @@ export namespace tweetsOperations {
             .offset(offset);
     };
 
-    export const getNewestTweet = async (db: SupportedDb, eventId?: string) => {
+    export const getNewestTweet = async (db: SupportedDb, eventId?: EventId) => {
         const query = db.select().from(tweets);
 
         return await (eventId
@@ -424,9 +425,9 @@ export namespace tweetsOperations {
 
     export const getNewerTweets = async (
         db: SupportedDb,
-        newestTweet: string,
+        newestTweet: TweetId,
         limit = 100,
-        eventId?: string,
+        eventId?: EventId,
     ) => {
         return await db
             .select()
@@ -445,9 +446,9 @@ export namespace tweetsOperations {
 
     export const getOlderTweets = async (
         db: SupportedDb,
-        oldestTweet: string,
+        oldestTweet: TweetId,
         limit = 100,
-        eventId?: string,
+        eventId?: EventId,
     ) => {
         return await db
             .select()
@@ -467,7 +468,7 @@ export namespace tweetsOperations {
     export const updateTweetAdminMetadata = async (
         db: SupportedDb,
         input: {
-            id: string;
+            id: TweetId;
             matchedTags?: string[];
             inferredFandoms?: string[];
             updatedAt?: Date;
@@ -489,7 +490,7 @@ export namespace tweetsOperations {
     export const manualUncatalogueTweet = async (
         db: SupportedDb,
         input: {
-            id: string;
+            id: TweetId;
             reason: string;
             updatedAt?: Date;
         },
@@ -513,8 +514,8 @@ export namespace tweetsOperations {
     export const rerootThread = async (
         db: SupportedDb,
         input: {
-            rootTweetId: string;
-            newRootTweetId: string;
+            rootTweetId: TweetId;
+            newRootTweetId: TweetId;
             updatedAt?: Date;
         },
     ) => {
@@ -604,11 +605,11 @@ export namespace boothsOperations {
     export const upsertBoothFromTweet = async (
         db: SupportedDb,
         tweet: {
-            eventId: string;
-            inferredBoothId: string | null;
-            user: string;
+            eventId: EventId;
+            inferredBoothId: BoothId | null;
+            user: UserId;
             displayName: string | null;
-            id: string;
+            id: TweetId;
         },
     ) => {
         if (!tweet.inferredBoothId) {
@@ -622,7 +623,7 @@ export namespace boothsOperations {
             .insert(booths)
             .values({
                 eventId: tweet.eventId,
-                id: tweet.inferredBoothId.toUpperCase(),
+                id: tweet.inferredBoothId.toUpperCase() as BoothId,
                 section,
                 status: "occupied",
                 exhibitorUser: tweet.user,
@@ -653,7 +654,7 @@ export namespace boothsOperations {
 
     export const listBooths = async (
         db: SupportedDb,
-        eventId: string,
+        eventId: EventId,
         opts?: {
             status?: "unknown" | "available" | "occupied" | "reserved";
             limit?: number;
@@ -683,8 +684,8 @@ export namespace boothsOperations {
 
     export const getBooth = async (
         db: SupportedDb,
-        eventId: string,
-        id: string,
+        eventId: EventId,
+        id: BoothId,
     ) => {
         const rows = await db
             .select()
@@ -696,8 +697,8 @@ export namespace boothsOperations {
 
     export const getBoothWithTweets = async (
         db: SupportedDb,
-        eventId: string,
-        id: string,
+        eventId: EventId,
+        id: BoothId,
     ) => {
         const booth = await getBooth(db, eventId, id);
         if (!booth) {
@@ -721,7 +722,7 @@ export namespace boothsOperations {
 
     export const rebuildBoothsFromTweets = async (
         db: SupportedDb,
-        eventId: string,
+        eventId: EventId,
     ) => {
         return (db as any).transaction(async (tx: SupportedDb) => {
             // Delete existing booths for this event
@@ -758,7 +759,7 @@ export namespace boothsOperations {
                 const section = parseSectionFromBoothId(upperBoothId);
                 const row: BoothInsert = {
                     eventId,
-                    id: upperBoothId,
+                    id: upperBoothId as BoothId,
                     section,
                     status: "occupied",
                     exhibitorUser: tweet.user,
@@ -798,7 +799,7 @@ export namespace marksOperations {
         db: SupportedDb,
         input: {
             userId: string;
-            tweetId: string;
+            tweetId: TweetId;
             mark: string;
             version: number;
         },
@@ -828,7 +829,7 @@ export namespace marksOperations {
     export const deleteUserMark = async (
         db: SupportedDb,
         userId: string,
-        tweetId: string,
+        tweetId: TweetId,
     ) => {
         return await db
             .delete(userToTweet)
@@ -844,7 +845,7 @@ export namespace marksOperations {
     export const batchUpsertUserMarks = async (
         db: SupportedDb,
         userId: string,
-        marks: { tweetId: string; mark: string }[],
+        marks: { tweetId: TweetId; mark: string }[],
         version: number,
     ) => {
         if (marks.length === 0) {
@@ -877,7 +878,7 @@ export namespace marksOperations {
     };
 }
 
-function maskToFallbackR2Keys(tweetId: string, mask: number, maxBits = 8) {
+function maskToFallbackR2Keys(tweetId: TweetId, mask: number, maxBits = 8) {
     const keys: string[] = [];
 
     for (let index = 0; index < maxBits; index += 1) {
@@ -890,7 +891,7 @@ function maskToFallbackR2Keys(tweetId: string, mask: number, maxBits = 8) {
 }
 
 function maskToFallbackImageRefs(
-    tweetId: string,
+    tweetId: TweetId,
     mask: number,
     maxBits = 8,
 ): tweetsOperations.TweetImageRef[] {
@@ -971,9 +972,9 @@ export namespace itemsOperations {
     export const replaceUserItems = async (
         db: SupportedDb,
         input: {
-            eventId: string;
-            user: string;
-            sourceTweetId: string;
+            eventId: EventId;
+            user: UserId;
+            sourceTweetId: TweetId;
             items: { type: string; price?: string | null; fandom?: string | null }[];
         },
     ) => {
@@ -1010,8 +1011,8 @@ export namespace itemsOperations {
 
     export const listUserItems = async (
         db: SupportedDb,
-        eventId: string,
-        user: string,
+        eventId: EventId,
+        user: UserId,
     ) => {
         return await db
             .select()
@@ -1024,7 +1025,7 @@ export namespace itemsOperations {
 
     export const listItemsByEvent = async (
         db: SupportedDb,
-        eventId: string,
+        eventId: EventId,
     ) => {
         return await db
             .select()
@@ -1038,9 +1039,9 @@ export namespace userMetaOperations {
     export const upsertUserMeta = async (
         db: SupportedDb,
         input: {
-            user: string;
-            eventId: string;
-            boothId?: string | null;
+            user: UserId;
+            eventId: EventId;
+            boothId?: BoothId | null;
             preorderDeadline?: string | null;
         },
     ) => {
@@ -1070,8 +1071,8 @@ export namespace userMetaOperations {
 
     export const getUserMeta = async (
         db: SupportedDb,
-        eventId: string,
-        user: string,
+        eventId: EventId,
+        user: UserId,
     ) => {
         const rows = await db
             .select()

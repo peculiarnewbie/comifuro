@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { getBunSqlite } from "./db";
 import { tweetsOperations } from "./index";
 import { runBunMigrations } from "./migrate";
+import type { TweetId, UserId, EventId, BoothId } from "./schema";
 
 const tempPaths: string[] = [];
 
@@ -33,9 +34,9 @@ describe("tweetsOperations inferred metadata", () => {
 
         await tweetsOperations.upsertMultipleTweets(db, [
             {
-                id: "1",
-                eventId: "cf22",
-                user: "artist",
+                id: "1" as TweetId,
+                eventId: "cf22" as EventId,
+                user: "artist" as UserId,
                 displayName: "Artist",
                 timestamp: new Date("2026-04-09T10:00:00.000Z"),
                 text: "Blue Archive at A12",
@@ -43,21 +44,21 @@ describe("tweetsOperations inferred metadata", () => {
                 imageMask: 1,
                 classification: "catalogue",
                 inferredFandoms: ["Blue Archive"],
-                inferredBoothId: "A12",
+                inferredBoothId: "A12" as BoothId,
                 updatedAt,
             },
         ]);
 
-        const stored = await tweetsOperations.getTweet(db, "1");
+        const stored = await tweetsOperations.getTweet(db, "1" as TweetId);
         const syncRows = await tweetsOperations.listTweetsForSync(db, {
-            eventId: "cf22",
+            eventId: "cf22" as EventId,
             limit: 10,
         });
 
         expect(stored?.inferredFandoms).toEqual(["Blue Archive"]);
-        expect(stored?.inferredBoothId).toBe("A12");
+        expect(stored?.inferredBoothId).toBe("A12" as BoothId);
         expect(syncRows[0]?.inferredFandoms).toEqual(["Blue Archive"]);
-        expect(syncRows[0]?.inferredBoothId).toBe("A12");
+        expect(syncRows[0]?.inferredBoothId).toBe("A12" as BoothId);
     });
 
     test("keeps stronger catalogue state, media, and thread metadata on weaker upserts", async () => {
@@ -68,9 +69,9 @@ describe("tweetsOperations inferred metadata", () => {
 
         await tweetsOperations.upsertScrapedTweet(db, {
             tweet: {
-                id: "200",
-                eventId: "cf22",
-                user: "artist",
+                id: "200" as TweetId,
+                eventId: "cf22" as EventId,
+                user: "artist" as UserId,
                 displayName: "Artist",
                 timestamp: new Date("2026-04-09T10:00:00.000Z"),
                 text: "thread reply with images",
@@ -81,14 +82,14 @@ describe("tweetsOperations inferred metadata", () => {
                 classification: "catalogue",
                 classificationReason: "inherited from root 100",
                 classifierPromptVersion: "prompt-v1",
-                rootTweetId: "100",
-                parentTweetId: "150",
+                rootTweetId: "100" as TweetId,
+                parentTweetId: "150" as TweetId,
                 threadPosition: 2,
                 updatedAt: new Date("2026-04-09T10:01:00.000Z"),
             },
             media: [
                 {
-                    tweetId: "200",
+                    tweetId: "200" as TweetId,
                     mediaIndex: 0,
                     r2Key: "200/0.webp",
                     sourceUrl: "https://pbs.twimg.com/media/example",
@@ -99,9 +100,9 @@ describe("tweetsOperations inferred metadata", () => {
 
         await tweetsOperations.upsertScrapedTweet(db, {
             tweet: {
-                id: "200",
-                eventId: "cf22",
-                user: "artist",
+                id: "200" as TweetId,
+                eventId: "cf22" as EventId,
+                user: "artist" as UserId,
                 displayName: "Artist",
                 timestamp: new Date("2026-04-09T10:00:00.000Z"),
                 text: "part 2",
@@ -120,15 +121,15 @@ describe("tweetsOperations inferred metadata", () => {
             media: [],
         });
 
-        const stored = await tweetsOperations.getTweet(db, "200");
-        const media = await tweetsOperations.listTweetMedia(db, "200");
+        const stored = await tweetsOperations.getTweet(db, "200" as TweetId);
+        const media = await tweetsOperations.listTweetMedia(db, "200" as TweetId);
 
         expect(stored?.classification).toBe("catalogue");
         expect(stored?.classificationReason).toBe("inherited from root 100");
         expect(stored?.classifierPromptVersion).toBe("prompt-v1");
         expect(stored?.imageMask).toBe(1);
-        expect(stored?.rootTweetId).toBe("100");
-        expect(stored?.parentTweetId).toBe("150");
+        expect(stored?.rootTweetId).toBe("100" as TweetId);
+        expect(stored?.parentTweetId).toBe("150" as TweetId);
         expect(stored?.threadPosition).toBe(2);
         expect(media).toHaveLength(1);
         expect(media[0]?.r2Key).toBe("200/0.webp");
@@ -142,9 +143,9 @@ describe("tweetsOperations inferred metadata", () => {
 
         await tweetsOperations.upsertScrapedTweet(db, {
             tweet: {
-                id: "201",
-                eventId: "cf22",
-                user: "artist",
+                id: "201" as TweetId,
+                eventId: "cf22" as EventId,
+                user: "artist" as UserId,
                 displayName: "Artist",
                 timestamp: new Date("2026-04-09T10:05:00.000Z"),
                 text: "part 3",
@@ -162,9 +163,9 @@ describe("tweetsOperations inferred metadata", () => {
 
         await tweetsOperations.upsertScrapedTweet(db, {
             tweet: {
-                id: "201",
-                eventId: "cf22",
-                user: "artist",
+                id: "201" as TweetId,
+                eventId: "cf22" as EventId,
+                user: "artist" as UserId,
                 displayName: "Artist",
                 timestamp: new Date("2026-04-09T10:05:00.000Z"),
                 text: "part 3",
@@ -175,14 +176,14 @@ describe("tweetsOperations inferred metadata", () => {
                 classification: "catalogue",
                 classificationReason: "inherited from root 100",
                 classifierPromptVersion: "prompt-v1",
-                rootTweetId: "100",
-                parentTweetId: "200",
+                rootTweetId: "100" as TweetId,
+                parentTweetId: "200" as TweetId,
                 threadPosition: 3,
                 updatedAt: new Date("2026-04-09T10:07:00.000Z"),
             },
             media: [
                 {
-                    tweetId: "201",
+                    tweetId: "201" as TweetId,
                     mediaIndex: 0,
                     r2Key: "201/0.webp",
                     sourceUrl: "https://pbs.twimg.com/media/example-2",
@@ -191,13 +192,13 @@ describe("tweetsOperations inferred metadata", () => {
             ],
         });
 
-        const stored = await tweetsOperations.getTweet(db, "201");
-        const media = await tweetsOperations.listTweetMedia(db, "201");
+        const stored = await tweetsOperations.getTweet(db, "201" as TweetId);
+        const media = await tweetsOperations.listTweetMedia(db, "201" as TweetId);
 
         expect(stored?.classification).toBe("catalogue");
         expect(stored?.imageMask).toBe(1);
-        expect(stored?.rootTweetId).toBe("100");
-        expect(stored?.parentTweetId).toBe("200");
+        expect(stored?.rootTweetId).toBe("100" as TweetId);
+        expect(stored?.parentTweetId).toBe("200" as TweetId);
         expect(stored?.threadPosition).toBe(3);
         expect(media).toHaveLength(1);
     });
@@ -210,9 +211,9 @@ describe("tweetsOperations inferred metadata", () => {
 
         await tweetsOperations.upsertMultipleTweets(db, [
             {
-                id: "300",
-                eventId: "cf22",
-                user: "artist",
+                id: "300" as TweetId,
+                eventId: "cf22" as EventId,
+                user: "artist" as UserId,
                 displayName: "Artist",
                 timestamp: new Date("2026-04-09T10:00:00.000Z"),
                 text: "root",
@@ -224,33 +225,33 @@ describe("tweetsOperations inferred metadata", () => {
                 updatedAt: new Date("2026-04-09T10:01:00.000Z"),
             },
             {
-                id: "301",
-                eventId: "cf22",
-                user: "artist",
+                id: "301" as TweetId,
+                eventId: "cf22" as EventId,
+                user: "artist" as UserId,
                 displayName: "Artist",
                 timestamp: new Date("2026-04-09T10:02:00.000Z"),
                 text: "reply one",
                 tweetUrl: "https://x.com/artist/status/301",
                 imageMask: 1,
                 classification: "catalogue",
-                rootTweetId: "300",
-                parentTweetId: "300",
+                rootTweetId: "300" as TweetId,
+                parentTweetId: "300" as TweetId,
                 threadPosition: 1,
                 inferredFandoms: [],
                 updatedAt: new Date("2026-04-09T10:03:00.000Z"),
             },
             {
-                id: "302",
-                eventId: "cf22",
-                user: "artist",
+                id: "302" as TweetId,
+                eventId: "cf22" as EventId,
+                user: "artist" as UserId,
                 displayName: "Artist",
                 timestamp: new Date("2026-04-09T10:04:00.000Z"),
                 text: "reply two",
                 tweetUrl: "https://x.com/artist/status/302",
                 imageMask: 1,
                 classification: "catalogue",
-                rootTweetId: "300",
-                parentTweetId: "301",
+                rootTweetId: "300" as TweetId,
+                parentTweetId: "301" as TweetId,
                 threadPosition: 2,
                 inferredFandoms: [],
                 updatedAt: new Date("2026-04-09T10:05:00.000Z"),
@@ -258,35 +259,35 @@ describe("tweetsOperations inferred metadata", () => {
         ]);
 
         await tweetsOperations.updateTweetAdminMetadata(db, {
-            id: "300",
+            id: "300" as TweetId,
             matchedTags: ["manual", "featured"],
             inferredFandoms: ["Uma Musume", "Blue Archive"],
             updatedAt: new Date("2026-04-09T11:00:00.000Z"),
         });
 
         await tweetsOperations.rerootThread(db, {
-            rootTweetId: "300",
-            newRootTweetId: "302",
+            rootTweetId: "300" as TweetId,
+            newRootTweetId: "302" as TweetId,
             updatedAt: new Date("2026-04-09T11:05:00.000Z"),
         });
 
         await tweetsOperations.manualUncatalogueTweet(db, {
-            id: "301",
+            id: "301" as TweetId,
             reason: "removed from follow ups manually",
             updatedAt: new Date("2026-04-09T11:10:00.000Z"),
         });
 
-        const rerootedRoot = await tweetsOperations.getTweet(db, "302");
-        const oldRoot = await tweetsOperations.getTweet(db, "300");
-        const removedReply = await tweetsOperations.getTweet(db, "301");
+        const rerootedRoot = await tweetsOperations.getTweet(db, "302" as TweetId);
+        const oldRoot = await tweetsOperations.getTweet(db, "300" as TweetId);
+        const removedReply = await tweetsOperations.getTweet(db, "301" as TweetId);
 
         expect(oldRoot?.matchedTags).toEqual(["manual", "featured"]);
         expect(oldRoot?.inferredFandoms).toEqual(["Uma Musume", "Blue Archive"]);
         expect(rerootedRoot?.rootTweetId).toBeNull();
         expect(rerootedRoot?.parentTweetId).toBeNull();
         expect(rerootedRoot?.threadPosition).toBeNull();
-        expect(oldRoot?.rootTweetId).toBe("302");
-        expect(oldRoot?.parentTweetId).toBe("302");
+        expect(oldRoot?.rootTweetId).toBe("302" as TweetId);
+        expect(oldRoot?.parentTweetId).toBe("302" as TweetId);
         expect(oldRoot?.threadPosition).toBe(1);
         expect(removedReply?.classification).toBe("not_catalogue");
         expect(removedReply?.rootTweetId).toBeNull();

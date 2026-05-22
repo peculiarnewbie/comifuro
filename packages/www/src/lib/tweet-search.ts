@@ -1,9 +1,9 @@
 type SearchableTweet = {
     user: string;
     text: string;
-    matchedTags?: string[] | null;
-    inferredFandoms?: string[] | null;
-    inferredItemTypes?: string[] | null;
+    matchedTags?: readonly string[] | null;
+    inferredFandoms?: readonly string[] | null;
+    inferredItemTypes?: readonly string[] | null;
     inferredBoothId?: string | null;
 };
 

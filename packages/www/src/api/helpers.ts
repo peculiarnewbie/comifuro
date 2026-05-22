@@ -1,6 +1,6 @@
 import { DrizzleD1Database } from "drizzle-orm/d1";
 import { tweetsOperations } from "@comifuro/core";
-import type { TweetSyncCursor } from "@comifuro/core/types";
+import type { EventId } from "@comifuro/core/schema";
 
 export const TWEET_MEDIA_KEY_REGEX =
     /^[A-Za-z0-9_-]+\/\d+(?:\.thumb)?\.webp$/;
@@ -76,7 +76,7 @@ export async function buildPublicFeed(
     const publicTweets = await tweetsOperations.listPublicTweets(
         db,
         "catalogue",
-        eventId,
+        eventId as EventId,
     );
     const media = await tweetsOperations.listPublicTweetMedia(
         db,

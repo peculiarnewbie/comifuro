@@ -2,10 +2,11 @@ import * as Schema from "effect/Schema";
 import { tweetsOperations } from "@comifuro/core";
 import type {
     TweetInsert,
-    TweetSyncCursor,
-    TweetSyncItem,
-    TweetSyncResponse,
 } from "@comifuro/core/types";
+import {
+    TweetSyncResponse as TweetSyncResponseSchema,
+} from "@comifuro/core/schemas";
+import type { TweetId, UserId, EventId } from "@comifuro/core/schema";
 import { getDb, requirePassword } from "../auth";
 import { ValidationError, InternalError } from "../errors";
 import { Result, handleResult } from "../responder";
@@ -51,19 +52,13 @@ export async function syncTweets(c: AppContext) {
     const cursorUpdatedAt = toNumberParam(c.req.query("cursorUpdatedAt"));
     const cursorId = c.req.query("cursorId");
 
-    const cursor =
-        cursorUpdatedAt != null && cursorId
-            ? ({
-                  updatedAt: cursorUpdatedAt,
-                  id: cursorId,
-              } satisfies TweetSyncCursor)
-            : undefined;
-
     try {
         const db = getDb(c);
         const rows = await tweetsOperations.listTweetsForSync(db, {
-            eventId,
-            cursor,
+            eventId: eventId as EventId,
+            cursor: cursorUpdatedAt != null && cursorId
+                ? { updatedAt: cursorUpdatedAt, id: cursorId as TweetId }
+                : undefined,
             limit: limit + 1,
         });
 
@@ -109,11 +104,11 @@ export async function syncTweets(c: AppContext) {
                     row.imageMask <= 0,
                 images: refs.map((ref) => ref.r2Key),
                 thumbnails: refs.map((ref) => ref.thumbnailR2Key),
-            } satisfies TweetSyncItem;
+            };
         });
 
         const lastItem = items[items.length - 1];
-        const response = {
+        const response = Schema.decodeUnknownSync(TweetSyncResponseSchema)({
             eventId,
             syncToken: `${CURRENT_SCHEMA_VERSION}:${eventId}`,
             items,
@@ -125,12 +120,12 @@ export async function syncTweets(c: AppContext) {
                 : null,
             hasMore,
             serverTime: Date.now(),
-        } satisfies TweetSyncResponse;
+        });
 
         c.header("Cache-Control", "no-store");
         return c.json(response);
     } catch (error) {
-        console.error("[tweets/sync] error", { eventId, cursor }, error);
+        console.error("[tweets/sync] error", { eventId, cursorId }, error);
         return handleResult(
             c,
             Result.err(
@@ -171,9 +166,9 @@ export async function upsertLegacyTweets(c: AppContext) {
     const rows = parsed.map(
         (tweet) =>
             ({
-                id: tweet.id,
-                eventId: normalizeEventId(tweet.eventId),
-                user: tweet.user,
+                id: tweet.id as TweetId,
+                eventId: normalizeEventId(tweet.eventId) as EventId,
+                user: tweet.user as UserId,
                 timestamp: toDate(tweet.timestamp) ?? now,
                 text: tweet.text,
                 tweetUrl: `https://x.com/i/web/status/${tweet.id}`,

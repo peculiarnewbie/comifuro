@@ -15,6 +15,7 @@
         "./bunSqlite": "./src/db.ts",
         "./schema": "./src/schema.ts",
         "./migrate": "./src/migrate.ts",
+        "./schemas": "./src/schemas.ts",
         "./types": "./src/types.ts"
     }
 }

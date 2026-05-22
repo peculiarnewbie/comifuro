@@ -37,39 +37,12 @@ export type ReplicacheClientSelect = typeof replicacheClients.$inferSelect;
 
 export type Marks = (typeof MarkValues)[number];
 
-export type TweetSyncCursor = {
-    updatedAt: number;
-    id: string;
-};
-
-export type TweetSyncItem = {
-    id: string;
-    eventId: string;
-    user: string;
-    displayName: string | null;
-    timestamp: number;
-    text: string;
-    tweetUrl: string;
-    matchedTags: string[];
-    imageMask: number;
-    classification: TweetClassification;
-    inferredFandoms: string[];
-    inferredBoothId: string | null;
-    inferredItemTypes: string[];
-    rootTweetId: string | null;
-    parentTweetId: string | null;
-    threadPosition: number | null;
-    updatedAt: number;
-    deleted: boolean;
-    images: string[];
-    thumbnails: (string | null)[];
-};
-
-export type TweetSyncResponse = {
-    eventId: string;
-    syncToken: string;
-    items: TweetSyncItem[];
-    nextCursor: TweetSyncCursor | null;
-    hasMore: boolean;
-    serverTime: number;
-};
+export type {
+    TweetId,
+    UserId,
+    EventId,
+    BoothId,
+    TweetSyncCursor,
+    TweetSyncItem,
+    TweetSyncResponse,
+} from "./schemas";

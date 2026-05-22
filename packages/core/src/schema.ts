@@ -5,6 +5,19 @@ import {
     index,
     primaryKey,
 } from "drizzle-orm/sqlite-core";
+import * as Schema from "effect/Schema";
+
+export const TweetId = Schema.brand("TweetId")(Schema.String);
+export type TweetId = Schema.Schema.Type<typeof TweetId>;
+
+export const UserId = Schema.brand("UserId")(Schema.String);
+export type UserId = Schema.Schema.Type<typeof UserId>;
+
+export const EventId = Schema.brand("EventId")(Schema.String);
+export type EventId = Schema.Schema.Type<typeof EventId>;
+
+export const BoothId = Schema.brand("BoothId")(Schema.String);
+export type BoothId = Schema.Schema.Type<typeof BoothId>;
 
 export const MarkValues = ["bookmarked", "ignored", "deleted"] as const;
 export const TweetClassificationValues = [
@@ -31,9 +44,9 @@ export const users = sqliteTable("users", {
 export const tweets = sqliteTable(
     "tweets",
     {
-        id: text("id").primaryKey(),
-        eventId: text("event_id").notNull().default("cf21"),
-        user: text("user").notNull(),
+        id: text("id").primaryKey().$type<TweetId>(),
+        eventId: text("event_id").notNull().default("cf21").$type<EventId>(),
+        user: text("user").notNull().$type<UserId>(),
         displayName: text("display_name"),
         timestamp: integer("timestamp", { mode: "timestamp_ms" }).notNull(),
         text: text("text").notNull(),
@@ -52,13 +65,13 @@ export const tweets = sqliteTable(
             string[] | null
         >(),
         inferredFandomsConfidence: text("inferred_fandoms_confidence"),
-        inferredBoothId: text("inferred_booth_id"),
+        inferredBoothId: text("inferred_booth_id").$type<BoothId | null>(),
         inferredBoothIdConfidence: text("inferred_booth_id_confidence"),
         inferredItemTypes: text("inferred_item_types", { mode: "json" }).$type<
             string[] | null
         >(),
-        rootTweetId: text("root_tweet_id"),
-        parentTweetId: text("parent_tweet_id"),
+        rootTweetId: text("root_tweet_id").$type<TweetId | null>(),
+        parentTweetId: text("parent_tweet_id").$type<TweetId | null>(),
         threadPosition: integer("thread_position"),
         createdAt: integer("created_at", { mode: "timestamp_ms" })
             .notNull()
@@ -96,6 +109,7 @@ export const tweetMedia = sqliteTable(
     {
         tweetId: text("tweet_id")
             .notNull()
+            .$type<TweetId>()
             .references(() => tweets.id, { onDelete: "cascade" }),
         mediaIndex: integer("media_index").notNull(),
         r2Key: text("r2_key").notNull(),
@@ -124,15 +138,15 @@ export const BoothStatusValues = [
 export const booths = sqliteTable(
     "booths",
     {
-        eventId: text("event_id").notNull(),
-        id: text("id").notNull(),
+        eventId: text("event_id").notNull().$type<EventId>(),
+        id: text("id").notNull().$type<BoothId>(),
         section: text("section").notNull(),
         status: text("status", { enum: BoothStatusValues })
             .notNull()
             .default("unknown"),
         exhibitorUser: text("exhibitor_user"),
         exhibitorDisplayName: text("exhibitor_display_name"),
-        primaryTweetId: text("primary_tweet_id").references(() => tweets.id),
+        primaryTweetId: text("primary_tweet_id").$type<TweetId | null>().references(() => tweets.id),
         createdAt: integer("created_at", { mode: "timestamp_ms" })
             .notNull()
             .$defaultFn(() => new Date()),
@@ -151,9 +165,9 @@ export const booths = sqliteTable(
 export const userEventMeta = sqliteTable(
     "user_event_meta",
     {
-        user: text("user").notNull(),
-        eventId: text("event_id").notNull(),
-        boothId: text("booth_id"),
+        user: text("user").notNull().$type<UserId>(),
+        eventId: text("event_id").notNull().$type<EventId>(),
+        boothId: text("booth_id").$type<BoothId | null>(),
         preorderDeadline: text("preorder_deadline"),
         createdAt: integer("created_at", { mode: "timestamp_ms" })
             .notNull()
@@ -172,10 +186,11 @@ export const items = sqliteTable(
     "items",
     {
         id: integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
-        eventId: text("event_id").notNull(),
-        user: text("user").notNull(),
+        eventId: text("event_id").notNull().$type<EventId>(),
+        user: text("user").notNull().$type<UserId>(),
         sourceTweetId: text("source_tweet_id")
             .notNull()
+            .$type<TweetId>()
             .references(() => tweets.id, { onDelete: "cascade" }),
         type: text("type").notNull(),
         price: text("price"),
@@ -195,7 +210,7 @@ export const items = sqliteTable(
 
 export const scraperState = sqliteTable("scraper_state", {
     id: text("id").primaryKey(),
-    lastSeenTweetId: text("last_seen_tweet_id"),
+    lastSeenTweetId: text("last_seen_tweet_id").$type<TweetId | null>(),
     lastRunAt: integer("last_run_at", { mode: "timestamp_ms" }),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
         .notNull()
@@ -210,6 +225,7 @@ export const userToTweet = sqliteTable(
             .references(() => users.id, { onDelete: "cascade" }),
         tweetId: text("tweet_id")
             .notNull()
+            .$type<TweetId>()
             .references(() => tweets.id),
         mark: text("mark", { enum: MarkValues }).notNull(),
         createdAt: integer("created_at", { mode: "timestamp_ms" })

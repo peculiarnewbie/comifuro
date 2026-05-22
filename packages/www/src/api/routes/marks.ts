@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema";
 import { marksOperations } from "@comifuro/core";
-import { MarkValues } from "@comifuro/core/schema";
+import { MarkValues, type TweetId } from "@comifuro/core/schema";
 import { getDb, requireAccount } from "../auth";
 import { InternalError } from "../errors";
 import { Result, handleResult } from "../responder";
@@ -83,7 +83,7 @@ export async function syncMarks(c: AppContext) {
         const upserted = await marksOperations.batchUpsertUserMarks(
             getDb(c),
             userId,
-            [...parsed.marks],
+            parsed.marks.map((m) => ({ tweetId: m.tweetId as TweetId, mark: m.mark })),
             now,
         );
 

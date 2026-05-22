@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema";
 import { createStore, type Content, type Store } from "tinybase";
 import {
     createIndexedDbPersister,
@@ -5,10 +6,12 @@ import {
 } from "tinybase/persisters/persister-indexed-db";
 import type {
     Marks,
-    TweetSyncCursor,
     TweetSyncItem,
-    TweetSyncResponse,
 } from "@comifuro/core/types";
+import {
+    TweetSyncResponse as TweetSyncResponseSchema,
+    MarksResponse as MarksResponseSchema,
+} from "@comifuro/core/schemas";
 
 const TWEETS_TABLE = "tweets";
 const MARKS_TABLE = "marks";
@@ -27,7 +30,14 @@ export type SearchIndexState = {
     count: number;
 };
 
-export type CatalogueTweet = Omit<TweetSyncItem, "deleted">;
+export type CatalogueTweet = Omit<TweetSyncItem, "deleted" | "id" | "eventId" | "user" | "inferredBoothId" | "rootTweetId" | "parentTweetId"> & {
+    id: string;
+    eventId: string;
+    user: string;
+    inferredBoothId: string | null;
+    rootTweetId: string | null;
+    parentTweetId: string | null;
+};
 export type CatalogueTweetThread = {
     groupId: string;
     root: CatalogueTweet;
@@ -280,7 +290,7 @@ export async function createTweetStoreSession({
         }
     };
 
-    const getCursor = (): TweetSyncCursor | undefined => {
+    const getCursor = (): { updatedAt: number; id: string } | undefined => {
         const updatedAt = getValue<number | null>(
             store,
             VALUE_CURSOR_UPDATED_AT,
@@ -308,7 +318,7 @@ export async function createTweetStoreSession({
         });
     };
 
-    const applyItems = (items: TweetSyncItem[], response: TweetSyncResponse) => {
+    const applyItems = (items: readonly TweetSyncItem[], response: Schema.Schema.Type<typeof TweetSyncResponseSchema>) => {
         store.transaction(() => {
             for (const item of items) {
                 if (item.deleted) {
@@ -356,7 +366,7 @@ export async function createTweetStoreSession({
         });
     };
 
-    const fetchSyncPage = async (cursor?: TweetSyncCursor) => {
+    const fetchSyncPage = async (cursor?: { updatedAt: number; id: string }) => {
         const params = new URLSearchParams();
         params.set("eventId", eventId);
         params.set("limit", "500");
@@ -366,12 +376,12 @@ export async function createTweetStoreSession({
             params.set("cursorId", cursor.id);
         }
 
-        const response = await fetch(`${apiHost}/tweets/sync?${params.toString()}`);
-        if (!response.ok) {
-            throw new Error(`sync failed with status ${response.status}`);
+        const httpResponse = await fetch(`${apiHost}/tweets/sync?${params.toString()}`);
+        if (!httpResponse.ok) {
+            throw new Error(`sync failed with status ${httpResponse.status}`);
         }
 
-        return (await response.json()) as TweetSyncResponse;
+        return Schema.decodeUnknownSync(TweetSyncResponseSchema)(await httpResponse.json());
     };
 
     const scheduleSync = () => {
@@ -613,24 +623,17 @@ export async function createMarksStoreSession({
                     throw new Error(`marks fetch failed with status ${response.status}`);
                 }
 
-                const data = (await response.json()) as {
-                    marks?: { tweetId: string; mark: string }[];
-                    serverTime?: number;
-                };
-                if (data.marks && Array.isArray(data.marks)) {
-                    store.transaction(() => {
-                        for (const m of data.marks!) {
-                            store.setRow(MARKS_TABLE, m.tweetId, { mark: m.mark });
-                        }
-                    });
-
-                    if (data.serverTime) {
-                        lastKnownVersion = Math.max(
-                            lastKnownVersion,
-                            data.serverTime,
-                        );
+                const data = Schema.decodeUnknownSync(MarksResponseSchema)(await response.json());
+                store.transaction(() => {
+                    for (const m of data.marks) {
+                        store.setRow(MARKS_TABLE, m.tweetId, { mark: m.mark });
                     }
-                }
+                });
+
+                lastKnownVersion = Math.max(
+                    lastKnownVersion,
+                    data.serverTime,
+                );
             } catch (error) {
                 console.error("[marks] sync error", error);
             } finally {

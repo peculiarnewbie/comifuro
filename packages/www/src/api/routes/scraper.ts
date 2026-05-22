@@ -6,7 +6,7 @@ import {
     itemsOperations,
     userMetaOperations,
 } from "@comifuro/core";
-import { TweetClassificationValues } from "@comifuro/core/schema";
+import { TweetClassificationValues, type TweetId, type UserId, type EventId, type BoothId } from "@comifuro/core/schema";
 import { getDb, requirePassword } from "../auth";
 import { ValidationError, InternalError } from "../errors";
 import { Result, handleResult } from "../responder";
@@ -96,9 +96,9 @@ export async function upsertScraperTweet(c: AppContext) {
 
     await tweetsOperations.upsertScrapedTweet(db, {
         tweet: {
-            id: tweet.id,
-            eventId,
-            user: tweet.user,
+            id: tweet.id as TweetId,
+            eventId: eventId as EventId,
+            user: tweet.user as UserId,
             displayName: tweet.displayName ?? null,
             timestamp: toDate(tweet.timestamp) ?? now,
             text: tweet.text,
@@ -110,16 +110,16 @@ export async function upsertScraperTweet(c: AppContext) {
             classificationReason: tweet.classificationReason ?? null,
             classifierPromptVersion: tweet.classifierPromptVersion ?? null,
             inferredFandoms: [...(tweet.inferredFandoms ?? [])],
-            inferredBoothId: tweet.inferredBoothId ?? null,
+            inferredBoothId: (tweet.inferredBoothId ?? null) as BoothId | null,
             inferredBoothIdConfidence: tweet.inferredBoothIdConfidence ?? null,
             inferredItemTypes: [...(tweet.inferredItemTypes ?? [])],
-            rootTweetId: tweet.rootTweetId ?? null,
-            parentTweetId: tweet.parentTweetId ?? null,
+            rootTweetId: (tweet.rootTweetId ?? null) as TweetId | null,
+            parentTweetId: (tweet.parentTweetId ?? null) as TweetId | null,
             threadPosition: tweet.threadPosition ?? null,
             updatedAt: now,
         },
         media: (tweet.media ?? []).map((media) => ({
-            tweetId: tweet.id,
+            tweetId: tweet.id as TweetId,
             mediaIndex: media.mediaIndex,
             r2Key: media.r2Key,
             thumbnailR2Key: media.thumbnailR2Key ?? null,
@@ -133,32 +133,32 @@ export async function upsertScraperTweet(c: AppContext) {
     if (tweet.classification === "catalogue") {
         if (tweet.inferredBoothId) {
             await boothsOperations.upsertBoothFromTweet(db, {
-                eventId,
-                inferredBoothId: tweet.inferredBoothId,
-                user: tweet.user,
+                eventId: eventId as EventId,
+                inferredBoothId: (tweet.inferredBoothId ?? null) as BoothId | null,
+                user: tweet.user as UserId,
                 displayName: tweet.displayName ?? null,
-                id: tweet.id,
+                id: tweet.id as TweetId,
             });
         }
 
         await userMetaOperations.upsertUserMeta(db, {
-            user: tweet.user,
-            eventId,
-            boothId: tweet.inferredBoothId ?? null,
+            user: tweet.user as UserId,
+            eventId: eventId as EventId,
+            boothId: (tweet.inferredBoothId ?? null) as BoothId | null,
             preorderDeadline: tweet.preorderDeadline ?? null,
         });
 
         if (tweet.items && tweet.items.length > 0) {
             await itemsOperations.replaceUserItems(db, {
-                eventId,
-                user: tweet.user,
-                sourceTweetId: tweet.id,
+                eventId: eventId as EventId,
+                user: tweet.user as UserId,
+                sourceTweetId: tweet.id as TweetId,
                 items: [...tweet.items],
             });
         }
     }
 
-    return c.json({ ok: true, id: tweet.id });
+    return c.json({ ok: true, id: tweet.id as TweetId });
 }
 
 export async function getScraperState(c: AppContext) {
@@ -194,7 +194,7 @@ export async function putScraperState(c: AppContext) {
     const now = new Date();
     const [state] = await scraperOperations.upsertState(getDb(c), {
         id: c.req.param("id")!,
-        lastSeenTweetId: parsed.lastSeenTweetId ?? null,
+        lastSeenTweetId: (parsed.lastSeenTweetId ?? null) as TweetId | null,
         lastRunAt: toDate(parsed.lastRunAt) ?? now,
         updatedAt: now,
     });

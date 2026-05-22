@@ -5,6 +5,7 @@ import { ValidationError, NotFoundError, InternalError } from "../errors";
 import { Result, handleResult } from "../responder";
 import { normalizeEventId, toNumberParam } from "../helpers";
 import type { AppContext } from "../types";
+import type { EventId, BoothId } from "@comifuro/core/schema";
 
 const BoothStatus = Schema.Literals(["unknown", "available", "occupied", "reserved"] as const);
 
@@ -24,7 +25,7 @@ export async function listBooths(c: AppContext) {
     }
 
     try {
-        const rows = await boothsOperations.listBooths(getDb(c), eventId, {
+        const rows = await boothsOperations.listBooths(getDb(c), eventId as EventId, {
             status: parsedStatus as "unknown" | "available" | "occupied" | "reserved" | undefined,
             limit,
             offset,
@@ -53,7 +54,7 @@ export async function getBooth(c: AppContext) {
     const id = c.req.param("id")!;
 
     try {
-        const result = await boothsOperations.getBoothWithTweets(getDb(c), eventId, id.toUpperCase());
+        const result = await boothsOperations.getBoothWithTweets(getDb(c), eventId as EventId, id.toUpperCase() as BoothId);
         if (!result.booth) {
             return handleResult(
                 c,
@@ -100,7 +101,7 @@ export async function rebuildBooths(c: AppContext) {
     try {
         const inserted = await boothsOperations.rebuildBoothsFromTweets(
             getDb(c),
-            eventId,
+            eventId as EventId,
         );
         return c.json({ ok: true, eventId, count: inserted.length });
     } catch (error) {

@@ -6,6 +6,7 @@ import { ValidationError, NotFoundError, InternalError } from "../errors";
 import { handleResult } from "../responder";
 import { normalizeTagList, toNumberParam } from "../helpers";
 import type { AppContext } from "../types";
+import type { TweetId } from "@comifuro/core/schema";
 
 const AdminTweetMetadata = Schema.Struct({
     inferredFandoms: Schema.optional(Schema.Array(Schema.String)),
@@ -32,7 +33,7 @@ export async function listMissingThumbnails(c: AppContext) {
     const cursorMediaIndex = toNumberParam(c.req.query("cursorMediaIndex"));
     const cursor =
         cursorTweetId && cursorMediaIndex != null
-            ? { tweetId: cursorTweetId, mediaIndex: cursorMediaIndex }
+            ? { tweetId: cursorTweetId as TweetId, mediaIndex: cursorMediaIndex }
             : undefined;
 
     try {
@@ -103,7 +104,7 @@ export async function setThumbnail(c: AppContext) {
         const updated = await tweetsOperations.setTweetMediaThumbnail(
             getDb(c),
             {
-                tweetId,
+                tweetId: tweetId as TweetId,
                 mediaIndex,
                 thumbnailR2Key: parsed.thumbnailR2Key,
             },
@@ -174,7 +175,7 @@ export async function updateTweetMetadata(c: AppContext) {
         const [tweet] = await tweetsOperations.updateTweetAdminMetadata(
             getDb(c),
             {
-                id: c.req.param("id")!,
+                id: c.req.param("id")! as TweetId,
                 inferredFandoms: normalizeTagList(parsed.inferredFandoms ? [...parsed.inferredFandoms] : undefined),
                 matchedTags: normalizeTagList(parsed.matchedTags ? [...parsed.matchedTags] : undefined),
                 updatedAt: new Date(),
@@ -236,8 +237,8 @@ export async function rerootThread(c: AppContext) {
 
     try {
         const tweets = await tweetsOperations.rerootThread(getDb(c), {
-            rootTweetId: c.req.param("id")!,
-            newRootTweetId: parsed.newRootTweetId,
+            rootTweetId: c.req.param("id")! as TweetId,
+            newRootTweetId: parsed.newRootTweetId as TweetId,
             updatedAt: new Date(),
         });
 
@@ -269,7 +270,7 @@ export async function uncatalogueTweet(c: AppContext) {
 
     try {
         const [tweet] = await tweetsOperations.manualUncatalogueTweet(getDb(c), {
-            id: c.req.param("id")!,
+            id: c.req.param("id")! as TweetId,
             reason: "uncatalogued manually",
             updatedAt: new Date(),
         });
@@ -319,7 +320,7 @@ export async function removeFollowUp(c: AppContext) {
 
     try {
         const [tweet] = await tweetsOperations.manualUncatalogueTweet(getDb(c), {
-            id: c.req.param("id")!,
+            id: c.req.param("id")! as TweetId,
             reason: "removed from follow ups manually",
             updatedAt: new Date(),
         });
