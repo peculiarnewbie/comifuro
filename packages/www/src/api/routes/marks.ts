@@ -1,11 +1,19 @@
-import { z } from "zod";
-import { Result } from "better-result";
+import * as Schema from "effect/Schema";
 import { marksOperations } from "@comifuro/core";
 import { MarkValues } from "@comifuro/core/schema";
 import { getDb, requireAccount } from "../auth";
 import { InternalError } from "../errors";
-import { handleResult } from "../responder";
+import { Result, handleResult } from "../responder";
 import type { AppContext } from "../types";
+
+const Mark = Schema.Struct({
+    tweetId: Schema.String,
+    mark: Schema.Literals(MarkValues),
+});
+
+const MarksBody = Schema.Struct({
+    marks: Schema.Array(Mark),
+});
 
 export async function getMarks(c: AppContext) {
     const accountResult = requireAccount(c);
@@ -61,18 +69,13 @@ export async function syncMarks(c: AppContext) {
     const userId = c.get("userId")!;
 
     const body = await c.req.json();
-    const parsed = z
-        .object({
-            marks: z.array(
-                z.object({
-                    tweetId: z.string().min(1),
-                    mark: z.enum(MarkValues),
-                }),
-            ),
-        })
-        .safeParse(body);
-    if (!parsed.success) {
-        return c.json({ error: parsed.error.issues[0]?.message }, 400);
+    let parsed: Schema.Schema.Type<typeof MarksBody>;
+    try {
+        parsed = Schema.decodeUnknownSync(MarksBody)(body);
+    } catch (error) {
+        return c.json({
+            error: error instanceof Error ? error.message : "validation failed",
+        }, 400);
     }
 
     try {
@@ -80,7 +83,7 @@ export async function syncMarks(c: AppContext) {
         const upserted = await marksOperations.batchUpsertUserMarks(
             getDb(c),
             userId,
-            parsed.data.marks,
+            [...parsed.marks],
             now,
         );
 

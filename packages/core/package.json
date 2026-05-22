@@ -4,10 +4,11 @@
     "private": true,
     "type": "module",
     "dependencies": {
-        "drizzle-orm": "catalog:"
+        "drizzle-orm": "catalog:",
+        "effect": "catalog:"
     },
     "devDependencies": {
-        "drizzle-kit": "^0.31.4"
+        "drizzle-kit": "^1.0.0-rc.3"
     },
     "exports": {
         ".": "./src/index.ts",

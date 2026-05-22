@@ -5,7 +5,6 @@ import {
     index,
     primaryKey,
 } from "drizzle-orm/sqlite-core";
-import { relations } from "drizzle-orm";
 
 export const MarkValues = ["bookmarked", "ignored", "deleted"] as const;
 export const TweetClassificationValues = [
@@ -55,6 +54,9 @@ export const tweets = sqliteTable(
         inferredFandomsConfidence: text("inferred_fandoms_confidence"),
         inferredBoothId: text("inferred_booth_id"),
         inferredBoothIdConfidence: text("inferred_booth_id_confidence"),
+        inferredItemTypes: text("inferred_item_types", { mode: "json" }).$type<
+            string[] | null
+        >(),
         rootTweetId: text("root_tweet_id"),
         parentTweetId: text("parent_tweet_id"),
         threadPosition: integer("thread_position"),
@@ -146,6 +148,51 @@ export const booths = sqliteTable(
     ],
 );
 
+export const userEventMeta = sqliteTable(
+    "user_event_meta",
+    {
+        user: text("user").notNull(),
+        eventId: text("event_id").notNull(),
+        boothId: text("booth_id"),
+        preorderDeadline: text("preorder_deadline"),
+        createdAt: integer("created_at", { mode: "timestamp_ms" })
+            .notNull()
+            .$defaultFn(() => new Date()),
+        updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+            .notNull()
+            .$defaultFn(() => new Date()),
+    },
+    (table) => [
+        primaryKey({ columns: [table.user, table.eventId] }),
+        index("user_meta_event_idx").on(table.eventId),
+    ],
+);
+
+export const items = sqliteTable(
+    "items",
+    {
+        id: integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
+        eventId: text("event_id").notNull(),
+        user: text("user").notNull(),
+        sourceTweetId: text("source_tweet_id")
+            .notNull()
+            .references(() => tweets.id, { onDelete: "cascade" }),
+        type: text("type").notNull(),
+        price: text("price"),
+        fandom: text("fandom"),
+        createdAt: integer("created_at", { mode: "timestamp_ms" })
+            .notNull()
+            .$defaultFn(() => new Date()),
+        updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+            .notNull()
+            .$defaultFn(() => new Date()),
+    },
+    (table) => [
+        index("items_event_user_idx").on(table.eventId, table.user),
+        index("items_source_tweet_idx").on(table.sourceTweetId),
+    ],
+);
+
 export const scraperState = sqliteTable("scraper_state", {
     id: text("id").primaryKey(),
     lastSeenTweetId: text("last_seen_tweet_id"),
@@ -184,41 +231,6 @@ export const userToTweet = sqliteTable(
         index("user_with_version_idx").on(t.userId, t.lastModifiedVersion),
     ],
 );
-
-export const usersRelations = relations(users, ({ many }) => ({
-    userPostRelations: many(userToTweet),
-}));
-
-export const tweetsRelations = relations(tweets, ({ many }) => ({
-    userPostRelations: many(userToTweet),
-    media: many(tweetMedia),
-    booth: many(booths),
-}));
-
-export const boothsRelations = relations(booths, ({ one }) => ({
-    primaryTweet: one(tweets, {
-        fields: [booths.primaryTweetId],
-        references: [tweets.id],
-    }),
-}));
-
-export const tweetMediaRelations = relations(tweetMedia, ({ one }) => ({
-    tweet: one(tweets, {
-        fields: [tweetMedia.tweetId],
-        references: [tweets.id],
-    }),
-}));
-
-export const userPostRelations = relations(userToTweet, ({ one }) => ({
-    user: one(users, {
-        fields: [userToTweet.userId],
-        references: [users.id],
-    }),
-    tweet: one(tweets, {
-        fields: [userToTweet.tweetId],
-        references: [tweets.id],
-    }),
-}));
 
 export const replicacheClientGroups = sqliteTable(
     "replicache_client_groups",

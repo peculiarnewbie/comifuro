@@ -4,5 +4,5 @@ import * as schema from "./schema";
 
 export const getBunSqlite = (dbPath: string) => {
     const sqlite = new Database(dbPath);
-    return drizzle(sqlite, { schema });
+    return drizzle({ client: sqlite, schema });
 };

@@ -1,11 +1,13 @@
 import {
     booths,
+    items,
     MarkValues,
     replicacheClients,
     scraperState,
     tweetMedia,
     TweetClassificationValues,
     tweets,
+    userEventMeta,
     users,
     userToTweet,
 } from "./schema";
@@ -19,6 +21,10 @@ export type ScraperStateSelect = typeof scraperState.$inferSelect;
 export type TweetClassification = (typeof TweetClassificationValues)[number];
 export type BoothInsert = typeof booths.$inferInsert;
 export type BoothSelect = typeof booths.$inferSelect;
+export type ItemInsert = typeof items.$inferInsert;
+export type ItemSelect = typeof items.$inferSelect;
+export type UserEventMetaInsert = typeof userEventMeta.$inferInsert;
+export type UserEventMetaSelect = typeof userEventMeta.$inferSelect;
 
 export type UserInsert = typeof users.$inferInsert;
 export type UserSelect = typeof users.$inferSelect;
@@ -49,6 +55,7 @@ export type TweetSyncItem = {
     classification: TweetClassification;
     inferredFandoms: string[];
     inferredBoothId: string | null;
+    inferredItemTypes: string[];
     rootTweetId: string | null;
     parentTweetId: string | null;
     threadPosition: number | null;

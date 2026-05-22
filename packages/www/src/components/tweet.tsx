@@ -211,7 +211,8 @@ export default function Tweet(props: {
                             </div>
                             <p class="text-sm leading-6">{rootTweet().text}</p>
                             {rootTweet().inferredBoothId ||
-                            rootTweet().inferredFandoms.length > 0 ? (
+                            rootTweet().inferredFandoms.length > 0 ||
+                            rootTweet().inferredItemTypes.length > 0 ? (
                                 <div class="space-y-2 text-xs text-gray-500">
                                     {rootTweet().inferredBoothId ? (
                                         <div>
@@ -226,6 +227,15 @@ export default function Tweet(props: {
                                             {rootTweet().inferredFandoms.map((fandom) => (
                                                 <span class="rounded-full bg-gray-100 px-2 py-1 text-[11px] text-gray-600">
                                                     {fandom}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    ) : null}
+                                    {rootTweet().inferredItemTypes.length > 0 ? (
+                                        <div class="flex flex-wrap gap-1.5">
+                                            {rootTweet().inferredItemTypes.map((itemType) => (
+                                                <span class="rounded-full bg-indigo-50 px-2 py-1 text-[11px] text-indigo-600">
+                                                    {itemType}
                                                 </span>
                                             ))}
                                         </div>
@@ -437,7 +447,8 @@ export default function Tweet(props: {
                                         <Show
                                             when={
                                                 tweet().inferredBoothId ||
-                                                tweet().inferredFandoms.length > 0
+                                                tweet().inferredFandoms.length > 0 ||
+                                                tweet().inferredItemTypes.length > 0
                                             }
                                         >
                                             <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -467,6 +478,25 @@ export default function Tweet(props: {
                                                                 {(fandom) => (
                                                                     <span class="rounded-full bg-white px-2.5 py-1 text-xs text-slate-700 shadow-sm ring-1 ring-slate-200">
                                                                         {fandom}
+                                                                    </span>
+                                                                )}
+                                                            </For>
+                                                        </div>
+                                                    </Show>
+                                                    <Show
+                                                        when={
+                                                            tweet().inferredItemTypes.length > 0
+                                                        }
+                                                    >
+                                                        <div class="flex flex-wrap gap-2">
+                                                            <For
+                                                                each={
+                                                                    tweet().inferredItemTypes
+                                                                }
+                                                            >
+                                                                {(itemType) => (
+                                                                    <span class="rounded-full bg-indigo-50 px-2.5 py-1 text-xs text-indigo-700 shadow-sm ring-1 ring-indigo-200">
+                                                                        {itemType}
                                                                     </span>
                                                                 )}
                                                             </For>

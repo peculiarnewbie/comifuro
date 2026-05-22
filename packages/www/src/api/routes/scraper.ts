@@ -1,10 +1,15 @@
-import { z } from "zod";
-import { Result } from "better-result";
-import { tweetsOperations, scraperOperations, boothsOperations } from "@comifuro/core";
+import * as Schema from "effect/Schema";
+import {
+    tweetsOperations,
+    scraperOperations,
+    boothsOperations,
+    itemsOperations,
+    userMetaOperations,
+} from "@comifuro/core";
 import { TweetClassificationValues } from "@comifuro/core/schema";
 import { getDb, requirePassword } from "../auth";
 import { ValidationError, InternalError } from "../errors";
-import { handleResult } from "../responder";
+import { Result, handleResult } from "../responder";
 import {
     toDate,
     normalizeEventId,
@@ -13,46 +18,57 @@ import {
 } from "../helpers";
 import type { AppContext } from "../types";
 
-const scraperMediaSchema = z.object({
-    mediaIndex: z.number().int().nonnegative(),
-    r2Key: z.string().min(1),
-    thumbnailR2Key: z.string().min(1).optional(),
-    sourceUrl: z.string().url(),
-    contentType: z.string().min(1).optional(),
-    width: z.number().int().positive().optional(),
-    height: z.number().int().positive().optional(),
+const ScraperMedia = Schema.Struct({
+    mediaIndex: Schema.Number,
+    r2Key: Schema.String,
+    thumbnailR2Key: Schema.optional(Schema.String),
+    sourceUrl: Schema.String,
+    contentType: Schema.optional(Schema.String),
+    width: Schema.optional(Schema.Number),
+    height: Schema.optional(Schema.Number),
 });
 
-const scraperTweetSchema = z.object({
-    id: z.string().min(1),
-    eventId: z.string().min(1).default("cf21"),
-    user: z.string().min(1),
-    displayName: z.string().nullable().optional(),
-    timestamp: z.union([z.number().int(), z.string(), z.date()]),
-    text: z.string(),
-    tweetUrl: z.string().url(),
-    searchQuery: z.string().min(1),
-    matchedTags: z.array(z.string().min(1)).default([]),
-    imageMask: z.number().int().nonnegative(),
-    classification: z.enum(TweetClassificationValues).default("unknown"),
-    classificationReason: z.string().nullable().optional(),
-    classifierPromptVersion: z.string().nullable().optional(),
-    inferredFandoms: z.array(z.string().min(1)).nullable().optional(),
-    inferredBoothId: z.string().min(1).nullable().optional(),
-    inferredBoothIdConfidence: z.string().min(1).nullable().optional(),
-    rootTweetId: z.string().min(1).nullable().optional(),
-    parentTweetId: z.string().min(1).nullable().optional(),
-    threadPosition: z.number().int().positive().nullable().optional(),
-    media: z.array(scraperMediaSchema).default([]),
+const ScraperItem = Schema.Struct({
+    type: Schema.String,
+    price: Schema.optional(Schema.NullOr(Schema.String)),
+    fandom: Schema.optional(Schema.NullOr(Schema.String)),
 });
 
-const scraperStateSchema = z.object({
-    lastSeenTweetId: z.string().nullable().optional(),
-    lastRunAt: z.union([z.number().int(), z.string(), z.date()]).nullable(),
+const NullableString = Schema.NullOr(Schema.String);
+
+const ScraperTweet = Schema.Struct({
+    id: Schema.String,
+    eventId: Schema.optional(Schema.String),
+    user: Schema.String,
+    displayName: Schema.optional(NullableString),
+    timestamp: Schema.Union([Schema.Number, Schema.String]),
+    text: Schema.String,
+    tweetUrl: Schema.String,
+    searchQuery: Schema.String,
+    matchedTags: Schema.optional(Schema.Array(Schema.String)),
+    imageMask: Schema.Number,
+    classification: Schema.optional(Schema.Literals(TweetClassificationValues)),
+    classificationReason: Schema.optional(NullableString),
+    classifierPromptVersion: Schema.optional(NullableString),
+    inferredFandoms: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
+    inferredBoothId: Schema.optional(NullableString),
+    inferredBoothIdConfidence: Schema.optional(NullableString),
+    inferredItemTypes: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
+    preorderDeadline: Schema.optional(NullableString),
+    items: Schema.optional(Schema.Array(ScraperItem)),
+    rootTweetId: Schema.optional(NullableString),
+    parentTweetId: Schema.optional(NullableString),
+    threadPosition: Schema.optional(Schema.NullOr(Schema.Number)),
+    media: Schema.optional(Schema.Array(ScraperMedia)),
 });
 
-const exportPublicFeedSchema = z.object({
-    eventId: z.string().min(1).optional(),
+const ScraperState = Schema.Struct({
+    lastSeenTweetId: Schema.optional(NullableString),
+    lastRunAt: Schema.optional(Schema.NullOr(Schema.Union([Schema.Number, Schema.String]))),
+});
+
+const ExportPublicFeed = Schema.Struct({
+    eventId: Schema.optional(Schema.String),
 });
 
 export async function upsertScraperTweet(c: AppContext) {
@@ -64,39 +80,45 @@ export async function upsertScraperTweet(c: AppContext) {
     }
 
     const body = await c.req.json();
-    const parsed = scraperTweetSchema.safeParse(body);
-    if (!parsed.success) {
-        return c.json({ error: parsed.error.issues[0]?.message }, 400);
+    let tweet: Schema.Schema.Type<typeof ScraperTweet>;
+    try {
+        tweet = Schema.decodeUnknownSync(ScraperTweet)(body);
+    } catch (error) {
+        return c.json({
+            error: error instanceof Error ? error.message : "validation failed",
+        }, 400);
     }
 
     const now = new Date();
     const db = getDb(c);
-    const tweet = parsed.data;
+
+    const eventId = normalizeEventId(tweet.eventId);
 
     await tweetsOperations.upsertScrapedTweet(db, {
         tweet: {
             id: tweet.id,
-            eventId: normalizeEventId(tweet.eventId),
+            eventId,
             user: tweet.user,
             displayName: tweet.displayName ?? null,
             timestamp: toDate(tweet.timestamp) ?? now,
             text: tweet.text,
             tweetUrl: tweet.tweetUrl,
             searchQuery: tweet.searchQuery,
-            matchedTags: tweet.matchedTags,
+            matchedTags: [...(tweet.matchedTags ?? [])],
             imageMask: tweet.imageMask,
-            classification: tweet.classification,
+            classification: tweet.classification ?? "unknown",
             classificationReason: tweet.classificationReason ?? null,
             classifierPromptVersion: tweet.classifierPromptVersion ?? null,
-            inferredFandoms: tweet.inferredFandoms ?? [],
+            inferredFandoms: [...(tweet.inferredFandoms ?? [])],
             inferredBoothId: tweet.inferredBoothId ?? null,
             inferredBoothIdConfidence: tweet.inferredBoothIdConfidence ?? null,
+            inferredItemTypes: [...(tweet.inferredItemTypes ?? [])],
             rootTweetId: tweet.rootTweetId ?? null,
             parentTweetId: tweet.parentTweetId ?? null,
             threadPosition: tweet.threadPosition ?? null,
             updatedAt: now,
         },
-        media: tweet.media.map((media) => ({
+        media: (tweet.media ?? []).map((media) => ({
             tweetId: tweet.id,
             mediaIndex: media.mediaIndex,
             r2Key: media.r2Key,
@@ -108,17 +130,32 @@ export async function upsertScraperTweet(c: AppContext) {
         })),
     });
 
-    if (
-        tweet.classification === "catalogue" &&
-        tweet.inferredBoothId
-    ) {
-        await boothsOperations.upsertBoothFromTweet(db, {
-            eventId: normalizeEventId(tweet.eventId),
-            inferredBoothId: tweet.inferredBoothId,
+    if (tweet.classification === "catalogue") {
+        if (tweet.inferredBoothId) {
+            await boothsOperations.upsertBoothFromTweet(db, {
+                eventId,
+                inferredBoothId: tweet.inferredBoothId,
+                user: tweet.user,
+                displayName: tweet.displayName ?? null,
+                id: tweet.id,
+            });
+        }
+
+        await userMetaOperations.upsertUserMeta(db, {
             user: tweet.user,
-            displayName: tweet.displayName ?? null,
-            id: tweet.id,
+            eventId,
+            boothId: tweet.inferredBoothId ?? null,
+            preorderDeadline: tweet.preorderDeadline ?? null,
         });
+
+        if (tweet.items && tweet.items.length > 0) {
+            await itemsOperations.replaceUserItems(db, {
+                eventId,
+                user: tweet.user,
+                sourceTweetId: tweet.id,
+                items: [...tweet.items],
+            });
+        }
     }
 
     return c.json({ ok: true, id: tweet.id });
@@ -145,16 +182,20 @@ export async function putScraperState(c: AppContext) {
     }
 
     const body = await c.req.json();
-    const parsed = scraperStateSchema.safeParse(body);
-    if (!parsed.success) {
-        return c.json({ error: parsed.error.issues[0]?.message }, 400);
+    let parsed: Schema.Schema.Type<typeof ScraperState>;
+    try {
+        parsed = Schema.decodeUnknownSync(ScraperState)(body);
+    } catch (error) {
+        return c.json({
+            error: error instanceof Error ? error.message : "validation failed",
+        }, 400);
     }
 
     const now = new Date();
     const [state] = await scraperOperations.upsertState(getDb(c), {
         id: c.req.param("id")!,
-        lastSeenTweetId: parsed.data.lastSeenTweetId ?? null,
-        lastRunAt: toDate(parsed.data.lastRunAt) ?? now,
+        lastSeenTweetId: parsed.lastSeenTweetId ?? null,
+        lastRunAt: toDate(parsed.lastRunAt) ?? now,
         updatedAt: now,
     });
 
@@ -170,12 +211,16 @@ export async function exportPublicFeed(c: AppContext) {
     }
 
     const body = await c.req.json().catch(() => ({}));
-    const parsed = exportPublicFeedSchema.safeParse(body);
-    if (!parsed.success) {
-        return c.json({ error: parsed.error.issues[0]?.message }, 400);
+    let parsed: Schema.Schema.Type<typeof ExportPublicFeed>;
+    try {
+        parsed = Schema.decodeUnknownSync(ExportPublicFeed)(body);
+    } catch (error) {
+        return c.json({
+            error: error instanceof Error ? error.message : "validation failed",
+        }, 400);
     }
 
-    const eventId = normalizeEventId(parsed.data.eventId, "cf22");
+    const eventId = normalizeEventId(parsed.eventId, "cf22");
     const db = getDb(c);
     const payload = JSON.stringify(await buildPublicFeed(db, eventId));
     await c.env.R2.put(`${eventId}/tweets.json`, payload, {

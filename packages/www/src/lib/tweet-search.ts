@@ -3,6 +3,7 @@ type SearchableTweet = {
     text: string;
     matchedTags?: string[] | null;
     inferredFandoms?: string[] | null;
+    inferredItemTypes?: string[] | null;
     inferredBoothId?: string | null;
 };
 
@@ -12,6 +13,7 @@ export function createTweetSearchText(tweet: SearchableTweet) {
         tweet.text,
         ...(tweet.matchedTags ?? []),
         ...(tweet.inferredFandoms ?? []),
+        ...(tweet.inferredItemTypes ?? []),
         tweet.inferredBoothId ?? "",
     ]
         .map((value) => value.trim())

@@ -1,14 +1,17 @@
-import { z } from "zod";
+import * as Schema from "effect/Schema";
+import { Effect } from "effect";
 
-const cliArgsSchema = z.object({
-    mode: z.enum(["default", "max-id"]).default("default"),
-    maxId: z.string().regex(/^\d+$/).optional(),
-    since: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    updateState: z.boolean().optional(),
-    maxPages: z.coerce.number().int().positive().optional(),
+const cliArgsSchema = Schema.Struct({
+    mode: Schema.optional(Schema.Literals(["default", "max-id"] as const)).pipe(
+        Schema.withDecodingDefault(Effect.succeed("default" as const)),
+    ),
+    maxId: Schema.optional(Schema.String),
+    since: Schema.optional(Schema.String),
+    updateState: Schema.optional(Schema.Boolean),
+    maxPages: Schema.optional(Schema.NumberFromString),
 });
 
-export type ScraperCliArgs = z.infer<typeof cliArgsSchema>;
+export type ScraperCliArgs = Schema.Schema.Type<typeof cliArgsSchema>;
 
 function readFlagValue(argv: string[], index: number, name: string) {
     const current = argv[index];
@@ -99,12 +102,14 @@ export function parseScraperCliArgs(argv: string[]) {
         throw new Error(`unknown argument: ${current}`);
     }
 
-    const parsed = cliArgsSchema.safeParse(rawArgs);
-    if (!parsed.success) {
-        throw new Error(parsed.error.issues[0]?.message ?? "invalid scraper CLI args");
+    let parsed: ScraperCliArgs;
+    try {
+        parsed = Schema.decodeUnknownSync(cliArgsSchema)(rawArgs);
+    } catch (error) {
+        throw new Error(error instanceof Error ? error.message : "invalid scraper CLI args");
     }
 
-    return parsed.data;
+    return parsed;
 }
 
 export function buildSearchQuery(

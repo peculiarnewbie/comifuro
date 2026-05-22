@@ -1,5 +1,4 @@
 import type { Context, Next } from "hono";
-import { Result } from "better-result";
 import { drizzle, DrizzleD1Database } from "drizzle-orm/d1";
 import { users } from "@comifuro/core/schema";
 import {
@@ -7,6 +6,7 @@ import {
     ForbiddenError,
     ValidationError,
 } from "./errors";
+import { Result } from "./responder";
 import type { Env, AppContext } from "./types";
 
 export function getDb(c: AppContext): DrizzleD1Database {

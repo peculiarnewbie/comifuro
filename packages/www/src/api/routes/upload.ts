@@ -1,13 +1,12 @@
-import { z } from "zod";
-import { Result } from "better-result";
+import * as Schema from "effect/Schema";
 import { getDb, requirePassword } from "../auth";
 import { ValidationError } from "../errors";
-import { handleResult } from "../responder";
+import { Result, handleResult } from "../responder";
 import { TWEET_MEDIA_KEY_REGEX } from "../helpers";
 import type { AppContext } from "../types";
 
-const imageUploadSchema = z.object({
-    key: z.string().min(1),
+const ImageUpload = Schema.Struct({
+    key: Schema.String,
 });
 
 export async function uploadImage(c: AppContext) {
@@ -29,12 +28,16 @@ export async function uploadImage(c: AppContext) {
         return c.json({ error: "invalid key encoding" }, 400);
     }
 
-    const parsedKey = imageUploadSchema.safeParse({ key: decodedKey });
-    if (!parsedKey.success) {
-        return c.json({ error: parsedKey.error.issues[0]?.message }, 400);
+    let parsed: Schema.Schema.Type<typeof ImageUpload>;
+    try {
+        parsed = Schema.decodeUnknownSync(ImageUpload)({ key: decodedKey });
+    } catch (error) {
+        return c.json({
+            error: error instanceof Error ? error.message : "validation failed",
+        }, 400);
     }
 
-    if (!TWEET_MEDIA_KEY_REGEX.test(parsedKey.data.key)) {
+    if (!TWEET_MEDIA_KEY_REGEX.test(parsed.key)) {
         return c.json({ error: "invalid key format" }, 400);
     }
 
@@ -44,11 +47,11 @@ export async function uploadImage(c: AppContext) {
         return c.json({ error: "no image file provided" }, 400);
     }
 
-    await c.env.R2.put(parsedKey.data.key, file as File, {
+    await c.env.R2.put(parsed.key, file as File, {
         httpMetadata: {
             contentType: (file as File).type || "image/webp",
         },
     });
 
-    return c.json({ ok: true, key: parsedKey.data.key });
+    return c.json({ ok: true, key: parsed.key });
 }

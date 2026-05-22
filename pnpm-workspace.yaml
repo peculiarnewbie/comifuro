@@ -1,5 +1,6 @@
 packages:
   - "packages/*"
 catalog:
-  drizzle-orm: "^0.44.6"
+  drizzle-orm: "1.0.0-rc.3"
+  effect: "4.0.0-beta.70"
   wrangler: "^4.40.2"

@@ -24,6 +24,9 @@ describe("parseClassificationResponse", () => {
             inferredFandoms: ["Blue Archive", "Project Sekai"],
             inferredBoothId: "A12",
             inferredBoothIdConfidence: null,
+            inferredItemTypes: [],
+            preorderDeadline: null,
+            items: [],
         });
     });
 
@@ -57,6 +60,9 @@ describe("parseClassificationResponse", () => {
             inferredFandoms: ["Blue Archive"],
             inferredBoothId: null,
             inferredBoothIdConfidence: null,
+            inferredItemTypes: [],
+            preorderDeadline: null,
+            items: [],
         });
     });
 });

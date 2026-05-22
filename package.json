@@ -12,6 +12,7 @@
     "packages/*"
   ],
   "devDependencies": {
+    "drizzle-kit": "1.0.0-rc.3",
     "prettier": "^3.6.2"
   },
   "packageManager": "pnpm@10.33.0"

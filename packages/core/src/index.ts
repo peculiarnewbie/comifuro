@@ -1,5 +1,5 @@
-import { DrizzleD1Database } from "drizzle-orm/d1";
-import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
+import type { DrizzleD1Database } from "drizzle-orm/d1";
+import type { SQLiteBunDatabase } from "drizzle-orm/bun-sqlite";
 import {
     type SQLWrapper,
     and,
@@ -15,6 +15,8 @@ import {
 } from "drizzle-orm";
 import {
     booths,
+    items,
+    userEventMeta,
     replicacheClients,
     scraperState,
     tweetMedia,
@@ -31,7 +33,7 @@ import type {
     TweetMediaInsert,
 } from "./types";
 
-type SupportedDb = DrizzleD1Database<any> | BunSQLiteDatabase<any>;
+type SupportedDb = DrizzleD1Database<any> | SQLiteBunDatabase<any>;
 
 export type ScrapedTweetUpsert = {
     tweet: TweetInsert;
@@ -91,6 +93,7 @@ export namespace tweetsOperations {
         inferredFandomsConfidence: excludedColumn(tweets.inferredFandomsConfidence),
         inferredBoothId: excludedColumn(tweets.inferredBoothId),
         inferredBoothIdConfidence: excludedColumn(tweets.inferredBoothIdConfidence),
+        inferredItemTypes: excludedColumn(tweets.inferredItemTypes),
         rootTweetId: sql<string | null>`coalesce(${excludedColumn(tweets.rootTweetId)}, ${tweets.rootTweetId})`,
         parentTweetId: sql<string | null>`coalesce(${excludedColumn(tweets.parentTweetId)}, ${tweets.parentTweetId})`,
         threadPosition: sql<number | null>`coalesce(${excludedColumn(tweets.threadPosition)}, ${tweets.threadPosition})`,
@@ -961,5 +964,125 @@ export namespace scraperOperations {
                 },
             })
             .returning();
+    };
+}
+
+export namespace itemsOperations {
+    export const replaceUserItems = async (
+        db: SupportedDb,
+        input: {
+            eventId: string;
+            user: string;
+            sourceTweetId: string;
+            items: { type: string; price?: string | null; fandom?: string | null }[];
+        },
+    ) => {
+        const now = new Date();
+        await db
+            .delete(items)
+            .where(
+                and(
+                    eq(items.eventId, input.eventId),
+                    eq(items.user, input.user),
+                ),
+            );
+
+        if (input.items.length === 0) {
+            return [];
+        }
+
+        return await db
+            .insert(items)
+            .values(
+                input.items.map((item) => ({
+                    eventId: input.eventId,
+                    user: input.user,
+                    sourceTweetId: input.sourceTweetId,
+                    type: item.type,
+                    price: item.price ?? null,
+                    fandom: item.fandom ?? null,
+                    createdAt: now,
+                    updatedAt: now,
+                })),
+            )
+            .returning();
+    };
+
+    export const listUserItems = async (
+        db: SupportedDb,
+        eventId: string,
+        user: string,
+    ) => {
+        return await db
+            .select()
+            .from(items)
+            .where(
+                and(eq(items.eventId, eventId), eq(items.user, user)),
+            )
+            .orderBy(items.type);
+    };
+
+    export const listItemsByEvent = async (
+        db: SupportedDb,
+        eventId: string,
+    ) => {
+        return await db
+            .select()
+            .from(items)
+            .where(eq(items.eventId, eventId))
+            .orderBy(items.user, items.type);
+    };
+}
+
+export namespace userMetaOperations {
+    export const upsertUserMeta = async (
+        db: SupportedDb,
+        input: {
+            user: string;
+            eventId: string;
+            boothId?: string | null;
+            preorderDeadline?: string | null;
+        },
+    ) => {
+        const now = new Date();
+        return await db
+            .insert(userEventMeta)
+            .values({
+                user: input.user,
+                eventId: input.eventId,
+                boothId: input.boothId ?? null,
+                preorderDeadline: input.preorderDeadline ?? null,
+                createdAt: now,
+                updatedAt: now,
+            })
+            .onConflictDoUpdate({
+                target: [userEventMeta.user, userEventMeta.eventId],
+                set: {
+                    boothId: sql.raw(`excluded.${userEventMeta.boothId.name}`),
+                    preorderDeadline: sql.raw(
+                        `excluded.${userEventMeta.preorderDeadline.name}`,
+                    ),
+                    updatedAt: sql.raw(`excluded.${userEventMeta.updatedAt.name}`),
+                },
+            })
+            .returning();
+    };
+
+    export const getUserMeta = async (
+        db: SupportedDb,
+        eventId: string,
+        user: string,
+    ) => {
+        const rows = await db
+            .select()
+            .from(userEventMeta)
+            .where(
+                and(
+                    eq(userEventMeta.eventId, eventId),
+                    eq(userEventMeta.user, user),
+                ),
+            )
+            .limit(1);
+        return rows[0] ?? null;
     };
 }

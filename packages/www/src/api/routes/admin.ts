@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { Result } from "better-result";
+import * as Schema from "effect/Schema";
+import { Result } from "../responder";
 import { tweetsOperations } from "@comifuro/core";
 import { getDb, requireAdmin } from "../auth";
 import { ValidationError, NotFoundError, InternalError } from "../errors";
@@ -7,22 +7,13 @@ import { handleResult } from "../responder";
 import { normalizeTagList, toNumberParam } from "../helpers";
 import type { AppContext } from "../types";
 
-const adminTweetMetadataSchema = z
-    .object({
-        inferredFandoms: z.array(z.string().min(1)).optional(),
-        matchedTags: z.array(z.string().min(1)).optional(),
-    })
-    .refine(
-        (value) =>
-            value.inferredFandoms !== undefined ||
-            value.matchedTags !== undefined,
-        {
-            message: "at least one metadata field is required",
-        },
-    );
+const AdminTweetMetadata = Schema.Struct({
+    inferredFandoms: Schema.optional(Schema.Array(Schema.String)),
+    matchedTags: Schema.optional(Schema.Array(Schema.String)),
+});
 
-const rerootThreadSchema = z.object({
-    newRootTweetId: z.string().min(1),
+const RerootThread = Schema.Struct({
+    newRootTweetId: Schema.String,
 });
 
 export async function listMissingThumbnails(c: AppContext) {
@@ -99,11 +90,13 @@ export async function setThumbnail(c: AppContext) {
     }
 
     const body = await c.req.json();
-    const parsed = z
-        .object({ thumbnailR2Key: z.string().min(1) })
-        .safeParse(body);
-    if (!parsed.success) {
-        return c.json({ error: parsed.error.issues[0]?.message }, 400);
+    let parsed: Schema.Schema.Type<typeof SetThumbnailBody>;
+    try {
+        parsed = Schema.decodeUnknownSync(SetThumbnailBody)(body);
+    } catch (error) {
+        return c.json({
+            error: error instanceof Error ? error.message : "validation failed",
+        }, 400);
     }
 
     try {
@@ -112,7 +105,7 @@ export async function setThumbnail(c: AppContext) {
             {
                 tweetId,
                 mediaIndex,
-                thumbnailR2Key: parsed.data.thumbnailR2Key,
+                thumbnailR2Key: parsed.thumbnailR2Key,
             },
         );
 
@@ -151,6 +144,10 @@ export async function setThumbnail(c: AppContext) {
     }
 }
 
+const SetThumbnailBody = Schema.Struct({
+    thumbnailR2Key: Schema.String,
+});
+
 export async function updateTweetMetadata(c: AppContext) {
     const authResult = await requireAdmin(c);
     if (Result.isError(authResult)) {
@@ -160,9 +157,17 @@ export async function updateTweetMetadata(c: AppContext) {
     }
 
     const body = await c.req.json();
-    const parsed = adminTweetMetadataSchema.safeParse(body);
-    if (!parsed.success) {
-        return c.json({ error: parsed.error.issues[0]?.message }, 400);
+    let parsed: Schema.Schema.Type<typeof AdminTweetMetadata>;
+    try {
+        parsed = Schema.decodeUnknownSync(AdminTweetMetadata)(body);
+    } catch (error) {
+        return c.json({
+            error: error instanceof Error ? error.message : "validation failed",
+        }, 400);
+    }
+
+    if (parsed.inferredFandoms === undefined && parsed.matchedTags === undefined) {
+        return c.json({ error: "at least one metadata field is required" }, 400);
     }
 
     try {
@@ -170,8 +175,8 @@ export async function updateTweetMetadata(c: AppContext) {
             getDb(c),
             {
                 id: c.req.param("id")!,
-                inferredFandoms: normalizeTagList(parsed.data.inferredFandoms),
-                matchedTags: normalizeTagList(parsed.data.matchedTags),
+                inferredFandoms: normalizeTagList(parsed.inferredFandoms ? [...parsed.inferredFandoms] : undefined),
+                matchedTags: normalizeTagList(parsed.matchedTags ? [...parsed.matchedTags] : undefined),
                 updatedAt: new Date(),
             },
         );
@@ -220,15 +225,19 @@ export async function rerootThread(c: AppContext) {
     }
 
     const body = await c.req.json();
-    const parsed = rerootThreadSchema.safeParse(body);
-    if (!parsed.success) {
-        return c.json({ error: parsed.error.issues[0]?.message }, 400);
+    let parsed: Schema.Schema.Type<typeof RerootThread>;
+    try {
+        parsed = Schema.decodeUnknownSync(RerootThread)(body);
+    } catch (error) {
+        return c.json({
+            error: error instanceof Error ? error.message : "validation failed",
+        }, 400);
     }
 
     try {
         const tweets = await tweetsOperations.rerootThread(getDb(c), {
             rootTweetId: c.req.param("id")!,
-            newRootTweetId: parsed.data.newRootTweetId,
+            newRootTweetId: parsed.newRootTweetId,
             updatedAt: new Date(),
         });
 

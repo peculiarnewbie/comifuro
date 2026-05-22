@@ -113,6 +113,7 @@ export async function buildPublicFeed(
                     url: tweet.tweetUrl,
                     matchedTags: tweet.matchedTags ?? [],
                     inferredFandoms: tweet.inferredFandoms ?? [],
+                    inferredItemTypes: tweet.inferredItemTypes ?? [],
                     inferredBoothId: tweet.inferredBoothId ?? null,
                     rootTweetId: tweet.rootTweetId ?? null,
                     parentTweetId: tweet.parentTweetId ?? null,

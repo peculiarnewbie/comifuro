@@ -14,12 +14,21 @@ export type ExtractedTweet = {
     discoverySource: "search" | "thread";
 };
 
+export type ItemInfo = {
+    type: string;
+    price?: string | null;
+    fandom?: string | null;
+};
+
 export type ClassificationResult = {
     isCatalogue: boolean;
     reason: string;
     inferredFandoms: string[];
     inferredBoothId: string | null;
     inferredBoothIdConfidence: string | null;
+    inferredItemTypes: string[];
+    preorderDeadline: string | null;
+    items: ItemInfo[];
     raw: string;
 };
 

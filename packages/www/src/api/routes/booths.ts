@@ -1,13 +1,12 @@
-import { z } from "zod";
-import { Result } from "better-result";
+import * as Schema from "effect/Schema";
 import { boothsOperations } from "@comifuro/core";
 import { getDb, requireAdmin } from "../auth";
 import { ValidationError, NotFoundError, InternalError } from "../errors";
-import { handleResult } from "../responder";
+import { Result, handleResult } from "../responder";
 import { normalizeEventId, toNumberParam } from "../helpers";
 import type { AppContext } from "../types";
 
-const boothStatusSchema = z.enum(["unknown", "available", "occupied", "reserved"]);
+const BoothStatus = Schema.Literals(["unknown", "available", "occupied", "reserved"] as const);
 
 export async function listBooths(c: AppContext) {
     const eventId = normalizeEventId(c.req.query("eventId"), "cf22");
@@ -15,16 +14,18 @@ export async function listBooths(c: AppContext) {
     const limit = Math.min(Math.max(toNumberParam(c.req.query("limit")) ?? 500, 1), 1000);
     const offset = Math.max(toNumberParam(c.req.query("offset")) ?? 0, 0);
 
-    const parsedStatus = status
-        ? boothStatusSchema.safeParse(status)
-        : null;
-    if (parsedStatus && !parsedStatus.success) {
-        return c.json({ error: "invalid status" }, 400);
+    let parsedStatus: string | undefined;
+    if (status) {
+        try {
+            parsedStatus = Schema.decodeUnknownSync(BoothStatus)(status);
+        } catch {
+            return c.json({ error: "invalid status" }, 400);
+        }
     }
 
     try {
         const rows = await boothsOperations.listBooths(getDb(c), eventId, {
-            status: parsedStatus?.data,
+            status: parsedStatus as "unknown" | "available" | "occupied" | "reserved" | undefined,
             limit,
             offset,
         });

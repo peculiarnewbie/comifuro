@@ -12,10 +12,11 @@ import {
 } from "./browser";
 import { buildSearchQuery } from "./cli";
 import { loadConfig } from "./config";
-import { uploadTweetImages } from "./images";
+import { fetchRawImages, uploadRawImages } from "./images";
+import type { RawImage } from "./images";
 import { ensureOpencodeServer } from "./opencode-manager";
 import { createClassifier } from "./opencode";
-import type { ExtractedTweet } from "./types";
+import type { ExtractedTweet, UploadedMedia } from "./types";
 
 function compareTweetIds(left: string, right: string) {
     const leftId = BigInt(left);
@@ -62,6 +63,10 @@ async function storeCatalogueTweet(params: {
     inferredFandoms: string[];
     inferredBoothId: string | null;
     inferredBoothIdConfidence: string | null;
+    inferredItemTypes: string[];
+    preorderDeadline: string | null;
+    items: { type: string; price?: string | null; fandom?: string | null }[];
+    rawImages: RawImage[];
     continueOnImageError?: boolean;
     skipUpsertWhenNoMedia?: boolean;
 }) {
@@ -75,12 +80,23 @@ async function storeCatalogueTweet(params: {
         inferredFandoms,
         inferredBoothId,
         inferredBoothIdConfidence,
+        inferredItemTypes,
+        preorderDeadline,
+        items,
+        rawImages,
         continueOnImageError,
         skipUpsertWhenNoMedia,
     } = params;
-    const media = await uploadTweetImages(apiClient, tweet, {
-        continueOnError: continueOnImageError,
-    });
+
+    let media: UploadedMedia[] = [];
+    try {
+        media = await uploadRawImages(apiClient, tweet.id, rawImages, {
+            continueOnError: continueOnImageError,
+        });
+    } catch (error) {
+        media = [];
+    }
+
     const imageMask = buildImageMask(media.map((item) => item.mediaIndex));
 
     if (media.length === 0 && skipUpsertWhenNoMedia) {
@@ -107,6 +123,9 @@ async function storeCatalogueTweet(params: {
         inferredFandoms,
         inferredBoothId,
         inferredBoothIdConfidence,
+        inferredItemTypes,
+        preorderDeadline,
+        items,
         rootTweetId: tweet.rootTweetId,
         parentTweetId: tweet.parentTweetId,
         threadPosition: tweet.threadPosition,
@@ -124,10 +143,14 @@ async function processSearchTweet(params: {
     searchQuery: string;
 }) {
     const { apiClient, classifier, tweet, eventId, searchQuery } = params;
+
+    const rawImages = await fetchRawImages(tweet, { continueOnError: true });
+
     const classification = await classifier.classify({
         tweetText: tweet.text,
         matchedTags: tweet.matchedTags,
         searchQuery,
+        imageUrls: rawImages.map((img) => img.sourceUrl),
     });
 
     if (!classification.isCatalogue) {
@@ -148,6 +171,9 @@ async function processSearchTweet(params: {
             inferredFandoms: [],
             inferredBoothId: classification.inferredBoothId,
             inferredBoothIdConfidence: classification.inferredBoothIdConfidence,
+            inferredItemTypes: [],
+            preorderDeadline: null,
+            items: [],
             rootTweetId: null,
             parentTweetId: null,
             threadPosition: null,
@@ -160,6 +186,8 @@ async function processSearchTweet(params: {
             classificationReason: classification.reason,
             inferredBoothId: classification.inferredBoothId,
             inferredBoothIdConfidence: classification.inferredBoothIdConfidence,
+            items: classification.items,
+            preorderDeadline: classification.preorderDeadline,
         };
     }
 
@@ -173,6 +201,10 @@ async function processSearchTweet(params: {
         inferredFandoms: classification.inferredFandoms,
         inferredBoothId: classification.inferredBoothId,
         inferredBoothIdConfidence: classification.inferredBoothIdConfidence,
+        inferredItemTypes: classification.inferredItemTypes,
+        preorderDeadline: classification.preorderDeadline,
+        items: classification.items,
+        rawImages,
     });
 
     console.log(
@@ -181,6 +213,8 @@ async function processSearchTweet(params: {
             tweetId: tweet.id,
             accepted,
             discoverySource: tweet.discoverySource,
+            inferredItemTypes: classification.inferredItemTypes,
+            itemCount: classification.items.length,
         }),
     );
 
@@ -190,6 +224,8 @@ async function processSearchTweet(params: {
         classificationReason: classification.reason,
         inferredBoothId: classification.inferredBoothId,
         inferredBoothIdConfidence: classification.inferredBoothIdConfidence,
+        items: classification.items,
+        preorderDeadline: classification.preorderDeadline,
     };
 }
 
@@ -235,6 +271,8 @@ async function processThreadContinuations(params: {
 
     const acceptedIds: string[] = [];
     for (const tweet of crawlResult.chain) {
+        const rawImages = await fetchRawImages(tweet, { continueOnError: true });
+
         const accepted = await storeCatalogueTweet({
             apiClient,
             tweet,
@@ -245,6 +283,10 @@ async function processThreadContinuations(params: {
             inferredFandoms: [],
             inferredBoothId: rootInferredBoothId,
             inferredBoothIdConfidence: rootInferredBoothIdConfidence,
+            inferredItemTypes: [],
+            preorderDeadline: null,
+            items: [],
+            rawImages,
             continueOnImageError: true,
             skipUpsertWhenNoMedia: true,
         });
@@ -363,6 +405,9 @@ async function processDiscoveredTweet(params: {
                 inferredFandoms: [],
                 inferredBoothId: null,
                 inferredBoothIdConfidence: null,
+                inferredItemTypes: [],
+                preorderDeadline: null,
+                items: [],
                 rootTweetId: null,
                 parentTweetId: null,
                 threadPosition: null,

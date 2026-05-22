@@ -1,15 +1,19 @@
-import { z } from "zod";
-import type { ClassificationResult } from "./types";
+import * as Schema from "effect/Schema";
+import type { ClassificationResult, ItemInfo } from "./types";
 
-const requiredClassificationSchema = z.object({
-    isCatalogue: z.boolean(),
-    reason: z.string(),
+const requiredClassificationSchema = Schema.Struct({
+    isCatalogue: Schema.Boolean,
+    reason: Schema.String,
+});
+
+const itemSchema = Schema.Struct({
+    type: Schema.String,
+    price: Schema.optional(Schema.NullOr(Schema.String)),
+    fandom: Schema.optional(Schema.NullOr(Schema.String)),
 });
 
 const boothIdPattern = /^[A-Z]{1,3}-?\d{1,3}[A-Z]?$/;
 
-// Loose pattern for finding candidate booth codes inside free-form text.
-// Looks for things like "booth E-31a", "at A12", "B-58b", etc.
 const looseBoothPattern = /\b([A-Z]{1,3})[-\s]?(\d{1,3})([A-Z]?)\b/gi;
 
 export function extractBoothIdsFromText(text: string): string[] {
@@ -84,6 +88,40 @@ export function normalizeInferredFandoms(value: unknown) {
     return normalized;
 }
 
+export function normalizeInferredItemTypes(value: unknown) {
+    const candidates = Array.isArray(value)
+        ? value
+        : typeof value === "string"
+          ? [value]
+          : [];
+    const normalized: string[] = [];
+    const seen = new Set<string>();
+
+    for (const candidate of candidates) {
+        if (typeof candidate !== "string") {
+            continue;
+        }
+
+        const trimmed = candidate.trim().toLowerCase();
+        if (!trimmed) {
+            continue;
+        }
+
+        if (seen.has(trimmed)) {
+            continue;
+        }
+
+        seen.add(trimmed);
+        normalized.push(trimmed);
+
+        if (normalized.length >= 8) {
+            break;
+        }
+    }
+
+    return normalized;
+}
+
 export function normalizeInferredBoothId(value: unknown) {
     if (typeof value !== "string") {
         return null;
@@ -102,14 +140,59 @@ export function normalizeInferredBoothId(value: unknown) {
     return boothIdPattern.test(normalized) ? normalized : null;
 }
 
+export function normalizeItems(value: unknown): ItemInfo[] {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    const result: ItemInfo[] = [];
+    const seen = new Set<string>();
+
+    for (const candidate of value) {
+        let item: Schema.Schema.Type<typeof itemSchema>;
+        try {
+            item = Schema.decodeUnknownSync(itemSchema)(candidate);
+        } catch {
+            continue;
+        }
+
+        const dedupeKey = `${item.type}:${item.fandom ?? ""}`;
+        if (seen.has(dedupeKey)) {
+            continue;
+        }
+
+        seen.add(dedupeKey);
+        result.push({
+            type: item.type.trim().toLowerCase(),
+            price: item.price || null,
+            fandom: item.fandom?.trim() || null,
+        });
+
+        if (result.length >= 20) {
+            break;
+        }
+    }
+
+    return result;
+}
+
 export function parseClassificationResponse(
     raw: string,
 ): Omit<ClassificationResult, "raw"> {
     const parsed = extractJsonObject(raw);
     const parsedRecord = asObjectRecord(parsed);
-    const required = requiredClassificationSchema.parse(parsed);
+    const required = Schema.decodeUnknownSync(requiredClassificationSchema)(parsed);
     const inferredFandoms = normalizeInferredFandoms(parsedRecord?.inferredFandoms);
     const inferredBoothId = normalizeInferredBoothId(parsedRecord?.inferredBoothId);
+    const inferredItemTypes = normalizeInferredItemTypes(
+        parsedRecord?.inferredItemTypes,
+    );
+    const preorderDeadline =
+        typeof parsedRecord?.preorderDeadline === "string" &&
+        parsedRecord.preorderDeadline.trim().toLowerCase() !== "null"
+            ? parsedRecord.preorderDeadline.trim()
+            : null;
+    const items = normalizeItems(parsedRecord?.items);
 
     return {
         isCatalogue: required.isCatalogue,
@@ -117,5 +200,8 @@ export function parseClassificationResponse(
         inferredFandoms,
         inferredBoothId,
         inferredBoothIdConfidence: null as string | null,
+        inferredItemTypes,
+        preorderDeadline,
+        items,
     };
 }

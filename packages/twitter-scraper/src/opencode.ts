@@ -46,10 +46,32 @@ Search query:
 ${input.searchQuery}
 
 Respond with JSON only:
-{"isCatalogue":true,"reason":"short explanation","inferredFandoms":["optional fandom"],"inferredBoothId":"A12"}
+{"isCatalogue":true,"reason":"short explanation","inferredFandoms":["optional fandom"],"inferredBoothId":"A12","inferredItemTypes":["prints","stickers"],"preorderDeadline":null,"items":[{"type":"print","price":"¥1500"}]}
 
 Use real JSON null for unknown booth IDs, never the string "null". Leave bonus metadata empty when unsure:
-{"isCatalogue":false,"reason":"not a catalogue post","inferredFandoms":[],"inferredBoothId":null}`;
+{"isCatalogue":false,"reason":"not a catalogue post","inferredFandoms":[],"inferredBoothId":null,"inferredItemTypes":[],"preorderDeadline":null,"items":[]}`;
+}
+
+async function fetchImageAsDataUri(url: string): Promise<{ mime: string; dataUri: string }> {
+    const response = await fetch(url, {
+        headers: {
+            "user-agent":
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error(`failed to fetch ${url}: ${response.status}`);
+    }
+
+    const buffer = await response.arrayBuffer();
+    const contentType = response.headers.get("content-type") ?? "image/jpeg";
+    const base64 = Buffer.from(buffer).toString("base64");
+
+    return {
+        mime: contentType,
+        dataUri: `data:${contentType};base64,${base64}`,
+    };
 }
 
 export async function createClassifier(config: ScraperConfig) {
@@ -100,6 +122,7 @@ export async function createClassifier(config: ScraperConfig) {
             tweetText: string;
             matchedTags: string[];
             searchQuery: string;
+            imageUrls?: string[];
         }): Promise<ClassificationResult> {
             const sessionResult = await client.session.create({
                 body: {
@@ -114,6 +137,28 @@ export async function createClassifier(config: ScraperConfig) {
             const sessionId = sessionResult.data.id;
 
             try {
+                const parts: ({ type: "text"; text: string } | { type: "file"; mime: string; url: string })[] = [
+                    {
+                        type: "text",
+                        text: renderPrompt(promptTemplate, input),
+                    },
+                ];
+
+                if (input.imageUrls && input.imageUrls.length > 0) {
+                    for (const imageUrl of input.imageUrls) {
+                        try {
+                            const { mime, dataUri } = await fetchImageAsDataUri(imageUrl);
+                            parts.push({
+                                type: "file",
+                                mime,
+                                url: dataUri,
+                            });
+                        } catch {
+                            console.warn(`failed to fetch image for LLM: ${imageUrl}`);
+                        }
+                    }
+                }
+
                 const chatResult = await client.session.chat({
                     path: { id: sessionId },
                     body: {
@@ -121,12 +166,7 @@ export async function createClassifier(config: ScraperConfig) {
                         modelID: modelId,
                         system:
                             "You are a strict binary classifier. Return JSON only, no prose, no markdown.",
-                        parts: [
-                            {
-                                type: "text",
-                                text: renderPrompt(promptTemplate, input),
-                            },
-                        ],
+                        parts: parts as any,
                     },
                 });
 

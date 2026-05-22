@@ -1,5 +1,4 @@
-import { z } from "zod";
-import { Result } from "better-result";
+import * as Schema from "effect/Schema";
 import { tweetsOperations } from "@comifuro/core";
 import type {
     TweetInsert,
@@ -9,7 +8,7 @@ import type {
 } from "@comifuro/core/types";
 import { getDb, requirePassword } from "../auth";
 import { ValidationError, InternalError } from "../errors";
-import { handleResult } from "../responder";
+import { Result, handleResult } from "../responder";
 import {
     CURRENT_SCHEMA_VERSION,
     toDate,
@@ -19,16 +18,16 @@ import {
 } from "../helpers";
 import type { AppContext } from "../types";
 
-const legacyTweetSchema = z.array(
-    z.object({
-        id: z.string().min(1),
-        eventId: z.string().min(1).optional(),
-        user: z.string().min(1),
-        timestamp: z.union([z.number().int(), z.string()]),
-        text: z.string(),
-        imageMask: z.number().int().nonnegative(),
-    }),
-);
+const LegacyTweet = Schema.Struct({
+    id: Schema.String,
+    eventId: Schema.optional(Schema.String),
+    user: Schema.String,
+    timestamp: Schema.Union([Schema.Number, Schema.String]),
+    text: Schema.String,
+    imageMask: Schema.Number,
+});
+
+const legacyTweetSchema = Schema.Array(LegacyTweet);
 
 export async function getLastTweet(c: AppContext) {
     const authResult = await requirePassword(c);
@@ -96,6 +95,9 @@ export async function syncTweets(c: AppContext) {
                 inferredFandoms: Array.isArray(row.inferredFandoms)
                     ? row.inferredFandoms
                     : [],
+                inferredItemTypes: Array.isArray(row.inferredItemTypes)
+                    ? row.inferredItemTypes
+                    : [],
                 inferredBoothId: row.inferredBoothId ?? null,
                 rootTweetId: row.rootTweetId ?? null,
                 parentTweetId: row.parentTweetId ?? null,
@@ -156,13 +158,17 @@ export async function upsertLegacyTweets(c: AppContext) {
     }
 
     const body = await c.req.json();
-    const parsed = legacyTweetSchema.safeParse(body);
-    if (!parsed.success) {
-        return c.json({ error: parsed.error.issues[0]?.message }, 400);
+    let parsed: readonly { readonly id: string; readonly eventId?: string | undefined; readonly user: string; readonly timestamp: number | string; readonly text: string; readonly imageMask: number; }[];
+    try {
+        parsed = Schema.decodeUnknownSync(legacyTweetSchema)(body) as typeof parsed;
+    } catch (error) {
+        return c.json({
+            error: error instanceof Error ? error.message : "validation failed",
+        }, 400);
     }
 
     const now = new Date();
-    const rows = parsed.data.map(
+    const rows = parsed.map(
         (tweet) =>
             ({
                 id: tweet.id,

@@ -145,6 +145,9 @@ const getTweetSnapshot = (store: Store): TweetStoreSnapshot => {
             inferredFandoms: Array.isArray(row.inferredFandoms)
                 ? row.inferredFandoms
                 : [],
+            inferredItemTypes: Array.isArray(row.inferredItemTypes)
+                ? row.inferredItemTypes
+                : [],
             inferredBoothId: row.inferredBoothId ?? null,
             rootTweetId: row.rootTweetId ?? null,
             parentTweetId: row.parentTweetId ?? null,

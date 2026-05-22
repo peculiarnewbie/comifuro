@@ -1,4 +1,4 @@
-import type { ScraperState, UploadedMedia } from "./types";
+import type { ItemInfo, ScraperState, UploadedMedia } from "./types";
 
 type ScrapedTweetPayload = {
     id: string;
@@ -17,6 +17,9 @@ type ScrapedTweetPayload = {
     inferredFandoms: string[];
     inferredBoothId: string | null;
     inferredBoothIdConfidence: string | null;
+    inferredItemTypes: string[];
+    preorderDeadline: string | null;
+    items: ItemInfo[];
     rootTweetId?: string | null;
     parentTweetId?: string | null;
     threadPosition?: number | null;
