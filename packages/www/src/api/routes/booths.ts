@@ -3,17 +3,16 @@ import { boothsOperations } from "@comifuro/core";
 import { getDb, requireAdmin } from "../auth";
 import { ValidationError, NotFoundError, InternalError } from "../errors";
 import { Result, handleResult } from "../responder";
-import { normalizeEventId, toNumberParam } from "../helpers";
+import { helpers } from "@comifuro/core";
 import type { AppContext } from "../types";
 import type { EventId, BoothId } from "@comifuro/core/schema";
 
 const BoothStatus = Schema.Literals(["unknown", "available", "occupied", "reserved"] as const);
 
 export async function listBooths(c: AppContext) {
-    const eventId = normalizeEventId(c.req.query("eventId"), "cf22");
-    const status = c.req.query("status");
-    const limit = Math.min(Math.max(toNumberParam(c.req.query("limit")) ?? 500, 1), 1000);
-    const offset = Math.max(toNumberParam(c.req.query("offset")) ?? 0, 0);
+    const eventId = helpers.normalizeEventId(c.req.query("eventId"), "cf22" as EventId);
+    const limit = Math.min(Math.max(helpers.toNumberParam(c.req.query("limit")) ?? 500, 1), 1000);
+    const offset = Math.max(helpers.toNumberParam(c.req.query("offset")) ?? 0, 0);
 
     let parsedStatus: string | undefined;
     if (status) {
@@ -25,7 +24,7 @@ export async function listBooths(c: AppContext) {
     }
 
     try {
-        const rows = await boothsOperations.listBooths(getDb(c), eventId as EventId, {
+        const rows = await boothsOperations.listBooths(getDb(c), eventId, {
             status: parsedStatus as "unknown" | "available" | "occupied" | "reserved" | undefined,
             limit,
             offset,
@@ -50,11 +49,11 @@ export async function listBooths(c: AppContext) {
 }
 
 export async function getBooth(c: AppContext) {
-    const eventId = normalizeEventId(c.req.query("eventId"), "cf22");
+    const eventId = helpers.normalizeEventId(c.req.query("eventId"), "cf22" as EventId);
     const id = c.req.param("id")!;
 
     try {
-        const result = await boothsOperations.getBoothWithTweets(getDb(c), eventId as EventId, id.toUpperCase() as BoothId);
+        const result = await boothsOperations.getBoothWithTweets(getDb(c), eventId, id.toUpperCase() as BoothId);
         if (!result.booth) {
             return handleResult(
                 c,
@@ -96,12 +95,12 @@ export async function rebuildBooths(c: AppContext) {
         });
     }
 
-    const eventId = normalizeEventId(c.req.query("eventId"), "cf22");
+    const eventId = helpers.normalizeEventId(c.req.query("eventId"), "cf22" as EventId);
 
     try {
         const inserted = await boothsOperations.rebuildBoothsFromTweets(
             getDb(c),
-            eventId as EventId,
+            eventId,
         );
         return c.json({ ok: true, eventId, count: inserted.length });
     } catch (error) {

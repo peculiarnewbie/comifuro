@@ -6,16 +6,13 @@ import {
     itemsOperations,
     userMetaOperations,
 } from "@comifuro/core";
-import { TweetClassificationValues, type TweetId, type UserId, type EventId, type BoothId } from "@comifuro/core/schema";
+import { TweetClassificationValues, TweetId, UserId } from "@comifuro/core/schema";
+import type { EventId, BoothId } from "@comifuro/core/schema";
 import { getDb, requirePassword } from "../auth";
 import { ValidationError, InternalError } from "../errors";
 import { Result, handleResult } from "../responder";
-import {
-    toDate,
-    normalizeEventId,
-    normalizeTagList,
-    buildPublicFeed,
-} from "../helpers";
+import { helpers } from "@comifuro/core";
+import { buildPublicFeed } from "../helpers";
 import type { AppContext } from "../types";
 
 const ScraperMedia = Schema.Struct({
@@ -37,9 +34,9 @@ const ScraperItem = Schema.Struct({
 const NullableString = Schema.NullOr(Schema.String);
 
 const ScraperTweet = Schema.Struct({
-    id: Schema.String,
+    id: TweetId,
     eventId: Schema.optional(Schema.String),
-    user: Schema.String,
+    user: UserId,
     displayName: Schema.optional(NullableString),
     timestamp: Schema.Union([Schema.Number, Schema.String]),
     text: Schema.String,
@@ -63,7 +60,7 @@ const ScraperTweet = Schema.Struct({
 });
 
 const ScraperState = Schema.Struct({
-    lastSeenTweetId: Schema.optional(NullableString),
+    lastSeenTweetId: Schema.optional(Schema.NullOr(TweetId)),
     lastRunAt: Schema.optional(Schema.NullOr(Schema.Union([Schema.Number, Schema.String]))),
 });
 
@@ -92,15 +89,15 @@ export async function upsertScraperTweet(c: AppContext) {
     const now = new Date();
     const db = getDb(c);
 
-    const eventId = normalizeEventId(tweet.eventId);
+    const eventId = helpers.normalizeEventId(tweet.eventId);
 
     await tweetsOperations.upsertScrapedTweet(db, {
         tweet: {
-            id: tweet.id as TweetId,
-            eventId: eventId as EventId,
-            user: tweet.user as UserId,
+            id: tweet.id,
+            eventId,
+            user: tweet.user,
             displayName: tweet.displayName ?? null,
-            timestamp: toDate(tweet.timestamp) ?? now,
+            timestamp: helpers.toDate(tweet.timestamp) ?? now,
             text: tweet.text,
             tweetUrl: tweet.tweetUrl,
             searchQuery: tweet.searchQuery,
@@ -119,7 +116,7 @@ export async function upsertScraperTweet(c: AppContext) {
             updatedAt: now,
         },
         media: (tweet.media ?? []).map((media) => ({
-            tweetId: tweet.id as TweetId,
+            tweetId: tweet.id,
             mediaIndex: media.mediaIndex,
             r2Key: media.r2Key,
             thumbnailR2Key: media.thumbnailR2Key ?? null,
@@ -133,32 +130,32 @@ export async function upsertScraperTweet(c: AppContext) {
     if (tweet.classification === "catalogue") {
         if (tweet.inferredBoothId) {
             await boothsOperations.upsertBoothFromTweet(db, {
-                eventId: eventId as EventId,
+                eventId,
                 inferredBoothId: (tweet.inferredBoothId ?? null) as BoothId | null,
-                user: tweet.user as UserId,
+                user: tweet.user,
                 displayName: tweet.displayName ?? null,
-                id: tweet.id as TweetId,
+                id: tweet.id,
             });
         }
 
         await userMetaOperations.upsertUserMeta(db, {
-            user: tweet.user as UserId,
-            eventId: eventId as EventId,
+            user: tweet.user,
+            eventId,
             boothId: (tweet.inferredBoothId ?? null) as BoothId | null,
             preorderDeadline: tweet.preorderDeadline ?? null,
         });
 
         if (tweet.items && tweet.items.length > 0) {
             await itemsOperations.replaceUserItems(db, {
-                eventId: eventId as EventId,
-                user: tweet.user as UserId,
-                sourceTweetId: tweet.id as TweetId,
+                eventId,
+                user: tweet.user,
+                sourceTweetId: tweet.id,
                 items: [...tweet.items],
             });
         }
     }
 
-    return c.json({ ok: true, id: tweet.id as TweetId });
+    return c.json({ ok: true, id: tweet.id });
 }
 
 export async function getScraperState(c: AppContext) {
@@ -194,8 +191,8 @@ export async function putScraperState(c: AppContext) {
     const now = new Date();
     const [state] = await scraperOperations.upsertState(getDb(c), {
         id: c.req.param("id")!,
-        lastSeenTweetId: (parsed.lastSeenTweetId ?? null) as TweetId | null,
-        lastRunAt: toDate(parsed.lastRunAt) ?? now,
+        lastSeenTweetId: parsed.lastSeenTweetId ?? null,
+        lastRunAt: helpers.toDate(parsed.lastRunAt) ?? now,
         updatedAt: now,
     });
 
@@ -220,7 +217,7 @@ export async function exportPublicFeed(c: AppContext) {
         }, 400);
     }
 
-    const eventId = normalizeEventId(parsed.eventId, "cf22");
+    const eventId = helpers.normalizeEventId(parsed.eventId, "cf22" as EventId);
     const db = getDb(c);
     const payload = JSON.stringify(await buildPublicFeed(db, eventId));
     await c.env.R2.put(`${eventId}/tweets.json`, payload, {

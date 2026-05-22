@@ -2,7 +2,7 @@ import * as Schema from "effect/Schema";
 import { getDb, requirePassword } from "../auth";
 import { ValidationError } from "../errors";
 import { Result, handleResult } from "../responder";
-import { TWEET_MEDIA_KEY_REGEX } from "../helpers";
+import { helpers } from "@comifuro/core";
 import type { AppContext } from "../types";
 
 const ImageUpload = Schema.Struct({
@@ -37,7 +37,7 @@ export async function uploadImage(c: AppContext) {
         }, 400);
     }
 
-    if (!TWEET_MEDIA_KEY_REGEX.test(parsed.key)) {
+    if (!helpers.TWEET_MEDIA_KEY_REGEX.test(parsed.key)) {
         return c.json({ error: "invalid key format" }, 400);
     }
 

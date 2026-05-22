@@ -4,9 +4,9 @@ import { tweetsOperations } from "@comifuro/core";
 import { getDb, requireAdmin } from "../auth";
 import { ValidationError, NotFoundError, InternalError } from "../errors";
 import { handleResult } from "../responder";
-import { normalizeTagList, toNumberParam } from "../helpers";
+import { helpers } from "@comifuro/core";
 import type { AppContext } from "../types";
-import type { TweetId } from "@comifuro/core/schema";
+import { TweetId } from "@comifuro/core/schema";
 
 const AdminTweetMetadata = Schema.Struct({
     inferredFandoms: Schema.optional(Schema.Array(Schema.String)),
@@ -14,7 +14,7 @@ const AdminTweetMetadata = Schema.Struct({
 });
 
 const RerootThread = Schema.Struct({
-    newRootTweetId: Schema.String,
+    newRootTweetId: TweetId,
 });
 
 export async function listMissingThumbnails(c: AppContext) {
@@ -30,7 +30,7 @@ export async function listMissingThumbnails(c: AppContext) {
         500,
     );
     const cursorTweetId = c.req.query("cursorTweetId");
-    const cursorMediaIndex = toNumberParam(c.req.query("cursorMediaIndex"));
+    const cursorMediaIndex = helpers.toNumberParam(c.req.query("cursorMediaIndex"));
     const cursor =
         cursorTweetId && cursorMediaIndex != null
             ? { tweetId: cursorTweetId as TweetId, mediaIndex: cursorMediaIndex }
@@ -176,8 +176,8 @@ export async function updateTweetMetadata(c: AppContext) {
             getDb(c),
             {
                 id: c.req.param("id")! as TweetId,
-                inferredFandoms: normalizeTagList(parsed.inferredFandoms ? [...parsed.inferredFandoms] : undefined),
-                matchedTags: normalizeTagList(parsed.matchedTags ? [...parsed.matchedTags] : undefined),
+                inferredFandoms: helpers.normalizeTagList(parsed.inferredFandoms ? [...parsed.inferredFandoms] : undefined),
+                matchedTags: helpers.normalizeTagList(parsed.matchedTags ? [...parsed.matchedTags] : undefined),
                 updatedAt: new Date(),
             },
         );
@@ -238,7 +238,7 @@ export async function rerootThread(c: AppContext) {
     try {
         const tweets = await tweetsOperations.rerootThread(getDb(c), {
             rootTweetId: c.req.param("id")! as TweetId,
-            newRootTweetId: parsed.newRootTweetId as TweetId,
+            newRootTweetId: parsed.newRootTweetId,
             updatedAt: new Date(),
         });
 

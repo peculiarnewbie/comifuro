@@ -1,82 +1,17 @@
-import { DrizzleD1Database } from "drizzle-orm/d1";
-import { tweetsOperations } from "@comifuro/core";
+import type { DrizzleD1Database } from "drizzle-orm/d1";
+import { tweetsOperations, helpers } from "@comifuro/core";
 import type { EventId } from "@comifuro/core/schema";
 
-export const TWEET_MEDIA_KEY_REGEX =
-    /^[A-Za-z0-9_-]+\/\d+(?:\.thumb)?\.webp$/;
 export const CURRENT_SCHEMA_VERSION = 9;
-
-export function toDate(value: number | string | Date | null | undefined) {
-    if (value == null) {
-        return null;
-    }
-
-    if (value instanceof Date) {
-        return value;
-    }
-
-    if (typeof value === "number") {
-        return new Date(value);
-    }
-
-    const parsedNumber = Number(value);
-    if (Number.isFinite(parsedNumber) && `${parsedNumber}` === value) {
-        return new Date(parsedNumber);
-    }
-
-    return new Date(value);
-}
-
-export function normalizeEventId(
-    value: string | null | undefined,
-    fallback = "cf21",
-) {
-    return value?.trim().toLowerCase() || fallback;
-}
-
-export function normalizeTagList(values: string[] | undefined) {
-    if (values === undefined) {
-        return undefined;
-    }
-
-    return Array.from(
-        new Set(values.map((value) => value.trim()).filter(Boolean)),
-    );
-}
-
-export function maskToFallbackR2Keys(
-    tweetId: string,
-    mask: number,
-    maxBits = 8,
-) {
-    const keys: string[] = [];
-
-    for (let index = 0; index < maxBits; index += 1) {
-        if ((mask & (1 << index)) !== 0) {
-            keys.push(`${tweetId}/${index}.webp`);
-        }
-    }
-
-    return keys;
-}
-
-export function toNumberParam(value: string | undefined) {
-    if (!value) {
-        return undefined;
-    }
-
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
-}
 
 export async function buildPublicFeed(
     db: DrizzleD1Database,
-    eventId: string,
+    eventId: EventId,
 ) {
     const publicTweets = await tweetsOperations.listPublicTweets(
         db,
         "catalogue",
-        eventId as EventId,
+        eventId,
     );
     const media = await tweetsOperations.listPublicTweetMedia(
         db,
@@ -100,10 +35,7 @@ export async function buildPublicFeed(
         publicTweets.map((tweet) => {
             const refs =
                 mediaByTweet.get(tweet.id) ??
-                maskToFallbackR2Keys(tweet.id, tweet.imageMask).map((key) => ({
-                    r2Key: key,
-                    thumbnailR2Key: null,
-                }));
+                helpers.getFallbackImageRefs(tweet.id, tweet.imageMask);
             return [
                 tweet.id,
                 {

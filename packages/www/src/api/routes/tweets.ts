@@ -6,23 +6,18 @@ import type {
 import {
     TweetSyncResponse as TweetSyncResponseSchema,
 } from "@comifuro/core/schemas";
-import type { TweetId, UserId, EventId } from "@comifuro/core/schema";
+import { TweetId, UserId, type EventId } from "@comifuro/core/schema";
 import { getDb, requirePassword } from "../auth";
 import { ValidationError, InternalError } from "../errors";
 import { Result, handleResult } from "../responder";
-import {
-    CURRENT_SCHEMA_VERSION,
-    toDate,
-    normalizeEventId,
-    toNumberParam,
-    buildPublicFeed,
-} from "../helpers";
+import { helpers } from "@comifuro/core";
+import { CURRENT_SCHEMA_VERSION, buildPublicFeed } from "../helpers";
 import type { AppContext } from "../types";
 
 const LegacyTweet = Schema.Struct({
-    id: Schema.String,
+    id: TweetId,
     eventId: Schema.optional(Schema.String),
-    user: Schema.String,
+    user: UserId,
     timestamp: Schema.Union([Schema.Number, Schema.String]),
     text: Schema.String,
     imageMask: Schema.Number,
@@ -44,18 +39,18 @@ export async function getLastTweet(c: AppContext) {
 }
 
 export async function syncTweets(c: AppContext) {
-    const eventId = normalizeEventId(c.req.query("eventId"), "cf22");
+    const eventId = helpers.normalizeEventId(c.req.query("eventId"), "cf22" as EventId);
     const limit = Math.min(
         Math.max(Number(c.req.query("limit") ?? 500), 1),
         1000,
     );
-    const cursorUpdatedAt = toNumberParam(c.req.query("cursorUpdatedAt"));
+    const cursorUpdatedAt = helpers.toNumberParam(c.req.query("cursorUpdatedAt"));
     const cursorId = c.req.query("cursorId");
 
     try {
         const db = getDb(c);
         const rows = await tweetsOperations.listTweetsForSync(db, {
-            eventId: eventId as EventId,
+            eventId,
             cursor: cursorUpdatedAt != null && cursorId
                 ? { updatedAt: cursorUpdatedAt, id: cursorId as TweetId }
                 : undefined,
@@ -153,9 +148,9 @@ export async function upsertLegacyTweets(c: AppContext) {
     }
 
     const body = await c.req.json();
-    let parsed: readonly { readonly id: string; readonly eventId?: string | undefined; readonly user: string; readonly timestamp: number | string; readonly text: string; readonly imageMask: number; }[];
+    let parsed: Schema.Schema.Type<typeof legacyTweetSchema>;
     try {
-        parsed = Schema.decodeUnknownSync(legacyTweetSchema)(body) as typeof parsed;
+        parsed = Schema.decodeUnknownSync(legacyTweetSchema)(body);
     } catch (error) {
         return c.json({
             error: error instanceof Error ? error.message : "validation failed",
@@ -166,10 +161,10 @@ export async function upsertLegacyTweets(c: AppContext) {
     const rows = parsed.map(
         (tweet) =>
             ({
-                id: tweet.id as TweetId,
-                eventId: normalizeEventId(tweet.eventId) as EventId,
-                user: tweet.user as UserId,
-                timestamp: toDate(tweet.timestamp) ?? now,
+                id: tweet.id,
+                eventId: helpers.normalizeEventId(tweet.eventId),
+                user: tweet.user,
+                timestamp: helpers.toDate(tweet.timestamp) ?? now,
                 text: tweet.text,
                 tweetUrl: `https://x.com/i/web/status/${tweet.id}`,
                 imageMask: tweet.imageMask,

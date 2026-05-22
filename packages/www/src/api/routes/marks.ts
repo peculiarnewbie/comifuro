@@ -1,13 +1,13 @@
 import * as Schema from "effect/Schema";
 import { marksOperations } from "@comifuro/core";
-import { MarkValues, type TweetId } from "@comifuro/core/schema";
+import { MarkValues, TweetId } from "@comifuro/core/schema";
 import { getDb, requireAccount } from "../auth";
 import { InternalError } from "../errors";
 import { Result, handleResult } from "../responder";
 import type { AppContext } from "../types";
 
 const Mark = Schema.Struct({
-    tweetId: Schema.String,
+    tweetId: TweetId,
     mark: Schema.Literals(MarkValues),
 });
 
@@ -83,7 +83,7 @@ export async function syncMarks(c: AppContext) {
         const upserted = await marksOperations.batchUpsertUserMarks(
             getDb(c),
             userId,
-            parsed.marks.map((m) => ({ tweetId: m.tweetId as TweetId, mark: m.mark })),
+            parsed.marks.map((m) => ({ tweetId: m.tweetId, mark: m.mark })),
             now,
         );
 
