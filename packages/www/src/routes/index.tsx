@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import MiniSearch from "minisearch";
 import {
     Show,
     createEffect,
@@ -13,63 +12,26 @@ import {
     createTweetStoreSession,
     getApiHost,
     groupTweetsIntoThreads,
+    createSearchIndexManager,
     type CatalogueTweet,
     type CatalogueTweetThread,
     type MarksStoreSession,
     type TweetStoreSession,
     type SearchIndexState,
 } from "../lib/catalogue-store";
-import {
-    parseTagInput,
-    removeFollowUpTweet,
-    rerootThread,
-    uncatalogueTweet,
-    updateTweetMetadata,
-} from "../lib/admin-api";
-import {
-    createTweetThreadSearchText,
-    matchesTweetSearchText,
-} from "../lib/tweet-search";
 import { getOrCreateAccountId } from "../lib/account";
 import CataloguePage from "../components/catalogue/CataloguePage";
 import AdminPanel from "../components/admin/AdminPanel";
 
 const PASSWORD_STORAGE_KEY = "comifuro-admin-password";
 
-type SearchDocument = {
-    id: string;
-    searchText: string;
-    updatedAt: number;
-};
-
 type StatusBanner = {
     tone: "success" | "error" | "info";
     message: string;
 };
 
-function createSearchIndex() {
-    return new MiniSearch<SearchDocument>({
-        fields: ["searchText"],
-        storeFields: ["id", "searchText", "updatedAt"],
-    });
-}
-
-function toSearchDocument(thread: CatalogueTweetThread): SearchDocument {
-    return {
-        id: thread.groupId,
-        updatedAt: Math.max(
-            thread.root.updatedAt,
-            ...thread.replies.map((tweet) => tweet.updatedAt),
-        ),
-        searchText: createTweetThreadSearchText(thread.root, thread.replies),
-    };
-}
-
 function readAdminFlag() {
-    if (typeof window === "undefined") {
-        return false;
-    }
-
+    if (typeof window === "undefined") return false;
     const value = new URLSearchParams(window.location.search).get("admin");
     return value === "1" || value === "true";
 }
@@ -99,7 +61,6 @@ export function AppRouteComponent() {
         }, 200);
         onCleanup(() => clearTimeout(timeoutId));
     });
-    const miniSearch = createSearchIndex();
     const [searchIndexState, setSearchIndexState] = createSignal<SearchIndexState>({
         ready: false,
         count: 0,
@@ -122,16 +83,13 @@ export function AppRouteComponent() {
             ),
     );
 
+    const searchIndex = createSearchIndexManager();
     let tweetSession: TweetStoreSession | null = null;
     let marksSession: MarksStoreSession | null = null;
-    let indexedDocuments = new Map<string, SearchDocument>();
-    let searchRevision = 0;
 
     createEffect(() => {
         const selectedEventId = eventId();
-        if (typeof window === "undefined") {
-            return;
-        }
+        if (typeof window === "undefined") return;
 
         let disposed = false;
         let unsubscribe = () => {};
@@ -171,17 +129,26 @@ export function AppRouteComponent() {
     });
 
     createEffect(() => {
-        if (typeof window === "undefined" || isAdminMode || marksSession) {
-            return;
-        }
+        const nextThreads = groupedThreads();
+        if (typeof window === "undefined") return;
+        searchIndex.update(tweets());
+    });
+
+    createEffect(() => {
+        const state = searchIndex.getState();
+        setSearchIndexState({ ready: state.ready, count: state.count });
+    });
+
+    createEffect(() => {
+        if (typeof window === "undefined" || isAdminMode || marksSession) return;
 
         let disposed = false;
         let unsubscribe = () => {};
 
         (async () => {
-            const accountId = getOrCreateAccountId();
+            const actId = getOrCreateAccountId();
             const nextSession = await createMarksStoreSession({
-                accountId,
+                accountId: actId,
                 apiHost: getApiHost(window.location.href),
             });
             if (disposed) {
@@ -207,109 +174,18 @@ export function AppRouteComponent() {
     });
 
     createEffect(() => {
-        if (typeof window === "undefined") {
-            return;
-        }
-
+        if (typeof window === "undefined") return;
         const trimmed = adminPassword().trim();
         if (trimmed) {
             window.sessionStorage.setItem(PASSWORD_STORAGE_KEY, trimmed);
             return;
         }
-
         window.sessionStorage.removeItem(PASSWORD_STORAGE_KEY);
-    });
-
-    createEffect(() => {
-        const nextThreads = groupedThreads();
-        const nextRevision = ++searchRevision;
-        const nextIndex = miniSearch;
-        const nextDocuments = new Map(
-            nextThreads.map((thread) => {
-                const document = toSearchDocument(thread);
-                return [thread.groupId, document] satisfies [string, SearchDocument];
-            }),
-        );
-
-        setSearchIndexState({
-            ready: false,
-            count: nextThreads.length,
-        });
-
-        void (async () => {
-            const removedIds = [...indexedDocuments.keys()].filter(
-                (id) => !nextDocuments.has(id),
-            );
-
-            for (const tweetId of removedIds) {
-                if (nextRevision !== searchRevision) {
-                    return;
-                }
-
-                if (nextIndex.has(tweetId)) {
-                    nextIndex.discard(tweetId);
-                }
-            }
-
-            let processed = 0;
-            for (const [tweetId, tweet] of nextDocuments.entries()) {
-                if (nextRevision !== searchRevision) {
-                    return;
-                }
-
-                const previous = indexedDocuments.get(tweetId);
-                if (!nextIndex.has(tweetId)) {
-                    nextIndex.add(tweet);
-                } else if (
-                    !previous ||
-                    previous.searchText !== tweet.searchText ||
-                    previous.updatedAt !== tweet.updatedAt
-                ) {
-                    nextIndex.replace(tweet);
-                }
-
-                processed += 1;
-                if (processed % 200 === 0) {
-                    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-                }
-            }
-
-            indexedDocuments = nextDocuments;
-            setSearchIndexState({
-                ready: true,
-                count: nextIndex.documentCount,
-            });
-        })();
     });
 
     const filteredThreads = createMemo(() => {
         const filter = debouncedSearchValue().trim();
-        if (!filter) {
-            return groupedThreads();
-        }
-
-        if (!searchIndexState().ready) {
-            return groupedThreads().filter((thread) =>
-                matchesTweetSearchText(
-                    createTweetThreadSearchText(thread.root, thread.replies),
-                    filter,
-                ),
-            );
-        }
-
-        const queries = filter
-            .split(/\s+/)
-            .map((token) => token.trim())
-            .filter(Boolean);
-        if (queries.length === 0) {
-            return groupedThreads();
-        }
-
-        const threadMap = groupedThreadsById();
-        return miniSearch
-            .search({ combineWith: "AND", queries }, { prefix: true })
-            .map((result) => threadMap.get(result.id))
-            .filter((thread): thread is CatalogueTweetThread => Boolean(thread));
+        return searchIndex.search(filter, groupedThreads(), groupedThreadsById());
     });
 
     const allTags = createMemo(() => {
@@ -370,13 +246,7 @@ export function AppRouteComponent() {
 
     const setPending = (key: string, value: boolean) => {
         setPendingActions((current) => {
-            if (value) {
-                return {
-                    ...current,
-                    [key]: true,
-                };
-            }
-
+            if (value) return { ...current, [key]: true };
             const next = { ...current };
             delete next[key];
             return next;
@@ -384,15 +254,17 @@ export function AppRouteComponent() {
     };
 
     const confirmAction = (message: string) => {
-        if (typeof window === "undefined") {
-            return false;
-        }
-
+        if (typeof window === "undefined") return false;
         return window.confirm(message);
     };
 
     const apiHost = () =>
         typeof window !== "undefined" ? getApiHost(window.location.href) : "";
+
+    const adminAuth = () => ({
+        password: adminPassword().trim(),
+        accountId,
+    });
 
     const runAdminAction = async (
         key: string,
@@ -432,13 +304,11 @@ export function AppRouteComponent() {
             `fandom:${tweetId}`,
             `Saved fandoms for tweet ${tweetId}.`,
             async () => {
-                await updateTweetMetadata({
-                    apiHost: apiHost(),
-                    password: adminPassword().trim(),
-                    accountId,
+                await tweetSession!.admin.saveFandoms(
                     tweetId,
-                    inferredFandoms: parseTagInput(value),
-                });
+                    value,
+                    adminAuth(),
+                );
             },
         );
     };
@@ -448,13 +318,11 @@ export function AppRouteComponent() {
             `tags:${tweetId}`,
             `Saved tags for tweet ${tweetId}.`,
             async () => {
-                await updateTweetMetadata({
-                    apiHost: apiHost(),
-                    password: adminPassword().trim(),
-                    accountId,
+                await tweetSession!.admin.saveTags(
                     tweetId,
-                    matchedTags: parseTagInput(value),
-                });
+                    value,
+                    adminAuth(),
+                );
             },
         );
     };
@@ -472,13 +340,11 @@ export function AppRouteComponent() {
             `reroot:${tweetId}`,
             `Thread ${thread.groupId} rerooted to ${tweetId}.`,
             async () => {
-                await rerootThread({
-                    apiHost: apiHost(),
-                    password: adminPassword().trim(),
-                    accountId,
-                    rootTweetId: thread.groupId,
-                    newRootTweetId: tweetId,
-                });
+                await tweetSession!.admin.reroot(
+                    thread.groupId,
+                    tweetId,
+                    adminAuth(),
+                );
             },
         );
     };
@@ -496,12 +362,7 @@ export function AppRouteComponent() {
             `uncatalogue:${tweetId}`,
             `Tweet ${tweetId} uncatalogued.`,
             async () => {
-                await uncatalogueTweet({
-                    apiHost: apiHost(),
-                    password: adminPassword().trim(),
-                    accountId,
-                    tweetId,
-                });
+                await tweetSession!.admin.uncatalogue(tweetId, adminAuth());
             },
         );
     };
@@ -519,12 +380,10 @@ export function AppRouteComponent() {
             `remove:${tweetId}`,
             `Follow-up ${tweetId} removed from the catalogue.`,
             async () => {
-                await removeFollowUpTweet({
-                    apiHost: apiHost(),
-                    password: adminPassword().trim(),
-                    accountId,
+                await tweetSession!.admin.removeFollowUp(
                     tweetId,
-                });
+                    adminAuth(),
+                );
             },
         );
     };

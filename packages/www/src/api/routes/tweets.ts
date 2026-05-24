@@ -1,8 +1,6 @@
 import * as Schema from "effect/Schema";
 import { tweetsOperations } from "@comifuro/core";
-import type {
-    TweetInsert,
-} from "@comifuro/core/types";
+import type { TweetInsert } from "@comifuro/core/types";
 import {
     TweetSyncResponse as TweetSyncResponseSchema,
 } from "@comifuro/core/schemas";
@@ -39,7 +37,7 @@ export async function getLastTweet(c: AppContext) {
 }
 
 export async function syncTweets(c: AppContext) {
-    const eventId = helpers.normalizeEventId(c.req.query("eventId"), "cf22" as EventId);
+    const eventId = helpers.normalizeEventId(c.req.query("eventId"), Schema.decodeUnknownSync(EventId)("cf22"));
     const limit = Math.min(
         Math.max(Number(c.req.query("limit") ?? 500), 1),
         1000,
@@ -52,7 +50,7 @@ export async function syncTweets(c: AppContext) {
         const rows = await tweetsOperations.listTweetsForSync(db, {
             eventId,
             cursor: cursorUpdatedAt != null && cursorId
-                ? { updatedAt: cursorUpdatedAt, id: cursorId as TweetId }
+                ? { updatedAt: cursorUpdatedAt, id: Schema.decodeUnknownSync(TweetId)(cursorId) }
                 : undefined,
             limit: limit + 1,
         });

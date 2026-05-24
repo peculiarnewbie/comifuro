@@ -1,4 +1,5 @@
-import type { EventId } from "./schema";
+import { EventId } from "./schema";
+import * as Schema from "effect/Schema";
 
 export const TWEET_MEDIA_KEY_REGEX =
     /^[A-Za-z0-9_-]+\/\d+(?:\.thumb)?\.webp$/;
@@ -26,9 +27,10 @@ export function toDate(value: number | string | Date | null | undefined) {
 
 export function normalizeEventId(
     value: string | null | undefined,
-    fallback: EventId = "cf21" as EventId,
+    fallback: EventId = Schema.decodeUnknownSync(EventId)("cf21"),
 ): EventId {
-    return (value?.trim().toLowerCase() || fallback) as EventId;
+    const trimmed = value?.trim().toLowerCase();
+    return trimmed ? Schema.decodeUnknownSync(EventId)(trimmed) : fallback;
 }
 
 export function normalizeTagList(values: string[] | undefined) {

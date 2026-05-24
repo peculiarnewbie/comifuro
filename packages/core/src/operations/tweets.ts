@@ -404,20 +404,23 @@ export const getNewestTweet = async (db: SupportedDb, eventId?: EventId) => {
 
 export const getNewerTweets = async (
     db: SupportedDb,
-    newestTweet: TweetId,
-    limit = 100,
-    eventId?: EventId,
+    opts: {
+        newerThan: TweetId;
+        limit?: number;
+        eventId?: EventId;
+    },
 ) => {
+    const { newerThan, limit = 100, eventId } = opts;
     return await db
         .select()
         .from(tweets)
         .where(
             eventId
                 ? and(
-                      gt(tweets.id, newestTweet),
+                      gt(tweets.id, newerThan),
                       eq(tweets.eventId, eventId),
                   )
-                : gt(tweets.id, newestTweet),
+                : gt(tweets.id, newerThan),
         )
         .orderBy(desc(tweets.id))
         .limit(limit);
@@ -425,20 +428,23 @@ export const getNewerTweets = async (
 
 export const getOlderTweets = async (
     db: SupportedDb,
-    oldestTweet: TweetId,
-    limit = 100,
-    eventId?: EventId,
+    opts: {
+        olderThan: TweetId;
+        limit?: number;
+        eventId?: EventId;
+    },
 ) => {
+    const { olderThan, limit = 100, eventId } = opts;
     return await db
         .select()
         .from(tweets)
         .where(
             eventId
                 ? and(
-                      lt(tweets.id, oldestTweet),
+                      lt(tweets.id, olderThan),
                       eq(tweets.eventId, eventId),
                   )
-                : lt(tweets.id, oldestTweet),
+                : lt(tweets.id, olderThan),
         )
         .orderBy(desc(tweets.id))
         .limit(limit);

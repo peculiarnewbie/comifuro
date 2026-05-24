@@ -15,7 +15,7 @@
 - Format with Prettier (configured in VS Code settings)
 - Name components with PascalCase, variables with camelCase
 - Handle errors with try/catch and user-friendly messages
-- Use Zod for validation and SolidJS for reactivity
+- Use Effect Schema for validation and SolidJS for reactivity
 - Use drizzle for orm
 
 ## Workspace Structure

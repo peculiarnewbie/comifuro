@@ -7,7 +7,8 @@ import {
     userMetaOperations,
 } from "@comifuro/core";
 import { TweetClassificationValues, TweetId, UserId } from "@comifuro/core/schema";
-import type { EventId, BoothId } from "@comifuro/core/schema";
+import { EventId } from "@comifuro/core/schema";
+import type { BoothId } from "@comifuro/core/schema";
 import { getDb, requirePassword } from "../auth";
 import { ValidationError, InternalError } from "../errors";
 import { Result, handleResult } from "../responder";
@@ -217,7 +218,7 @@ export async function exportPublicFeed(c: AppContext) {
         }, 400);
     }
 
-    const eventId = helpers.normalizeEventId(parsed.eventId, "cf22" as EventId);
+    const eventId = helpers.normalizeEventId(parsed.eventId, Schema.decodeUnknownSync(EventId)("cf22"));
     const db = getDb(c);
     const payload = JSON.stringify(await buildPublicFeed(db, eventId));
     await c.env.R2.put(`${eventId}/tweets.json`, payload, {
