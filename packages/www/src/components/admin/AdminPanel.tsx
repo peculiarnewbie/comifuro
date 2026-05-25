@@ -1,5 +1,9 @@
 import { For, Show } from "solid-js";
-import type { CatalogueTweetThread, TweetStoreSession, SearchIndexState } from "../../lib/catalogue-store";
+import type {
+    CatalogueTweetThread,
+    TweetStoreSession,
+    SearchIndexState,
+} from "../../lib/catalogue-store";
 import ActionButton from "../admin/ActionButton";
 import AdminTweetRow from "../admin/AdminTweetRow";
 import SearchBar from "../catalogue/SearchBar";
@@ -44,20 +48,10 @@ export default function AdminPanel(props: {
 }) {
     return (
         <main class="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.16),_transparent_35%),linear-gradient(180deg,_#fffaf2_0%,_#f5f5f4_52%,_#fafaf9_100%)] text-stone-800">
-            <div
-                class="sr-only"
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
-            >
+            <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
                 {props.statusBanner?.message ?? ""}
             </div>
-            <div
-                class="sr-only"
-                role="alert"
-                aria-live="assertive"
-                aria-atomic="true"
-            >
+            <div class="sr-only" role="alert" aria-live="assertive" aria-atomic="true">
                 {props.syncError ?? ""}
             </div>
             <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -72,10 +66,9 @@ export default function AdminPanel(props: {
                                     Catalogue control room
                                 </h1>
                                 <p class="max-w-2xl text-sm leading-7 text-stone-600">
-                                    Search active catalogue threads, correct the true
-                                    root tweet, add manual fandoms and tags,
-                                    uncatalogue bad entries, and strip replies out
-                                    of follow-ups.
+                                    Search active catalogue threads, correct the true root tweet,
+                                    add manual fandoms and tags, uncatalogue bad entries, and strip
+                                    replies out of follow-ups.
                                 </p>
                             </div>
                             <div class="grid gap-3 sm:grid-cols-3">
@@ -119,9 +112,7 @@ export default function AdminPanel(props: {
                                         type="password"
                                         value={props.adminPassword}
                                         onInput={(event) =>
-                                            props.setAdminPassword(
-                                                event.currentTarget.value,
-                                            )
+                                            props.setAdminPassword(event.currentTarget.value)
                                         }
                                         class="w-full rounded-2xl border border-stone-700 bg-stone-900 px-4 py-3 text-sm text-stone-50 outline-none transition focus:border-amber-400"
                                         placeholder="Uses pec-password header"
@@ -131,20 +122,12 @@ export default function AdminPanel(props: {
                             <div class="grid gap-2 sm:grid-cols-3">
                                 <ActionButton
                                     label="cf22"
-                                    tone={
-                                        props.eventId === "cf22"
-                                            ? "primary"
-                                            : "subtle"
-                                    }
+                                    tone={props.eventId === "cf22" ? "primary" : "subtle"}
                                     onClick={() => props.setEvent("cf22")}
                                 />
                                 <ActionButton
                                     label="cf21"
-                                    tone={
-                                        props.eventId === "cf21"
-                                            ? "primary"
-                                            : "subtle"
-                                    }
+                                    tone={props.eventId === "cf21" ? "primary" : "subtle"}
                                     onClick={() => props.setEvent("cf21")}
                                 />
                                 <ActionButton
@@ -173,30 +156,16 @@ export default function AdminPanel(props: {
                             <div class="space-y-1 text-xs text-stone-400">
                                 <div>
                                     sync: {props.syncStatus}{" "}
-                                    {props.bootstrapComplete
-                                        ? "(ready)"
-                                        : "(bootstrapping)"}
+                                    {props.bootstrapComplete ? "(ready)" : "(bootstrapping)"}
                                 </div>
-                                <div>
-                                    search indexed:{" "}
-                                    {props.searchIndexState.count}
-                                </div>
+                                <div>search indexed: {props.searchIndexState.count}</div>
                                 <Show when={props.lastSyncedAt}>
                                     {(value) => (
-                                        <div>
-                                            last sync:{" "}
-                                            {new Date(
-                                                value(),
-                                            ).toLocaleString()}
-                                        </div>
+                                        <div>last sync: {new Date(value()).toLocaleString()}</div>
                                     )}
                                 </Show>
                                 <Show when={props.syncError}>
-                                    {(message) => (
-                                        <div class="text-rose-300">
-                                            {message()}
-                                        </div>
-                                    )}
+                                    {(message) => <div class="text-rose-300">{message()}</div>}
                                 </Show>
                             </div>
                         </div>
@@ -205,8 +174,7 @@ export default function AdminPanel(props: {
 
                 <div class="mt-4 space-y-4">
                     <div class="rounded-[1.5rem] border border-stone-200 bg-white/75 px-4 py-3 text-sm text-stone-600 shadow-[0_20px_60px_-50px_rgba(41,37,36,0.4)] backdrop-blur">
-                        Admin mode is only shown when `?admin=1` is present in
-                        the URL.
+                        Admin mode is only shown when `?admin=1` is present in the URL.
                     </div>
 
                     <Show when={props.statusBanner}>
@@ -248,19 +216,10 @@ export default function AdminPanel(props: {
                                             </div>
                                             <div class="flex flex-wrap gap-2 text-xs text-stone-500">
                                                 <span class="rounded-full border border-stone-200 bg-white px-3 py-1">
-                                                    {thread.replies.length}{" "}
-                                                    follow-up
-                                                    {thread.replies.length ===
-                                                    1
-                                                        ? ""
-                                                        : "s"}
+                                                    {thread.replies.length} follow-up
+                                                    {thread.replies.length === 1 ? "" : "s"}
                                                 </span>
-                                                <Show
-                                                    when={
-                                                        thread.root
-                                                            .inferredBoothId
-                                                    }
-                                                >
+                                                <Show when={thread.root.inferredBoothId}>
                                                     {(boothId) => (
                                                         <span class="rounded-full border border-stone-200 bg-white px-3 py-1">
                                                             booth {boothId()}
@@ -286,27 +245,14 @@ export default function AdminPanel(props: {
                                                 <AdminTweetRow
                                                     tweet={tweet}
                                                     label={`follow-up ${tweet.threadPosition ?? ""}`}
-                                                    pendingKeys={
-                                                        props.pendingActions
-                                                    }
-                                                    onSaveFandoms={
-                                                        props.saveFandoms
-                                                    }
-                                                    onSaveTags={
-                                                        props.saveTags
-                                                    }
+                                                    pendingKeys={props.pendingActions}
+                                                    onSaveFandoms={props.saveFandoms}
+                                                    onSaveTags={props.saveTags}
                                                     onMakeRoot={(tweetId) =>
-                                                        props.makeRoot(
-                                                            thread,
-                                                            tweetId,
-                                                        )
+                                                        props.makeRoot(thread, tweetId)
                                                     }
-                                                    onUncatalogue={
-                                                        props.uncatalogue
-                                                    }
-                                                    onRemoveFollowUp={
-                                                        props.removeFollowUp
-                                                    }
+                                                    onUncatalogue={props.uncatalogue}
+                                                    onRemoveFollowUp={props.removeFollowUp}
                                                 />
                                             )}
                                         </For>

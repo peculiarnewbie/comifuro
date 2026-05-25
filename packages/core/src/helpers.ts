@@ -1,8 +1,7 @@
 import { EventId } from "./schema";
 import * as Schema from "effect/Schema";
 
-export const TWEET_MEDIA_KEY_REGEX =
-    /^[A-Za-z0-9_-]+\/\d+(?:\.thumb)?\.webp$/;
+export const TWEET_MEDIA_KEY_REGEX = /^[A-Za-z0-9_-]+\/\d+(?:\.thumb)?\.webp$/;
 
 export function toDate(value: number | string | Date | null | undefined) {
     if (value == null) {
@@ -38,9 +37,7 @@ export function normalizeTagList(values: string[] | undefined) {
         return undefined;
     }
 
-    return Array.from(
-        new Set(values.map((value) => value.trim()).filter(Boolean)),
-    );
+    return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
 
 export function toNumberParam(value: string | undefined) {

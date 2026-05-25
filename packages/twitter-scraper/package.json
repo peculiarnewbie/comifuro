@@ -1,9 +1,11 @@
 {
     "name": "twitter-scraper",
-    "type": "module",
     "private": true,
-    "peerDependencies": {
-        "typescript": "^5"
+    "type": "module",
+    "scripts": {
+        "scrape": "tsx src/main.ts",
+        "scrape:max-id": "tsx src/main.ts --mode=max-id",
+        "dev": "tsx watch src/main.ts"
     },
     "dependencies": {
         "@comifuro/core": "workspace:*",
@@ -16,9 +18,7 @@
         "@types/bun": "latest",
         "tsx": "^4.20.6"
     },
-    "scripts": {
-        "scrape": "tsx src/main.ts",
-        "scrape:max-id": "tsx src/main.ts --mode=max-id",
-        "dev": "tsx watch src/main.ts"
+    "peerDependencies": {
+        "typescript": "^5"
     }
 }

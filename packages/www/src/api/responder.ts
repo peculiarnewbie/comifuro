@@ -13,25 +13,18 @@ export const Result = {
     err<E extends ApiError>(error: E): Result<never, E> {
         return { _tag: "err", error };
     },
-    isError<T, E extends ApiError>(
-        result: Result<T, E>,
-    ): result is { _tag: "err"; error: E } {
+    isError<T, E extends ApiError>(result: Result<T, E>): result is { _tag: "err"; error: E } {
         return result._tag === "err";
     },
     match<T, E extends ApiError, R>(
         result: Result<T, E>,
         handlers: { ok: (value: T) => R; err: (error: E) => R },
     ): R {
-        return result._tag === "ok"
-            ? handlers.ok(result.value)
-            : handlers.err(result.error);
+        return result._tag === "ok" ? handlers.ok(result.value) : handlers.err(result.error);
     },
 };
 
-export function mapErrorToResponse(
-    c: Context<Env>,
-    error: ApiError,
-): Response {
+export function mapErrorToResponse(c: Context<Env>, error: ApiError): Response {
     switch (error._tag) {
         case "UnauthorizedError":
             return c.json({ error: error.message }, 401);

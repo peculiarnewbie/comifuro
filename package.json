@@ -1,19 +1,27 @@
 {
-  "name": "comifuro",
-  "scripts": {
-    "scrape": "pnpm --filter twitter-scraper run scrape",
-    "scrape:max-id": "pnpm --filter twitter-scraper run scrape:max-id"
-  },
-  "catalog": {
-    "wrangler": "^4.40.2",
-    "drizzle-orm": "^0.44.6"
-  },
-  "workspaces": [
-    "packages/*"
-  ],
-  "devDependencies": {
-    "drizzle-kit": "1.0.0-rc.3",
-    "prettier": "^3.6.2"
-  },
-  "packageManager": "pnpm@10.33.0"
+    "name": "comifuro",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vp dev",
+        "build": "vp build",
+        "check": "vp check",
+        "typecheck": "pnpm -r typecheck",
+        "deploy": "vp exec alchemy deploy www/alchemy.run.ts",
+        "destroy": "vp exec alchemy destroy www/alchemy.run.ts",
+        "scrape": "pnpm --filter twitter-scraper run scrape",
+        "scrape:max-id": "pnpm --filter twitter-scraper run scrape:max-id"
+    },
+    "devDependencies": {
+        "@effect/platform-node": "catalog:",
+        "@types/node": "catalog:",
+        "@typescript/native-preview": "catalog:",
+        "alchemy": "catalog:",
+        "effect": "catalog:",
+        "typescript": "catalog:",
+        "vite": "catalog:",
+        "vite-plus": "catalog:",
+        "vitest": "catalog:"
+    },
+    "packageManager": "pnpm@10.33.0"
 }

@@ -1,10 +1,5 @@
-import {
-    and,
-    eq,
-} from "drizzle-orm";
-import {
-    items,
-} from "../schema";
+import { and, eq } from "drizzle-orm";
+import { items } from "../schema";
 import type { EventId, UserId, TweetId } from "../schema";
 import type { SupportedDb } from "./_shared";
 
@@ -18,14 +13,7 @@ export const replaceUserItems = async (
     },
 ) => {
     const now = new Date();
-    await db
-        .delete(items)
-        .where(
-            and(
-                eq(items.eventId, input.eventId),
-                eq(items.user, input.user),
-            ),
-        );
+    await db.delete(items).where(and(eq(items.eventId, input.eventId), eq(items.user, input.user)));
 
     if (input.items.length === 0) {
         return [];
@@ -48,24 +36,15 @@ export const replaceUserItems = async (
         .returning();
 };
 
-export const listUserItems = async (
-    db: SupportedDb,
-    eventId: EventId,
-    user: UserId,
-) => {
+export const listUserItems = async (db: SupportedDb, eventId: EventId, user: UserId) => {
     return await db
         .select()
         .from(items)
-        .where(
-            and(eq(items.eventId, eventId), eq(items.user, user)),
-        )
+        .where(and(eq(items.eventId, eventId), eq(items.user, user)))
         .orderBy(items.type);
 };
 
-export const listItemsByEvent = async (
-    db: SupportedDb,
-    eventId: EventId,
-) => {
+export const listItemsByEvent = async (db: SupportedDb, eventId: EventId) => {
     return await db
         .select()
         .from(items)

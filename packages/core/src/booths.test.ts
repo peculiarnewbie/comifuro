@@ -110,10 +110,7 @@ describe("boothsOperations", () => {
             },
         ]);
 
-        const inserted = await boothsOperations.rebuildBoothsFromTweets(
-            db,
-            "cf22" as EventId,
-        );
+        const inserted = await boothsOperations.rebuildBoothsFromTweets(db, "cf22" as EventId);
         expect(inserted).toHaveLength(2);
 
         const allBooths = await boothsOperations.listBooths(db, "cf22" as EventId);

@@ -1,11 +1,5 @@
-import {
-    and,
-    eq,
-    sql,
-} from "drizzle-orm";
-import {
-    userEventMeta,
-} from "../schema";
+import { and, eq, sql } from "drizzle-orm";
+import { userEventMeta } from "../schema";
 import type { UserId, EventId, BoothId } from "../schema";
 import type { SupportedDb } from "./_shared";
 
@@ -33,29 +27,18 @@ export const upsertUserMeta = async (
             target: [userEventMeta.user, userEventMeta.eventId],
             set: {
                 boothId: sql.raw(`excluded.${userEventMeta.boothId.name}`),
-                preorderDeadline: sql.raw(
-                    `excluded.${userEventMeta.preorderDeadline.name}`,
-                ),
+                preorderDeadline: sql.raw(`excluded.${userEventMeta.preorderDeadline.name}`),
                 updatedAt: sql.raw(`excluded.${userEventMeta.updatedAt.name}`),
             },
         })
         .returning();
 };
 
-export const getUserMeta = async (
-    db: SupportedDb,
-    eventId: EventId,
-    user: UserId,
-) => {
+export const getUserMeta = async (db: SupportedDb, eventId: EventId, user: UserId) => {
     const rows = await db
         .select()
         .from(userEventMeta)
-        .where(
-            and(
-                eq(userEventMeta.eventId, eventId),
-                eq(userEventMeta.user, user),
-            ),
-        )
+        .where(and(eq(userEventMeta.eventId, eventId), eq(userEventMeta.user, user)))
         .limit(1);
     return rows[0] ?? null;
 };

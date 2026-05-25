@@ -10,9 +10,9 @@ function getHeaders() {
     };
 
     if (username && password) {
-        headers.Authorization = `Basic ${Buffer.from(
-            `${username}:${password}`,
-        ).toString("base64")}`;
+        headers.Authorization = `Basic ${Buffer.from(`${username}:${password}`).toString(
+            "base64",
+        )}`;
     }
 
     return headers;
@@ -23,7 +23,7 @@ async function request(path, init = {}) {
         ...init,
         headers: {
             ...getHeaders(),
-            ...(init.headers ?? {}),
+            ...init.headers,
         },
     });
 

@@ -31,12 +31,7 @@ export default function CataloguePage(props: {
 }) {
     return (
         <main class="mx-auto max-w-7xl p-4 text-gray-700">
-            <div
-                class="sr-only"
-                role="alert"
-                aria-live="assertive"
-                aria-atomic="true"
-            >
+            <div class="sr-only" role="alert" aria-live="assertive" aria-atomic="true">
                 {props.syncError ?? ""}
             </div>
             <div class="mb-4 flex flex-wrap items-center gap-2">
@@ -76,22 +71,13 @@ export default function CataloguePage(props: {
                     <div>filtered: {props.filteredThreads.length}</div>
                     <div>
                         sync: {props.syncStatus}
-                        {props.bootstrapComplete
-                            ? " (ready)"
-                            : " (bootstrapping)"}
+                        {props.bootstrapComplete ? " (ready)" : " (bootstrapping)"}
                     </div>
                     <Show when={props.lastSyncedAt}>
-                        {(value) => (
-                            <div>
-                                last sync:{" "}
-                                {new Date(value()).toLocaleString()}
-                            </div>
-                        )}
+                        {(value) => <div>last sync: {new Date(value()).toLocaleString()}</div>}
                     </Show>
                     <Show when={props.syncError}>
-                        {(message) => (
-                            <div class="text-red-600">{message()}</div>
-                        )}
+                        {(message) => <div class="text-red-600">{message()}</div>}
                     </Show>
                 </div>
 
@@ -124,17 +110,8 @@ export default function CataloguePage(props: {
                             <TweetCard
                                 thread={thread}
                                 mark={props.marks[thread.groupId] ?? null}
-                                onMark={(mark) =>
-                                    props.marksSession?.setMark(
-                                        thread.groupId,
-                                        mark,
-                                    )
-                                }
-                                onClearMark={() =>
-                                    props.marksSession?.clearMark(
-                                        thread.groupId,
-                                    )
-                                }
+                                onMark={(mark) => props.marksSession?.setMark(thread.groupId, mark)}
+                                onClearMark={() => props.marksSession?.clearMark(thread.groupId)}
                             />
                         )}
                     </For>

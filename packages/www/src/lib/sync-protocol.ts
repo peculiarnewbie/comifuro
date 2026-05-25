@@ -31,16 +31,12 @@ export function createTweetSyncProtocol(apiHost: string): TweetSyncProtocol {
             params.set("cursorId", cursor.id);
         }
 
-        const response = await fetch(
-            `${apiHost}/tweets/sync?${params.toString()}`,
-        );
+        const response = await fetch(`${apiHost}/tweets/sync?${params.toString()}`);
         if (!response.ok) {
             throw new Error(`sync failed with status ${response.status}`);
         }
 
-        return Schema.decodeUnknownSync(TweetSyncResponseSchema)(
-            await response.json(),
-        );
+        return Schema.decodeUnknownSync(TweetSyncResponseSchema)(await response.json());
     };
 
     const syncOnce = async (eventId: string): Promise<TweetSyncPage> => {
@@ -97,19 +93,14 @@ export type MarksSyncPage = {
 };
 
 export type MarksSyncProtocol = {
-    flushPending(
-        pending: Map<string, { mark: Marks | null }>,
-        accountId: string,
-    ): Promise<void>;
+    flushPending(pending: Map<string, { mark: Marks | null }>, accountId: string): Promise<void>;
     pull(
         accountId: string,
         lastKnownVersion: number,
     ): Promise<{ marks: { tweetId: string; mark: Marks }[]; serverTime: number }>;
 };
 
-export function createMarksSyncProtocol(
-    apiHost: string,
-): MarksSyncProtocol {
+export function createMarksSyncProtocol(apiHost: string): MarksSyncProtocol {
     const flushPending = async (
         pending: Map<string, { mark: Marks | null }>,
         accountId: string,
@@ -139,9 +130,7 @@ export function createMarksSyncProtocol(
         });
 
         if (!response.ok) {
-            throw new Error(
-                `marks sync failed with status ${response.status}`,
-            );
+            throw new Error(`marks sync failed with status ${response.status}`);
         }
 
         await response.json();
@@ -154,20 +143,15 @@ export function createMarksSyncProtocol(
         const params = new URLSearchParams();
         params.set("version", String(lastKnownVersion));
 
-        const response = await fetch(
-            `${apiHost}/marks?${params.toString()}`,
-            { headers: { "x-account-id": accountId } },
-        );
+        const response = await fetch(`${apiHost}/marks?${params.toString()}`, {
+            headers: { "x-account-id": accountId },
+        });
 
         if (!response.ok) {
-            throw new Error(
-                `marks fetch failed with status ${response.status}`,
-            );
+            throw new Error(`marks fetch failed with status ${response.status}`);
         }
 
-        const data = Schema.decodeUnknownSync(MarksResponseSchema)(
-            await response.json(),
-        );
+        const data = Schema.decodeUnknownSync(MarksResponseSchema)(await response.json());
 
         return {
             marks: data.marks.map((m) => ({

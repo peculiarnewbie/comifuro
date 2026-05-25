@@ -18,10 +18,7 @@ function readEventId() {
         return "cf22";
     }
 
-    return (
-        new URLSearchParams(window.location.search).get("event")?.trim().toLowerCase() ||
-        "cf22"
-    );
+    return new URLSearchParams(window.location.search).get("event")?.trim().toLowerCase() || "cf22";
 }
 
 function buildTagRows(tweets: CatalogueTweet[]) {
@@ -77,7 +74,7 @@ function TagsRouteComponent() {
         let disposed = false;
         let unsubscribe = () => {};
 
-        (async () => {
+        void (async () => {
             const nextSession = await createTweetStoreSession({
                 eventId: selectedEventId,
                 apiHost: getApiHost(window.location.href),
@@ -115,8 +112,7 @@ function TagsRouteComponent() {
 
         return rows().filter(
             (row) =>
-                row.tag.toLowerCase().includes(needle) ||
-                row.source.toLowerCase().includes(needle),
+                row.tag.toLowerCase().includes(needle) || row.source.toLowerCase().includes(needle),
         );
     });
 
@@ -134,10 +130,18 @@ function TagsRouteComponent() {
                 <a class="rounded border px-3 py-1" href={`/?event=${eventId()}`}>
                     catalogue
                 </a>
-                <button type="button" class="rounded border px-3 py-1" onClick={() => setEvent("cf22")}>
+                <button
+                    type="button"
+                    class="rounded border px-3 py-1"
+                    onClick={() => setEvent("cf22")}
+                >
                     cf22
                 </button>
-                <button type="button" class="rounded border px-3 py-1" onClick={() => setEvent("cf21")}>
+                <button
+                    type="button"
+                    class="rounded border px-3 py-1"
+                    onClick={() => setEvent("cf21")}
+                >
                     cf21
                 </button>
             </div>
@@ -149,7 +153,8 @@ function TagsRouteComponent() {
                         Loaded from this browser cache only. No server sync is started here.
                     </p>
                     <p class="mt-2 text-sm">
-                        event: {eventId()} · tweets cached: {tweets().length} · tags: {rows().length}
+                        event: {eventId()} · tweets cached: {tweets().length} · tags:{" "}
+                        {rows().length}
                     </p>
                 </div>
                 <input
@@ -183,7 +188,9 @@ function TagsRouteComponent() {
                                     <tr class="border-t">
                                         <td class="px-3 py-2 font-medium">{row.tag}</td>
                                         <td class="px-3 py-2 text-gray-500">{row.source}</td>
-                                        <td class="px-3 py-2 text-right tabular-nums">{row.count}</td>
+                                        <td class="px-3 py-2 text-right tabular-nums">
+                                            {row.count}
+                                        </td>
                                     </tr>
                                 )}
                             </For>

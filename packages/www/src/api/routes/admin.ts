@@ -2,7 +2,7 @@ import * as Schema from "effect/Schema";
 import { Result } from "../responder";
 import { tweetsOperations } from "@comifuro/core";
 import { getDb, requireAdmin } from "../auth";
-import { ValidationError, NotFoundError, InternalError } from "../errors";
+import { NotFoundError, InternalError } from "../errors";
 import { handleResult } from "../responder";
 import { helpers } from "@comifuro/core";
 import type { AppContext } from "../types";
@@ -25,10 +25,7 @@ export async function listMissingThumbnails(c: AppContext) {
         });
     }
 
-    const limit = Math.min(
-        Math.max(Number(c.req.query("limit") ?? 100), 1),
-        500,
-    );
+    const limit = Math.min(Math.max(Number(c.req.query("limit") ?? 100), 1), 500);
     const cursorTweetId = c.req.query("cursorTweetId");
     const cursorMediaIndex = helpers.toNumberParam(c.req.query("cursorMediaIndex"));
     const cursor =
@@ -37,10 +34,10 @@ export async function listMissingThumbnails(c: AppContext) {
             : undefined;
 
     try {
-        const rows = await tweetsOperations.listTweetMediaMissingThumbnails(
-            getDb(c),
-            { limit, cursor },
-        );
+        const rows = await tweetsOperations.listTweetMediaMissingThumbnails(getDb(c), {
+            limit,
+            cursor,
+        });
         const lastRow = rows[rows.length - 1];
 
         return c.json({
@@ -62,10 +59,7 @@ export async function listMissingThumbnails(c: AppContext) {
             c,
             Result.err(
                 new InternalError({
-                    message:
-                        error instanceof Error
-                            ? error.message
-                            : "query failed",
+                    message: error instanceof Error ? error.message : "query failed",
                     cause: error,
                 }),
             ),
@@ -95,20 +89,20 @@ export async function setThumbnail(c: AppContext) {
     try {
         parsed = Schema.decodeUnknownSync(SetThumbnailBody)(body);
     } catch (error) {
-        return c.json({
-            error: error instanceof Error ? error.message : "validation failed",
-        }, 400);
+        return c.json(
+            {
+                error: error instanceof Error ? error.message : "validation failed",
+            },
+            400,
+        );
     }
 
     try {
-        const updated = await tweetsOperations.setTweetMediaThumbnail(
-            getDb(c),
-            {
-                tweetId: tweetId as TweetId,
-                mediaIndex,
-                thumbnailR2Key: parsed.thumbnailR2Key,
-            },
-        );
+        const updated = await tweetsOperations.setTweetMediaThumbnail(getDb(c), {
+            tweetId: tweetId as TweetId,
+            mediaIndex,
+            thumbnailR2Key: parsed.thumbnailR2Key,
+        });
 
         if (updated.length === 0) {
             return handleResult(
@@ -131,10 +125,7 @@ export async function setThumbnail(c: AppContext) {
             c,
             Result.err(
                 new InternalError({
-                    message:
-                        error instanceof Error
-                            ? error.message
-                            : "update failed",
+                    message: error instanceof Error ? error.message : "update failed",
                     cause: error,
                 }),
             ),
@@ -162,9 +153,12 @@ export async function updateTweetMetadata(c: AppContext) {
     try {
         parsed = Schema.decodeUnknownSync(AdminTweetMetadata)(body);
     } catch (error) {
-        return c.json({
-            error: error instanceof Error ? error.message : "validation failed",
-        }, 400);
+        return c.json(
+            {
+                error: error instanceof Error ? error.message : "validation failed",
+            },
+            400,
+        );
     }
 
     if (parsed.inferredFandoms === undefined && parsed.matchedTags === undefined) {
@@ -172,15 +166,16 @@ export async function updateTweetMetadata(c: AppContext) {
     }
 
     try {
-        const [tweet] = await tweetsOperations.updateTweetAdminMetadata(
-            getDb(c),
-            {
-                id: c.req.param("id")! as TweetId,
-                inferredFandoms: helpers.normalizeTagList(parsed.inferredFandoms ? [...parsed.inferredFandoms] : undefined),
-                matchedTags: helpers.normalizeTagList(parsed.matchedTags ? [...parsed.matchedTags] : undefined),
-                updatedAt: new Date(),
-            },
-        );
+        const [tweet] = await tweetsOperations.updateTweetAdminMetadata(getDb(c), {
+            id: c.req.param("id")! as TweetId,
+            inferredFandoms: helpers.normalizeTagList(
+                parsed.inferredFandoms ? [...parsed.inferredFandoms] : undefined,
+            ),
+            matchedTags: helpers.normalizeTagList(
+                parsed.matchedTags ? [...parsed.matchedTags] : undefined,
+            ),
+            updatedAt: new Date(),
+        });
 
         if (!tweet) {
             return handleResult(
@@ -203,10 +198,7 @@ export async function updateTweetMetadata(c: AppContext) {
             c,
             Result.err(
                 new InternalError({
-                    message:
-                        error instanceof Error
-                            ? error.message
-                            : "update failed",
+                    message: error instanceof Error ? error.message : "update failed",
                     cause: error,
                 }),
             ),
@@ -230,9 +222,12 @@ export async function rerootThread(c: AppContext) {
     try {
         parsed = Schema.decodeUnknownSync(RerootThread)(body);
     } catch (error) {
-        return c.json({
-            error: error instanceof Error ? error.message : "validation failed",
-        }, 400);
+        return c.json(
+            {
+                error: error instanceof Error ? error.message : "validation failed",
+            },
+            400,
+        );
     }
 
     try {
@@ -248,8 +243,7 @@ export async function rerootThread(c: AppContext) {
             c,
             Result.err(
                 new InternalError({
-                    message:
-                        error instanceof Error ? error.message : "reroot failed",
+                    message: error instanceof Error ? error.message : "reroot failed",
                     cause: error,
                 }),
             ),
@@ -296,10 +290,7 @@ export async function uncatalogueTweet(c: AppContext) {
             c,
             Result.err(
                 new InternalError({
-                    message:
-                        error instanceof Error
-                            ? error.message
-                            : "uncatalogue failed",
+                    message: error instanceof Error ? error.message : "uncatalogue failed",
                     cause: error,
                 }),
             ),
@@ -346,10 +337,7 @@ export async function removeFollowUp(c: AppContext) {
             c,
             Result.err(
                 new InternalError({
-                    message:
-                        error instanceof Error
-                            ? error.message
-                            : "remove failed",
+                    message: error instanceof Error ? error.message : "remove failed",
                     cause: error,
                 }),
             ),

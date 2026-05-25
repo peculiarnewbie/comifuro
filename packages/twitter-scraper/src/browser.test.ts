@@ -2,10 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { buildThreadContinuationChain } from "./browser";
 import type { ExtractedTweet } from "./types";
 
-function makeTweet(
-    id: string,
-    overrides: Partial<ExtractedTweet> = {},
-): ExtractedTweet {
+function makeTweet(id: string, overrides: Partial<ExtractedTweet> = {}): ExtractedTweet {
     return {
         id,
         user: "artist",
@@ -36,10 +33,7 @@ describe("buildThreadContinuationChain", () => {
 
         expect(result.rootFound).toBe(true);
         expect(result.chain.map((tweet) => tweet.id)).toEqual(["101", "102"]);
-        expect(result.chain.map((tweet) => tweet.parentTweetId)).toEqual([
-            "100",
-            "101",
-        ]);
+        expect(result.chain.map((tweet) => tweet.parentTweetId)).toEqual(["100", "101"]);
         expect(result.chain.map((tweet) => tweet.threadPosition)).toEqual([1, 2]);
     });
 

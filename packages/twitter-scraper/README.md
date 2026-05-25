@@ -23,7 +23,7 @@ helium-browser --remote-debugging-port=9222
 3. Leave an X tab open. The scraper attaches to an existing tab and reuses it.
    If you want the scraper to launch the browser for you when CDP is unavailable, set `SCRAPER_BROWSER_COMMAND`.
 4. Start opencode in server mode:
-This is optional now. By default the scraper will start its own dedicated `opencode serve` on port `4097` if nothing is already listening there.
+   This is optional now. By default the scraper will start its own dedicated `opencode serve` on port `4097` if nothing is already listening there.
 
 ## Environment
 

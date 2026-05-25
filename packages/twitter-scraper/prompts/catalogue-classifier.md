@@ -7,6 +7,7 @@ Treat it as `false` when it is only general event chatter, retweets without cata
 Be conservative. If the text and images together do not clearly indicate catalogue intent, return `false`.
 
 Analyze ANY images provided for additional metadata. Look for:
+
 - Booth numbers visible on signage or catalogue cards
 - Fandom/franchise names or characters visible on products or signage
 - Item types being sold (common types: print, sticker, pin, acrylic-stand, keychain, zine, apparel, button, clear-file, postcard, bookmark, tapestry, plushie, strap, badge, coaster, magnet — but also identify anything else you see)
@@ -22,6 +23,7 @@ For `inferredItemTypes`, list the broad categories of items you can identify fro
 For `preorderDeadline`, return the preorder deadline date if visible (e.g. "2025/03/31"). Return `null` if no preorder info is present.
 
 For `items`, list the individual items you can identify. Each item should have:
+
 - `type`: what kind of item (required)
 - `price`: the price if visible (optional, e.g. "¥1500")
 - `fandom`: which fandom this specific item is for (optional)

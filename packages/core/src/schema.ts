@@ -1,10 +1,4 @@
-import {
-    sqliteTable,
-    text,
-    integer,
-    index,
-    primaryKey,
-} from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index, primaryKey } from "drizzle-orm/sqlite-core";
 import * as Schema from "effect/Schema";
 
 export const TweetId = Schema.brand("TweetId")(Schema.String);
@@ -61,15 +55,11 @@ export const tweets = sqliteTable(
             .default("unknown"),
         classificationReason: text("classification_reason"),
         classifierPromptVersion: text("classifier_prompt_version"),
-        inferredFandoms: text("inferred_fandoms", { mode: "json" }).$type<
-            string[] | null
-        >(),
+        inferredFandoms: text("inferred_fandoms", { mode: "json" }).$type<string[] | null>(),
         inferredFandomsConfidence: text("inferred_fandoms_confidence"),
         inferredBoothId: text("inferred_booth_id").$type<BoothId | null>(),
         inferredBoothIdConfidence: text("inferred_booth_id_confidence"),
-        inferredItemTypes: text("inferred_item_types", { mode: "json" }).$type<
-            string[] | null
-        >(),
+        inferredItemTypes: text("inferred_item_types", { mode: "json" }).$type<string[] | null>(),
         rootTweetId: text("root_tweet_id").$type<TweetId | null>(),
         parentTweetId: text("parent_tweet_id").$type<TweetId | null>(),
         threadPosition: integer("thread_position"),
@@ -96,11 +86,7 @@ export const tweets = sqliteTable(
             table.id,
         ),
         index("parent_tweet_idx").on(table.parentTweetId),
-        index("event_updated_id_idx").on(
-            table.eventId,
-            table.updatedAt,
-            table.id,
-        ),
+        index("event_updated_id_idx").on(table.eventId, table.updatedAt, table.id),
     ],
 );
 
@@ -128,12 +114,7 @@ export const tweetMedia = sqliteTable(
     ],
 );
 
-export const BoothStatusValues = [
-    "unknown",
-    "available",
-    "occupied",
-    "reserved",
-] as const;
+export const BoothStatusValues = ["unknown", "available", "occupied", "reserved"] as const;
 
 export const booths = sqliteTable(
     "booths",
@@ -141,12 +122,12 @@ export const booths = sqliteTable(
         eventId: text("event_id").notNull().$type<EventId>(),
         id: text("id").notNull().$type<BoothId>(),
         section: text("section").notNull(),
-        status: text("status", { enum: BoothStatusValues })
-            .notNull()
-            .default("unknown"),
+        status: text("status", { enum: BoothStatusValues }).notNull().default("unknown"),
         exhibitorUser: text("exhibitor_user"),
         exhibitorDisplayName: text("exhibitor_display_name"),
-        primaryTweetId: text("primary_tweet_id").$type<TweetId | null>().references(() => tweets.id),
+        primaryTweetId: text("primary_tweet_id")
+            .$type<TweetId | null>()
+            .references(() => tweets.id),
         createdAt: integer("created_at", { mode: "timestamp_ms" })
             .notNull()
             .$defaultFn(() => new Date()),
@@ -234,15 +215,11 @@ export const userToTweet = sqliteTable(
         createdAt: integer("created_at", { mode: "timestamp_ms" })
             .notNull()
             .$defaultFn(() => new Date()),
-        deleted: integer("deleted", { mode: "boolean" })
-            .notNull()
-            .default(false),
+        deleted: integer("deleted", { mode: "boolean" }).notNull().default(false),
         updatedAt: integer("updated_at", { mode: "timestamp_ms" })
             .notNull()
             .$defaultFn(() => new Date()),
-        lastModifiedVersion: integer("last_modified_version")
-            .notNull()
-            .default(0),
+        lastModifiedVersion: integer("last_modified_version").notNull().default(0),
         tags: text("tags", { mode: "json" }).$type<string[]>(),
     },
     (t) => [
@@ -272,11 +249,7 @@ export const replicacheClients = sqliteTable(
                 onDelete: "cascade",
             }),
         lastMutationId: integer("last_mutation_id").notNull().default(0),
-        lastModifiedVersion: integer("last_modified_version")
-            .notNull()
-            .default(0),
+        lastModifiedVersion: integer("last_modified_version").notNull().default(0),
     },
-    (t) => [
-        index("group_with_mutation_idx").on(t.clientGroupId, t.lastMutationId),
-    ],
+    (t) => [index("group_with_mutation_idx").on(t.clientGroupId, t.lastMutationId)],
 );

@@ -54,11 +54,7 @@ function asObjectRecord(value: unknown): Record<string, unknown> | null {
 }
 
 export function normalizeInferredFandoms(value: unknown) {
-    const candidates = Array.isArray(value)
-        ? value
-        : typeof value === "string"
-          ? [value]
-          : [];
+    const candidates = Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
     const normalized: string[] = [];
     const seen = new Set<string>();
 
@@ -89,11 +85,7 @@ export function normalizeInferredFandoms(value: unknown) {
 }
 
 export function normalizeInferredItemTypes(value: unknown) {
-    const candidates = Array.isArray(value)
-        ? value
-        : typeof value === "string"
-          ? [value]
-          : [];
+    const candidates = Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
     const normalized: string[] = [];
     const seen = new Set<string>();
 
@@ -176,17 +168,13 @@ export function normalizeItems(value: unknown): ItemInfo[] {
     return result;
 }
 
-export function parseClassificationResponse(
-    raw: string,
-): Omit<ClassificationResult, "raw"> {
+export function parseClassificationResponse(raw: string): Omit<ClassificationResult, "raw"> {
     const parsed = extractJsonObject(raw);
     const parsedRecord = asObjectRecord(parsed);
     const required = Schema.decodeUnknownSync(requiredClassificationSchema)(parsed);
     const inferredFandoms = normalizeInferredFandoms(parsedRecord?.inferredFandoms);
     const inferredBoothId = normalizeInferredBoothId(parsedRecord?.inferredBoothId);
-    const inferredItemTypes = normalizeInferredItemTypes(
-        parsedRecord?.inferredItemTypes,
-    );
+    const inferredItemTypes = normalizeInferredItemTypes(parsedRecord?.inferredItemTypes);
     const preorderDeadline =
         typeof parsedRecord?.preorderDeadline === "string" &&
         parsedRecord.preorderDeadline.trim().toLowerCase() !== "null"

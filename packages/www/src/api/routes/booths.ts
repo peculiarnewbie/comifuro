@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 import { boothsOperations } from "@comifuro/core";
 import { getDb, requireAdmin } from "../auth";
-import { ValidationError, NotFoundError, InternalError } from "../errors";
+import { NotFoundError, InternalError } from "../errors";
 import { Result, handleResult } from "../responder";
 import { helpers } from "@comifuro/core";
 import type { AppContext } from "../types";
@@ -10,7 +10,10 @@ import { EventId, BoothId } from "@comifuro/core/schema";
 const BoothStatus = Schema.Literals(["unknown", "available", "occupied", "reserved"] as const);
 
 export async function listBooths(c: AppContext) {
-    const eventId = helpers.normalizeEventId(c.req.query("eventId"), Schema.decodeUnknownSync(EventId)("cf22"));
+    const eventId = helpers.normalizeEventId(
+        c.req.query("eventId"),
+        Schema.decodeUnknownSync(EventId)("cf22"),
+    );
     const limit = Math.min(Math.max(helpers.toNumberParam(c.req.query("limit")) ?? 500, 1), 1000);
     const offset = Math.max(helpers.toNumberParam(c.req.query("offset")) ?? 0, 0);
 
@@ -36,8 +39,7 @@ export async function listBooths(c: AppContext) {
             c,
             Result.err(
                 new InternalError({
-                    message:
-                        error instanceof Error ? error.message : "list failed",
+                    message: error instanceof Error ? error.message : "list failed",
                     cause: error,
                 }),
             ),
@@ -49,12 +51,15 @@ export async function listBooths(c: AppContext) {
 }
 
 export async function getBooth(c: AppContext) {
-    const eventId = helpers.normalizeEventId(c.req.query("eventId"), Schema.decodeUnknownSync(EventId)("cf22"));
+    const eventId = helpers.normalizeEventId(
+        c.req.query("eventId"),
+        Schema.decodeUnknownSync(EventId)("cf22"),
+    );
     const id = c.req.param("id")!;
 
     try {
-        const result = await boothsOperations.getBoothWithTweets(getDb(c), eventId, idValue);
         const idValue = Schema.decodeUnknownSync(BoothId)(id.toUpperCase());
+        const result = await boothsOperations.getBoothWithTweets(getDb(c), eventId, idValue);
         if (!result.booth) {
             return handleResult(
                 c,
@@ -76,8 +81,7 @@ export async function getBooth(c: AppContext) {
             c,
             Result.err(
                 new InternalError({
-                    message:
-                        error instanceof Error ? error.message : "get failed",
+                    message: error instanceof Error ? error.message : "get failed",
                     cause: error,
                 }),
             ),
@@ -96,13 +100,13 @@ export async function rebuildBooths(c: AppContext) {
         });
     }
 
-    const eventId = helpers.normalizeEventId(c.req.query("eventId"), Schema.decodeUnknownSync(EventId)("cf22"));
+    const eventId = helpers.normalizeEventId(
+        c.req.query("eventId"),
+        Schema.decodeUnknownSync(EventId)("cf22"),
+    );
 
     try {
-        const inserted = await boothsOperations.rebuildBoothsFromTweets(
-            getDb(c),
-            eventId,
-        );
+        const inserted = await boothsOperations.rebuildBoothsFromTweets(getDb(c), eventId);
         return c.json({ ok: true, eventId, count: inserted.length });
     } catch (error) {
         console.error("[booths] rebuild error", { eventId }, error);
@@ -110,10 +114,7 @@ export async function rebuildBooths(c: AppContext) {
             c,
             Result.err(
                 new InternalError({
-                    message:
-                        error instanceof Error
-                            ? error.message
-                            : "rebuild failed",
+                    message: error instanceof Error ? error.message : "rebuild failed",
                     cause: error,
                 }),
             ),

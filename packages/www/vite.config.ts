@@ -1,15 +1,21 @@
-import { defineConfig } from "vite";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
-import solidPlugin from "vite-plugin-solid";
 import { cloudflare } from "@cloudflare/vite-plugin";
+import { defineConfig } from "vite-plus";
+import solid from "vite-plugin-solid";
 import tailwindcss from "@tailwindcss/vite";
 
-// https://vitejs.dev/config/
 export default defineConfig({
     plugins: [
         TanStackRouterVite({ target: "solid", autoCodeSplitting: true }),
-        solidPlugin(),
+        solid(),
         tailwindcss(),
-        cloudflare(),
+        ...(process.env.VITEST ? [] : [cloudflare()]),
     ],
+    server: {
+        allowedHosts: true,
+    },
+    staged: {
+        "*": "vp check --fix",
+    },
+    lint: { options: { typeAware: true, typeCheck: true } },
 });

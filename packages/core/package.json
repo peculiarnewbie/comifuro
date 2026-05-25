@@ -3,13 +3,6 @@
     "version": "1.0.0",
     "private": true,
     "type": "module",
-    "dependencies": {
-        "drizzle-orm": "catalog:",
-        "effect": "catalog:"
-    },
-    "devDependencies": {
-        "drizzle-kit": "^1.0.0-rc.3"
-    },
     "exports": {
         ".": "./src/index.ts",
         "./bunSqlite": "./src/db.ts",
@@ -17,5 +10,12 @@
         "./migrate": "./src/migrate.ts",
         "./schemas": "./src/schemas.ts",
         "./types": "./src/types.ts"
+    },
+    "dependencies": {
+        "drizzle-orm": "catalog:",
+        "effect": "catalog:"
+    },
+    "devDependencies": {
+        "drizzle-kit": "catalog:"
     }
 }

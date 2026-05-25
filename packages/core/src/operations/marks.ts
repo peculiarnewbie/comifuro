@@ -1,29 +1,14 @@
-import {
-    and,
-    eq,
-    gt,
-    sql,
-} from "drizzle-orm";
-import {
-    userToTweet,
-    MarkValues,
-} from "../schema";
+import { and, eq, gt, sql } from "drizzle-orm";
+import { userToTweet, MarkValues } from "../schema";
 import type { TweetId } from "../schema";
 import type { SupportedDb } from "./_shared";
 
-export const getUserMarks = async (
-    db: SupportedDb,
-    userId: string,
-    prevVersion: number,
-) => {
+export const getUserMarks = async (db: SupportedDb, userId: string, prevVersion: number) => {
     return await db
         .select()
         .from(userToTweet)
         .where(
-            and(
-                eq(userToTweet.userId, userId),
-                gt(userToTweet.lastModifiedVersion, prevVersion),
-            ),
+            and(eq(userToTweet.userId, userId), gt(userToTweet.lastModifiedVersion, prevVersion)),
         );
 };
 
@@ -41,7 +26,7 @@ export const upsertUserMark = async (
         .values({
             userId: input.userId,
             tweetId: input.tweetId,
-            mark: input.mark as typeof MarkValues[number],
+            mark: input.mark as (typeof MarkValues)[number],
             lastModifiedVersion: input.version,
             updatedAt: new Date(),
         })
@@ -49,28 +34,17 @@ export const upsertUserMark = async (
             target: [userToTweet.userId, userToTweet.tweetId],
             set: {
                 mark: sql.raw(`excluded.${userToTweet.mark.name}`),
-                lastModifiedVersion: sql.raw(
-                    `excluded.${userToTweet.lastModifiedVersion.name}`,
-                ),
+                lastModifiedVersion: sql.raw(`excluded.${userToTweet.lastModifiedVersion.name}`),
                 updatedAt: sql.raw(`excluded.${userToTweet.updatedAt.name}`),
             },
         })
         .returning();
 };
 
-export const deleteUserMark = async (
-    db: SupportedDb,
-    userId: string,
-    tweetId: TweetId,
-) => {
+export const deleteUserMark = async (db: SupportedDb, userId: string, tweetId: TweetId) => {
     return await db
         .delete(userToTweet)
-        .where(
-            and(
-                eq(userToTweet.userId, userId),
-                eq(userToTweet.tweetId, tweetId),
-            ),
-        )
+        .where(and(eq(userToTweet.userId, userId), eq(userToTweet.tweetId, tweetId)))
         .returning();
 };
 
@@ -88,7 +62,7 @@ export const batchUpsertUserMarks = async (
     const values = marks.map((m) => ({
         userId,
         tweetId: m.tweetId,
-        mark: m.mark as typeof MarkValues[number],
+        mark: m.mark as (typeof MarkValues)[number],
         lastModifiedVersion: version,
         updatedAt: now,
     }));
@@ -100,9 +74,7 @@ export const batchUpsertUserMarks = async (
             target: [userToTweet.userId, userToTweet.tweetId],
             set: {
                 mark: sql.raw(`excluded.${userToTweet.mark.name}`),
-                lastModifiedVersion: sql.raw(
-                    `excluded.${userToTweet.lastModifiedVersion.name}`,
-                ),
+                lastModifiedVersion: sql.raw(`excluded.${userToTweet.lastModifiedVersion.name}`),
                 updatedAt: sql.raw(`excluded.${userToTweet.updatedAt.name}`),
             },
         })

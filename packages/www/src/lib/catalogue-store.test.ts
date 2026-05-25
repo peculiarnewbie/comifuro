@@ -2,10 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { CatalogueTweet } from "./catalogue-store";
 import { groupTweetsIntoThreads } from "./catalogue-store";
 
-function makeTweet(
-    id: string,
-    overrides: Partial<CatalogueTweet> = {},
-): CatalogueTweet {
+function makeTweet(id: string, overrides: Record<string, unknown> = {}): CatalogueTweet {
     return {
         id,
         eventId: "cf22",
@@ -26,7 +23,7 @@ function makeTweet(
         images: [`${id}/0.webp`],
         thumbnails: [`${id}/0.thumb.webp`],
         ...overrides,
-    };
+    } as unknown as CatalogueTweet;
 }
 
 describe("groupTweetsIntoThreads", () => {
@@ -47,10 +44,7 @@ describe("groupTweetsIntoThreads", () => {
         ]);
 
         expect(threads.map((thread) => thread.groupId)).toEqual(["100", "090"]);
-        expect(threads[0]?.replies.map((tweet) => tweet.id)).toEqual([
-            "101",
-            "105",
-        ]);
+        expect(threads[0]?.replies.map((tweet) => tweet.id as string)).toEqual(["101", "105"]);
     });
 
     test("does not render orphaned replies without a root", () => {

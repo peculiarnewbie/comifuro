@@ -15,12 +15,8 @@ const handleActivationKey = (event: KeyboardEvent, action: () => void) => {
 
 function makeAltText(tweet: CatalogueTweet, context?: string) {
     const text = tweet.text.slice(0, 100);
-    const booth = tweet.inferredBoothId
-        ? ` — Booth ${tweet.inferredBoothId}`
-        : "";
-    const prefix = context
-        ? `${context} by @${tweet.user}`
-        : `Art catalogue by @${tweet.user}`;
+    const booth = tweet.inferredBoothId ? ` — Booth ${tweet.inferredBoothId}` : "";
+    const prefix = context ? `${context} by @${tweet.user}` : `Art catalogue by @${tweet.user}`;
     return `${prefix}: ${text}${booth}`;
 }
 
@@ -107,18 +103,18 @@ export default function Tweet(props: {
 
             // Focus trap
             if (event.key === "Tab" && dialog) {
-                const focusable = Array.from(
-                    dialog.querySelectorAll(focusableSelectors),
-                ).filter((el) => !(el as HTMLElement).hasAttribute("disabled")) as HTMLElement[];
+                const focusable = Array.from(dialog.querySelectorAll(focusableSelectors)).filter(
+                    (el) => !(el as HTMLElement).hasAttribute("disabled"),
+                ) as HTMLElement[];
                 if (focusable.length === 0) return;
                 const first = focusable[0];
                 const last = focusable[focusable.length - 1];
                 if (event.shiftKey && document.activeElement === first) {
                     event.preventDefault();
-                    last.focus();
+                    last!.focus();
                 } else if (!event.shiftKey && document.activeElement === last) {
                     event.preventDefault();
-                    first.focus();
+                    first!.focus();
                 }
             }
         };
@@ -294,9 +290,7 @@ export default function Tweet(props: {
                                                 </div>
                                             )}
                                         </Show>
-                                        <p class="text-sm leading-6 text-gray-700">
-                                            {tweet.text}
-                                        </p>
+                                        <p class="text-sm leading-6 text-gray-700">{tweet.text}</p>
                                     </div>
                                 )}
                             </For>
@@ -464,17 +458,9 @@ export default function Tweet(props: {
                                                             {tweet().inferredBoothId}
                                                         </div>
                                                     </Show>
-                                                    <Show
-                                                        when={
-                                                            tweet().inferredFandoms.length > 0
-                                                        }
-                                                    >
+                                                    <Show when={tweet().inferredFandoms.length > 0}>
                                                         <div class="flex flex-wrap gap-2">
-                                                            <For
-                                                                each={
-                                                                    tweet().inferredFandoms
-                                                                }
-                                                            >
+                                                            <For each={tweet().inferredFandoms}>
                                                                 {(fandom) => (
                                                                     <span class="rounded-full bg-white px-2.5 py-1 text-xs text-slate-700 shadow-sm ring-1 ring-slate-200">
                                                                         {fandom}
@@ -484,16 +470,10 @@ export default function Tweet(props: {
                                                         </div>
                                                     </Show>
                                                     <Show
-                                                        when={
-                                                            tweet().inferredItemTypes.length > 0
-                                                        }
+                                                        when={tweet().inferredItemTypes.length > 0}
                                                     >
                                                         <div class="flex flex-wrap gap-2">
-                                                            <For
-                                                                each={
-                                                                    tweet().inferredItemTypes
-                                                                }
-                                                            >
+                                                            <For each={tweet().inferredItemTypes}>
                                                                 {(itemType) => (
                                                                     <span class="rounded-full bg-indigo-50 px-2.5 py-1 text-xs text-indigo-700 shadow-sm ring-1 ring-indigo-200">
                                                                         {itemType}
@@ -527,9 +507,7 @@ export default function Tweet(props: {
                                                                     ? "root tweet"
                                                                     : `follow-up ${threadTweet.threadPosition ?? index()}`
                                                             }`}
-                                                            onClick={() =>
-                                                                openDetail(threadTweet)
-                                                            }
+                                                            onClick={() => openDetail(threadTweet)}
                                                             onKeyDown={(event) =>
                                                                 handleActivationKey(event, () =>
                                                                     openDetail(threadTweet),
@@ -551,7 +529,8 @@ export default function Tweet(props: {
                                                                 </div>
                                                                 <Show
                                                                     when={
-                                                                        threadTweet.images.length > 0
+                                                                        threadTweet.images.length >
+                                                                        0
                                                                     }
                                                                 >
                                                                     <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">

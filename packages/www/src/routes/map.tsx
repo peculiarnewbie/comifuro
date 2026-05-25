@@ -3,12 +3,7 @@ import { createSignal } from "solid-js";
 import MapCanvas from "../components/map/MapCanvas";
 import Sidebar from "../components/map/Sidebar";
 import { NIGHT_MARKET_THEME } from "../lib/map-themes";
-import {
-    floorPlan,
-    DEFAULT_SELECTED_BOOTH,
-    DEFAULT_START_BOOTH,
-    DEFAULT_END_BOOTH,
-} from "../lib/map-data";
+import { DEFAULT_SELECTED_BOOTH, DEFAULT_START_BOOTH, DEFAULT_END_BOOTH } from "../lib/map-data";
 
 const theme = NIGHT_MARKET_THEME;
 
@@ -20,12 +15,8 @@ function RouteComponent() {
     const [selectedBoothId, setSelectedBoothId] = createSignal<string | null>(
         DEFAULT_SELECTED_BOOTH,
     );
-    const [startBoothId, setStartBoothId] = createSignal<string | null>(
-        DEFAULT_START_BOOTH,
-    );
-    const [endBoothId, setEndBoothId] = createSignal<string | null>(
-        DEFAULT_END_BOOTH,
-    );
+    const [startBoothId, setStartBoothId] = createSignal<string | null>(DEFAULT_START_BOOTH);
+    const [endBoothId, setEndBoothId] = createSignal<string | null>(DEFAULT_END_BOOTH);
     const [focusRequest, setFocusRequest] = createSignal<{
         boothId: string;
         scale?: number;

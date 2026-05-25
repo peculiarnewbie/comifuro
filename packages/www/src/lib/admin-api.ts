@@ -50,17 +50,14 @@ export async function updateTweetMetadata(
         matchedTags?: string[];
     },
 ) {
-    const response = await fetch(
-        `${input.apiHost}/admin/tweets/${input.tweetId}/metadata`,
-        {
-            method: "PATCH",
-            headers: buildHeaders(input),
-            body: JSON.stringify({
-                inferredFandoms: input.inferredFandoms,
-                matchedTags: input.matchedTags,
-            }),
-        },
-    );
+    const response = await fetch(`${input.apiHost}/admin/tweets/${input.tweetId}/metadata`, {
+        method: "PATCH",
+        headers: buildHeaders(input),
+        body: JSON.stringify({
+            inferredFandoms: input.inferredFandoms,
+            matchedTags: input.matchedTags,
+        }),
+    });
 
     if (!response.ok) {
         throw new Error(await readErrorMessage(response));
@@ -75,16 +72,13 @@ export async function rerootThread(
         newRootTweetId: string;
     },
 ) {
-    const response = await fetch(
-        `${input.apiHost}/admin/threads/${input.rootTweetId}/reroot`,
-        {
-            method: "POST",
-            headers: buildHeaders(input),
-            body: JSON.stringify({
-                newRootTweetId: input.newRootTweetId,
-            }),
-        },
-    );
+    const response = await fetch(`${input.apiHost}/admin/threads/${input.rootTweetId}/reroot`, {
+        method: "POST",
+        headers: buildHeaders(input),
+        body: JSON.stringify({
+            newRootTweetId: input.newRootTweetId,
+        }),
+    });
 
     if (!response.ok) {
         throw new Error(await readErrorMessage(response));
@@ -98,13 +92,10 @@ export async function uncatalogueTweet(
         tweetId: string;
     },
 ) {
-    const response = await fetch(
-        `${input.apiHost}/admin/tweets/${input.tweetId}/uncatalogue`,
-        {
-            method: "POST",
-            headers: buildHeaders(input),
-        },
-    );
+    const response = await fetch(`${input.apiHost}/admin/tweets/${input.tweetId}/uncatalogue`, {
+        method: "POST",
+        headers: buildHeaders(input),
+    });
 
     if (!response.ok) {
         throw new Error(await readErrorMessage(response));

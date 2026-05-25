@@ -1,12 +1,8 @@
 import sharp from "sharp";
 import { ApiClient } from "./api-client";
 
-const API_BASE_URL =
-    process.env.API_BASE_URL ?? "https://cf.peculiarnewbie.com/api";
-const API_PASSWORD =
-    process.env.API_PASSWORD ??
-    process.env.PEC_PASSWORD ??
-    process.env.PASSWORD;
+const API_BASE_URL = process.env.API_BASE_URL ?? "https://cf.peculiarnewbie.com/api";
+const API_PASSWORD = process.env.API_PASSWORD ?? process.env.PEC_PASSWORD ?? process.env.PASSWORD;
 const R2_PUBLIC_BASE_URL =
     process.env.R2_PUBLIC_BASE_URL ?? "https://r2.comifuro.peculiarnewbie.com";
 const RATE_PER_SEC = Number(process.env.BACKFILL_RATE_PER_SEC ?? 5);
@@ -24,17 +20,14 @@ const apiClient = new ApiClient(API_BASE_URL, API_PASSWORD);
 const r2BaseUrl = R2_PUBLIC_BASE_URL.replace(/\/$/, "");
 const delayMs = Math.round(1000 / RATE_PER_SEC);
 
-const sleep = (ms: number) =>
-    new Promise<void>((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 let cursor: { tweetId: string; mediaIndex: number } | undefined;
 let processed = 0;
 let skipped = 0;
 let failed = 0;
 
-console.log(
-    `starting thumbnail backfill: rate=${RATE_PER_SEC}/s page=${PAGE_SIZE}`,
-);
+console.log(`starting thumbnail backfill: rate=${RATE_PER_SEC}/s page=${PAGE_SIZE}`);
 
 for (;;) {
     const page = await apiClient.listMediaMissingThumbnails({
@@ -53,9 +46,7 @@ for (;;) {
         try {
             const response = await fetch(sourceUrl);
             if (!response.ok) {
-                console.warn(
-                    `skipping ${item.r2Key}: r2 responded ${response.status}`,
-                );
+                console.warn(`skipping ${item.r2Key}: r2 responded ${response.status}`);
                 if (response.status === 404) {
                     skipped += 1;
                 } else {
@@ -103,6 +94,4 @@ for (;;) {
     }
 }
 
-console.log(
-    `done: processed=${processed} skipped=${skipped} failed=${failed}`,
-);
+console.log(`done: processed=${processed} skipped=${skipped} failed=${failed}`);

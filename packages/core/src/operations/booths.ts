@@ -1,17 +1,5 @@
-import {
-    and,
-    asc,
-    desc,
-    eq,
-    gt,
-    isNull,
-    or,
-    sql,
-} from "drizzle-orm";
-import {
-    booths,
-    tweets,
-} from "../schema";
+import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { booths, tweets } from "../schema";
 import type { EventId, BoothId, TweetId, UserId } from "../schema";
 import type { BoothInsert } from "../types";
 import type { SupportedDb, HasTransaction } from "./_shared";
@@ -56,15 +44,9 @@ export const upsertBoothFromTweet = async (
             set: {
                 section: sql.raw(`excluded.${booths.section.name}`),
                 status: sql.raw(`excluded.${booths.status.name}`),
-                exhibitorUser: sql.raw(
-                    `excluded.${booths.exhibitorUser.name}`,
-                ),
-                exhibitorDisplayName: sql.raw(
-                    `excluded.${booths.exhibitorDisplayName.name}`,
-                ),
-                primaryTweetId: sql.raw(
-                    `excluded.${booths.primaryTweetId.name}`,
-                ),
+                exhibitorUser: sql.raw(`excluded.${booths.exhibitorUser.name}`),
+                exhibitorDisplayName: sql.raw(`excluded.${booths.exhibitorDisplayName.name}`),
+                primaryTweetId: sql.raw(`excluded.${booths.primaryTweetId.name}`),
                 updatedAt: sql.raw(`excluded.${booths.updatedAt.name}`),
             },
         })
@@ -101,11 +83,7 @@ export const listBooths = async (
     return await query;
 };
 
-export const getBooth = async (
-    db: SupportedDb,
-    eventId: EventId,
-    id: BoothId,
-) => {
+export const getBooth = async (db: SupportedDb, eventId: EventId, id: BoothId) => {
     const rows = await db
         .select()
         .from(booths)
@@ -114,11 +92,7 @@ export const getBooth = async (
     return rows[0] ?? null;
 };
 
-export const getBoothWithTweets = async (
-    db: SupportedDb,
-    eventId: EventId,
-    id: BoothId,
-) => {
+export const getBoothWithTweets = async (db: SupportedDb, eventId: EventId, id: BoothId) => {
     const booth = await getBooth(db, eventId, id);
     if (!booth) {
         return { booth: null, tweets: [] };
@@ -139,10 +113,7 @@ export const getBoothWithTweets = async (
     return { booth, tweets: tweetRows };
 };
 
-export const rebuildBoothsFromTweets = async (
-    db: SupportedDb,
-    eventId: EventId,
-) => {
+export const rebuildBoothsFromTweets = async (db: SupportedDb, eventId: EventId) => {
     return (db as HasTransaction).transaction(async (tx) => {
         await tx.delete(booths).where(eq(booths.eventId, eventId));
 

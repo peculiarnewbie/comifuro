@@ -1,15 +1,13 @@
 import * as Schema from "effect/Schema";
 import { tweetsOperations } from "@comifuro/core";
 import type { TweetInsert } from "@comifuro/core/types";
-import {
-    TweetSyncResponse as TweetSyncResponseSchema,
-} from "@comifuro/core/schemas";
-import { TweetId, UserId, type EventId } from "@comifuro/core/schema";
+import { TweetSyncResponse as TweetSyncResponseSchema } from "@comifuro/core/schemas";
+import { TweetId, UserId, EventId } from "@comifuro/core/schema";
 import { getDb, requirePassword } from "../auth";
-import { ValidationError, InternalError } from "../errors";
+import { InternalError } from "../errors";
 import { Result, handleResult } from "../responder";
 import { helpers } from "@comifuro/core";
-import { CURRENT_SCHEMA_VERSION, buildPublicFeed } from "../helpers";
+import { CURRENT_SCHEMA_VERSION } from "../helpers";
 import type { AppContext } from "../types";
 
 const LegacyTweet = Schema.Struct({
@@ -37,11 +35,11 @@ export async function getLastTweet(c: AppContext) {
 }
 
 export async function syncTweets(c: AppContext) {
-    const eventId = helpers.normalizeEventId(c.req.query("eventId"), Schema.decodeUnknownSync(EventId)("cf22"));
-    const limit = Math.min(
-        Math.max(Number(c.req.query("limit") ?? 500), 1),
-        1000,
+    const eventId = helpers.normalizeEventId(
+        c.req.query("eventId"),
+        Schema.decodeUnknownSync(EventId)("cf22"),
     );
+    const limit = Math.min(Math.max(Number(c.req.query("limit") ?? 500), 1), 1000);
     const cursorUpdatedAt = helpers.toNumberParam(c.req.query("cursorUpdatedAt"));
     const cursorId = c.req.query("cursorId");
 
@@ -49,9 +47,13 @@ export async function syncTweets(c: AppContext) {
         const db = getDb(c);
         const rows = await tweetsOperations.listTweetsForSync(db, {
             eventId,
-            cursor: cursorUpdatedAt != null && cursorId
-                ? { updatedAt: cursorUpdatedAt, id: Schema.decodeUnknownSync(TweetId)(cursorId) }
-                : undefined,
+            cursor:
+                cursorUpdatedAt != null && cursorId
+                    ? {
+                          updatedAt: cursorUpdatedAt,
+                          id: Schema.decodeUnknownSync(TweetId)(cursorId),
+                      }
+                    : undefined,
             limit: limit + 1,
         });
 
@@ -75,14 +77,10 @@ export async function syncTweets(c: AppContext) {
                 timestamp: row.timestamp.getTime(),
                 text: row.text,
                 tweetUrl: row.tweetUrl,
-                matchedTags: Array.isArray(row.matchedTags)
-                    ? row.matchedTags
-                    : [],
+                matchedTags: Array.isArray(row.matchedTags) ? row.matchedTags : [],
                 imageMask: row.imageMask,
                 classification: row.classification,
-                inferredFandoms: Array.isArray(row.inferredFandoms)
-                    ? row.inferredFandoms
-                    : [],
+                inferredFandoms: Array.isArray(row.inferredFandoms) ? row.inferredFandoms : [],
                 inferredItemTypes: Array.isArray(row.inferredItemTypes)
                     ? row.inferredItemTypes
                     : [],
@@ -123,10 +121,7 @@ export async function syncTweets(c: AppContext) {
             c,
             Result.err(
                 new InternalError({
-                    message:
-                        error instanceof Error
-                            ? error.message
-                            : "sync failed",
+                    message: error instanceof Error ? error.message : "sync failed",
                     cause: error,
                 }),
             ),
@@ -150,9 +145,12 @@ export async function upsertLegacyTweets(c: AppContext) {
     try {
         parsed = Schema.decodeUnknownSync(legacyTweetSchema)(body);
     } catch (error) {
-        return c.json({
-            error: error instanceof Error ? error.message : "validation failed",
-        }, 400);
+        return c.json(
+            {
+                error: error instanceof Error ? error.message : "validation failed",
+            },
+            400,
+        );
     }
 
     const now = new Date();

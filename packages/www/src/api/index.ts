@@ -3,14 +3,8 @@ import { cors } from "hono/cors";
 import { isRateLimited } from "../rate-limiter";
 import { resolveAccount } from "./auth";
 import type { Env } from "./types";
-import {
-    uploadImage,
-} from "./routes/upload";
-import {
-    getLastTweet,
-    syncTweets,
-    upsertLegacyTweets,
-} from "./routes/tweets";
+import { uploadImage } from "./routes/upload";
+import { getLastTweet, syncTweets, upsertLegacyTweets } from "./routes/tweets";
 import {
     upsertScraperTweet,
     getScraperState,
@@ -69,10 +63,7 @@ api.use("*", async (c, next) => {
     let maxRequests = 60;
     let windowMs = 60000;
 
-    if (
-        pathname.startsWith("/api/upload/") ||
-        pathname.startsWith("/api/scraper/")
-    ) {
+    if (pathname.startsWith("/api/upload/") || pathname.startsWith("/api/scraper/")) {
         maxRequests = 30;
         windowMs = 60000;
     }
@@ -92,10 +83,7 @@ api.get("/tweets/last", getLastTweet);
 api.get("/tweets/sync", syncTweets);
 api.post("/tweets/upsert", upsertLegacyTweets);
 api.get("/admin/media/missing-thumbnails", listMissingThumbnails);
-api.patch(
-    "/admin/media/:tweetId/:mediaIndex/thumbnail",
-    setThumbnail,
-);
+api.patch("/admin/media/:tweetId/:mediaIndex/thumbnail", setThumbnail);
 api.patch("/admin/tweets/:id/metadata", updateTweetMetadata);
 api.post("/admin/threads/:id/reroot", rerootThread);
 api.post("/admin/tweets/:id/uncatalogue", uncatalogueTweet);

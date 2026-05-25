@@ -1,6 +1,5 @@
 import * as Schema from "effect/Schema";
-import { getDb, requirePassword } from "../auth";
-import { ValidationError } from "../errors";
+import { requirePassword } from "../auth";
 import { Result, handleResult } from "../responder";
 import { helpers } from "@comifuro/core";
 import type { AppContext } from "../types";
@@ -32,9 +31,12 @@ export async function uploadImage(c: AppContext) {
     try {
         parsed = Schema.decodeUnknownSync(ImageUpload)({ key: decodedKey });
     } catch (error) {
-        return c.json({
-            error: error instanceof Error ? error.message : "validation failed",
-        }, 400);
+        return c.json(
+            {
+                error: error instanceof Error ? error.message : "validation failed",
+            },
+            400,
+        );
     }
 
     if (!helpers.TWEET_MEDIA_KEY_REGEX.test(parsed.key)) {

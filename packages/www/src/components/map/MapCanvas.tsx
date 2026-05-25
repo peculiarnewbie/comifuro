@@ -1,12 +1,6 @@
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type { MapTheme } from "../../lib/map-themes";
-import {
-    GROUPS,
-    floorPlan,
-    pointsToPath,
-    buildRoutePoints,
-    type Booth,
-} from "../../lib/map-data";
+import { GROUPS, floorPlan, pointsToPath, buildRoutePoints, type Booth } from "../../lib/map-data";
 
 type Camera = { x: number; y: number; s: number };
 
@@ -24,12 +18,8 @@ export default function MapCanvas(props: {
     const [isDragging, setIsDragging] = createSignal(false);
     const [routeDashOffset, setRouteDashOffset] = createSignal(0);
 
-    const startBooth = createMemo(
-        () => floorPlan.boothById.get(props.startBoothId ?? "") ?? null,
-    );
-    const endBooth = createMemo(
-        () => floorPlan.boothById.get(props.endBoothId ?? "") ?? null,
-    );
+    const startBooth = createMemo(() => floorPlan.boothById.get(props.startBoothId ?? "") ?? null);
+    const endBooth = createMemo(() => floorPlan.boothById.get(props.endBoothId ?? "") ?? null);
     const routePoints = createMemo(() =>
         buildRoutePoints(startBooth(), endBooth(), floorPlan.mainAisleXs),
     );
@@ -102,7 +92,7 @@ export default function MapCanvas(props: {
         });
         props.onFocusConsumed();
     });
-    void _focusCheck();
+    _focusCheck();
 
     function clientToSvg(x: number, y: number) {
         if (!svgEl) return { x, y };
@@ -117,10 +107,7 @@ export default function MapCanvas(props: {
 
     function zoomAround(focal: { x: number; y: number }, factor: number) {
         setCam((current) => {
-            const nextScale = Math.max(
-                MIN_S,
-                Math.min(MAX_S, current.s * factor),
-            );
+            const nextScale = Math.max(MIN_S, Math.min(MAX_S, current.s * factor));
             const ratio = nextScale / current.s;
             return {
                 x: focal.x - ratio * (focal.x - current.x),
@@ -163,10 +150,7 @@ export default function MapCanvas(props: {
             zoomAround(focal, factor);
             return;
         }
-        const nextPoint = clientToSvg(
-            event.clientX + deltaX,
-            event.clientY + deltaY,
-        );
+        const nextPoint = clientToSvg(event.clientX + deltaX, event.clientY + deltaY);
         const dx = nextPoint.x - focal.x;
         const dy = nextPoint.y - focal.y;
         setCam((current) => ({ ...current, x: current.x - dx, y: current.y - dy }));
@@ -257,10 +241,7 @@ export default function MapCanvas(props: {
             const nextPoint = clientToSvg(event.clientX, event.clientY);
             const dx = nextPoint.x - previousPoint.x;
             const dy = nextPoint.y - previousPoint.y;
-            panDistance += Math.hypot(
-                event.clientX - lastPan.x,
-                event.clientY - lastPan.y,
-            );
+            panDistance += Math.hypot(event.clientX - lastPan.x, event.clientY - lastPan.y);
             if (panDistance > 2) setIsDragging(true);
             lastPan = { x: event.clientX, y: event.clientY };
             setCam((current) => ({
@@ -405,12 +386,7 @@ export default function MapCanvas(props: {
                 onPointerCancel={endPointer}
             >
                 <defs>
-                    <pattern
-                        id="gridPattern"
-                        width="32"
-                        height="32"
-                        patternUnits="userSpaceOnUse"
-                    >
+                    <pattern id="gridPattern" width="32" height="32" patternUnits="userSpaceOnUse">
                         <path
                             d="M 32 0 L 0 0 0 32"
                             fill="none"
@@ -440,10 +416,7 @@ export default function MapCanvas(props: {
                 />
 
                 <g transform={`translate(${cam().x} ${cam().y})`}>
-                    <g
-                        transform={`scale(${cam().s})`}
-                        vector-effect="non-scaling-stroke"
-                    >
+                    <g transform={`scale(${cam().s})`} vector-effect="non-scaling-stroke">
                         {/* Main aisles */}
                         <For each={floorPlan.mainAisleXs}>
                             {(x, index) => (
@@ -480,10 +453,8 @@ export default function MapCanvas(props: {
                                 const rowStacks = floorPlan.stacks.filter(
                                     (stack) => stack.groupLabel === group.label,
                                 );
-                                const topCorridorY =
-                                    rowStacks[0]?.topCorridorY ?? 0;
-                                const bottomCorridorY =
-                                    rowStacks[0]?.bottomCorridorY ?? 0;
+                                const topCorridorY = rowStacks[0]?.topCorridorY ?? 0;
+                                const bottomCorridorY = rowStacks[0]?.bottomCorridorY ?? 0;
                                 const centerY =
                                     ((rowStacks[0]?.y ?? 0) +
                                         (rowStacks[0]?.y ?? 0) +
@@ -601,9 +572,7 @@ export default function MapCanvas(props: {
                                                     rx={1}
                                                     fill={boothFill(booth)}
                                                     stroke={boothStroke(booth)}
-                                                    stroke-width={boothStrokeWidth(
-                                                        booth,
-                                                    )}
+                                                    stroke-width={boothStrokeWidth(booth)}
                                                     class="cursor-pointer"
                                                     tabindex={0}
                                                     role="button"
@@ -616,20 +585,15 @@ export default function MapCanvas(props: {
                                                     }}
                                                     onClick={(event) => {
                                                         event.stopPropagation();
-                                                        props.onSelectBooth(
-                                                            booth.id,
-                                                        );
+                                                        props.onSelectBooth(booth.id);
                                                     }}
                                                     onKeyDown={(event) => {
                                                         if (
-                                                            event.key ===
-                                                                "Enter" ||
+                                                            event.key === "Enter" ||
                                                             event.key === " "
                                                         ) {
                                                             event.preventDefault();
-                                                            props.onSelectBooth(
-                                                                booth.id,
-                                                            );
+                                                            props.onSelectBooth(booth.id);
                                                         }
                                                     }}
                                                 />
@@ -640,10 +604,8 @@ export default function MapCanvas(props: {
                                                     font-size="6"
                                                     text-anchor="middle"
                                                     style={{
-                                                        "font-family":
-                                                            theme().fonts.mono,
-                                                        "pointer-events":
-                                                            "none",
+                                                        "font-family": theme().fonts.mono,
+                                                        "pointer-events": "none",
                                                         "user-select": "none",
                                                     }}
                                                 >
@@ -722,10 +684,7 @@ export default function MapCanvas(props: {
             </svg>
 
             {/* Floating zoom controls */}
-            <div
-                class="absolute bottom-4 right-4 flex flex-col gap-1"
-                style={{ "z-index": 10 }}
-            >
+            <div class="absolute bottom-4 right-4 flex flex-col gap-1" style={{ "z-index": 10 }}>
                 <button
                     class="flex h-9 w-9 items-center justify-center text-lg transition hover:opacity-80"
                     style={{

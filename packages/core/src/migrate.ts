@@ -2,12 +2,10 @@ import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { getBunSqlite } from "./db";
 import { fileURLToPath } from "node:url";
 
-const migrationsFolder = fileURLToPath(
-    new URL("../migrations/", import.meta.url)
-);
+const migrationsFolder = fileURLToPath(new URL("../migrations/", import.meta.url));
 
 const bunSqlitePath = fileURLToPath(
-    new URL("../../twitter-scraper/tweets.sqlite", import.meta.url)
+    new URL("../../twitter-scraper/tweets.sqlite", import.meta.url),
 );
 
 export function runBunMigrations(dbPath: string) {

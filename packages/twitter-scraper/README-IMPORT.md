@@ -5,6 +5,7 @@ This package now includes a SQLite database system for storing scraped tweet dat
 ## Database Schema
 
 The `tweets` table contains:
+
 - `id`: Tweet ID (extracted from URL)
 - `user`: Twitter username
 - `timestamp`: Date object with millisecond precision
@@ -14,17 +15,19 @@ The `tweets` table contains:
 ## Setup
 
 1. Install dependencies:
-   ```bash
-   bun install
-   ```
+
+    ```bash
+    bun install
+    ```
 
 2. Generate and run migrations (or let the import script handle it automatically):
-   ```bash
-   bun run db:generate
-   bun run db:migrate
-   ```
 
-   **Note**: The import script will automatically create the database and run migrations if they don't exist, so you can skip this step if you're running the import for the first time.
+    ```bash
+    bun run db:generate
+    bun run db:migrate
+    ```
+
+    **Note**: The import script will automatically create the database and run migrations if they don't exist, so you can skip this step if you're running the import for the first time.
 
 ## Import Tweet Data
 
@@ -50,10 +53,10 @@ The system uses `imports.json` to track which date folders have been processed:
 
 ```json
 [
-  {
-    "dateFolder": "2025-08-09",
-    "importedAt": "2025-01-15T10:30:00.000Z"
-  }
+    {
+        "dateFolder": "2025-08-09",
+        "importedAt": "2025-01-15T10:30:00.000Z"
+    }
 ]
 ```
 
@@ -69,16 +72,19 @@ This approach tracks entire scraping sessions rather than individual tweets, mak
 ## Example Query
 
 ```typescript
-import { db } from './drizzle/db';
-import { tweets } from './drizzle/schema';
-import { eq } from 'drizzle-orm';
+import { db } from "./drizzle/db";
+import { tweets } from "./drizzle/schema";
+import { eq } from "drizzle-orm";
 
 // Get all tweets
 const allTweets = await db.select().from(tweets);
 
 // Get tweets by user
-const userTweets = await db.select().from(tweets).where(eq(tweets.user, 'username'));
+const userTweets = await db.select().from(tweets).where(eq(tweets.user, "username"));
 
 // Get tweets with images (any image present)
-const tweetsWithImages = await db.select().from(tweets).where(sql`${tweets.imageMask} > 0`);
+const tweetsWithImages = await db
+    .select()
+    .from(tweets)
+    .where(sql`${tweets.imageMask} > 0`);
 ```

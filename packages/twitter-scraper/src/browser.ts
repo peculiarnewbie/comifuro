@@ -44,10 +44,7 @@ function normalizeTweet(raw: {
     };
 }
 
-export function buildThreadContinuationChain(
-    rootTweet: ExtractedTweet,
-    tweets: ExtractedTweet[],
-) {
+export function buildThreadContinuationChain(rootTweet: ExtractedTweet, tweets: ExtractedTweet[]) {
     let rootSeen = false;
     let previousTweetId = rootTweet.id;
     const seenTweetIds = new Set<string>([rootTweet.id]);
@@ -163,14 +160,10 @@ export async function ensureBrowserAvailable(config: ScraperConfig) {
     );
 }
 
-export async function findExistingPage(
-    browser: Browser,
-    config: ScraperConfig,
-) {
+export async function findExistingPage(browser: Browser, config: ScraperConfig) {
     const pages = browser.contexts().flatMap((context) => context.pages());
     const matched =
-        pages.find((page) => page.url().includes(config.scraperPageUrlMatch)) ??
-        pages[0];
+        pages.find((page) => page.url().includes(config.scraperPageUrlMatch)) ?? pages[0];
 
     if (!matched) {
         throw new Error(
@@ -203,47 +196,30 @@ async function extractTweetsFromPage(
     const rawTweets = await page.evaluate(
         ({ scopeSelector, discoverySource }) => {
             const scope =
-                (scopeSelector
-                    ? document.querySelector(scopeSelector)
-                    : null) ?? document.body;
+                (scopeSelector ? document.querySelector(scopeSelector) : null) ?? document.body;
             const articles = Array.from(
-                scope.querySelectorAll<HTMLElement>(
-                    'article[data-testid="tweet"]',
-                ),
+                scope.querySelectorAll<HTMLElement>('article[data-testid="tweet"]'),
             );
 
             return articles.map((article) => {
                 const statusLinks = Array.from(
-                    article.querySelectorAll<HTMLAnchorElement>(
-                        'a[href*="/status/"]',
-                    ),
+                    article.querySelectorAll<HTMLAnchorElement>('a[href*="/status/"]'),
                 );
                 const statusLink =
-                    statusLinks.find((link) => link.querySelector("time")) ??
-                    statusLinks[0];
+                    statusLinks.find((link) => link.querySelector("time")) ?? statusLinks[0];
 
                 const tweetUrl = statusLink
-                    ? new URL(
-                          statusLink.getAttribute("href") ?? "",
-                          location.origin,
-                      ).toString()
+                    ? new URL(statusLink.getAttribute("href") ?? "", location.origin).toString()
                     : null;
                 const idMatch = tweetUrl?.match(/status\/(\d+)/);
                 const id = idMatch?.[1] ?? null;
                 const userMatch = tweetUrl?.match(/x\.com\/([^/]+)\/status\//);
                 const user = userMatch?.[1] ?? null;
-                const text =
-                    article.querySelector('[data-testid="tweetText"]')
-                        ?.textContent ?? "";
-                const timestamp =
-                    article.querySelector("time")?.getAttribute("datetime") ??
-                    null;
-                const userNameRoot = article.querySelector(
-                    '[data-testid="User-Name"]',
-                );
+                const text = article.querySelector('[data-testid="tweetText"]')?.textContent ?? "";
+                const timestamp = article.querySelector("time")?.getAttribute("datetime") ?? null;
+                const userNameRoot = article.querySelector('[data-testid="User-Name"]');
                 const displayName =
-                    userNameRoot?.querySelector("span")?.textContent?.trim() ??
-                    null;
+                    userNameRoot?.querySelector("span")?.textContent?.trim() ?? null;
 
                 const previewImageUrls = id
                     ? Array.from(
@@ -256,11 +232,7 @@ async function extractTweetsFromPage(
                     : [];
 
                 const matchedTags = Array.from(
-                    new Set(
-                        (text.match(/#\w+/gi) ?? []).map((tag) =>
-                            tag.toLowerCase(),
-                        ),
-                    ),
+                    new Set((text.match(/#\w+/gi) ?? []).map((tag) => tag.toLowerCase())),
                 );
                 const linkedStatusIds = Array.from(
                     new Set(
@@ -296,9 +268,7 @@ async function extractTweetsFromPage(
         },
     );
 
-    return rawTweets
-        .map(normalizeTweet)
-        .filter((tweet): tweet is ExtractedTweet => tweet !== null);
+    return rawTweets.map(normalizeTweet).filter((tweet): tweet is ExtractedTweet => tweet !== null);
 }
 
 export async function extractVisibleTweets(page: Page) {
@@ -323,9 +293,7 @@ async function navigateToTweetDetailPage(page: Page, tweetUrl: string) {
 async function openBackgroundPage(sourcePage: Page) {
     const browser = sourcePage.context().browser();
     if (!browser) {
-        throw new Error(
-            "Browser instance is unavailable for background tab creation",
-        );
+        throw new Error("Browser instance is unavailable for background tab creation");
     }
 
     const existingPages = new Set(sourcePage.context().pages());
@@ -378,19 +346,12 @@ export async function crawlThreadContinuations(params: {
     let idleScrolls = 0;
     let lastResult = buildThreadContinuationChain(rootTweet, []);
 
-    while (
-        idleScrolls < idleScrollLimit &&
-        lastResult.chain.length < MAX_THREAD_CONTINUATIONS
-    ) {
+    while (idleScrolls < idleScrollLimit && lastResult.chain.length < MAX_THREAD_CONTINUATIONS) {
         const visibleTweets = await extractTweetsFromPage(page, {
             discoverySource: "thread",
         });
-        const nextResult = buildThreadContinuationChain(
-            rootTweet,
-            visibleTweets,
-        );
-        const chainLengthChanged =
-            nextResult.chain.length > lastResult.chain.length;
+        const nextResult = buildThreadContinuationChain(rootTweet, visibleTweets);
+        const chainLengthChanged = nextResult.chain.length > lastResult.chain.length;
 
         if (chainLengthChanged) {
             lastResult = nextResult;
@@ -400,16 +361,9 @@ export async function crawlThreadContinuations(params: {
             idleScrolls += 1;
         }
 
-        if (
-            idleScrolls < idleScrollLimit &&
-            lastResult.chain.length < MAX_THREAD_CONTINUATIONS
-        ) {
+        if (idleScrolls < idleScrollLimit && lastResult.chain.length < MAX_THREAD_CONTINUATIONS) {
             const scrollResult = await scrollTimeline(page, scrollDelayMs);
-            if (
-                !chainLengthChanged &&
-                scrollResult.atBottom &&
-                !scrollResult.moved
-            ) {
+            if (!chainLengthChanged && scrollResult.atBottom && !scrollResult.moved) {
                 break;
             }
         }
@@ -422,9 +376,7 @@ export async function scrollTimeline(page: Page, delayMs: number) {
     const beforeScroll = await page.evaluate(() => ({
         scrollTop: window.scrollY,
         viewportHeight: window.innerHeight,
-        scrollHeight:
-            document.scrollingElement?.scrollHeight ??
-            document.body.scrollHeight,
+        scrollHeight: document.scrollingElement?.scrollHeight ?? document.body.scrollHeight,
     }));
 
     await page.evaluate(() => {
@@ -438,15 +390,12 @@ export async function scrollTimeline(page: Page, delayMs: number) {
     const afterScroll = await page.evaluate(() => ({
         scrollTop: window.scrollY,
         viewportHeight: window.innerHeight,
-        scrollHeight:
-            document.scrollingElement?.scrollHeight ??
-            document.body.scrollHeight,
+        scrollHeight: document.scrollingElement?.scrollHeight ?? document.body.scrollHeight,
     }));
 
     return {
         moved: afterScroll.scrollTop > beforeScroll.scrollTop + 2,
         atBottom:
-            afterScroll.scrollTop + afterScroll.viewportHeight >=
-            afterScroll.scrollHeight - 4,
+            afterScroll.scrollTop + afterScroll.viewportHeight >= afterScroll.scrollHeight - 4,
     };
 }

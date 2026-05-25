@@ -4,24 +4,14 @@ import type { EventId } from "@comifuro/core/schema";
 
 export const CURRENT_SCHEMA_VERSION = 9;
 
-export async function buildPublicFeed(
-    db: DrizzleD1Database,
-    eventId: EventId,
-) {
-    const publicTweets = await tweetsOperations.listPublicTweets(
-        db,
-        "catalogue",
-        eventId,
-    );
+export async function buildPublicFeed(db: DrizzleD1Database, eventId: EventId) {
+    const publicTweets = await tweetsOperations.listPublicTweets(db, "catalogue", eventId);
     const media = await tweetsOperations.listPublicTweetMedia(
         db,
         publicTweets.map((tweet) => tweet.id),
     );
 
-    const mediaByTweet = new Map<
-        string,
-        { r2Key: string; thumbnailR2Key: string | null }[]
-    >();
+    const mediaByTweet = new Map<string, { r2Key: string; thumbnailR2Key: string | null }[]>();
     for (const item of media) {
         const current = mediaByTweet.get(item.tweetId) ?? [];
         current.push({

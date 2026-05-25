@@ -33,11 +33,7 @@ export function createTweetThreadSearchText(
 
 export function matchesTweetSearchText(searchText: string, query: string) {
     const normalized = searchText.toLowerCase();
-    const tokens = query
-        .trim()
-        .toLowerCase()
-        .split(/\s+/)
-        .filter(Boolean);
+    const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
     return tokens.every((token) => normalized.includes(token));
 }

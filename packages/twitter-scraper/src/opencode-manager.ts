@@ -15,10 +15,7 @@ function encodeBasicAuth(username: string, password: string) {
 function getHeaders(config: ScraperConfig) {
     if (config.opencodeUsername && config.opencodePassword) {
         return {
-            Authorization: encodeBasicAuth(
-                config.opencodeUsername,
-                config.opencodePassword,
-            ),
+            Authorization: encodeBasicAuth(config.opencodeUsername, config.opencodePassword),
         };
     }
 
@@ -44,9 +41,7 @@ function getManagedPort(baseUrl: string) {
     return Number(url.port || (url.protocol === "https:" ? 443 : 80));
 }
 
-export async function ensureOpencodeServer(
-    config: ScraperConfig,
-): Promise<ManagedOpencode> {
+export async function ensureOpencodeServer(config: ScraperConfig): Promise<ManagedOpencode> {
     if (await isHealthy(config)) {
         return {
             startedByScraper: false,
@@ -108,7 +103,5 @@ export async function ensureOpencodeServer(
         // Ignore shutdown races.
     }
 
-    throw new Error(
-        `Timed out waiting for managed opencode server at ${config.opencodeBaseUrl}`,
-    );
+    throw new Error(`Timed out waiting for managed opencode server at ${config.opencodeBaseUrl}`);
 }

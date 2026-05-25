@@ -10,7 +10,7 @@ import { TweetClassificationValues, TweetId, UserId } from "@comifuro/core/schem
 import { EventId } from "@comifuro/core/schema";
 import type { BoothId } from "@comifuro/core/schema";
 import { getDb, requirePassword } from "../auth";
-import { ValidationError, InternalError } from "../errors";
+
 import { Result, handleResult } from "../responder";
 import { helpers } from "@comifuro/core";
 import { buildPublicFeed } from "../helpers";
@@ -85,9 +85,12 @@ export async function upsertScraperTweet(c: AppContext) {
     try {
         tweet = Schema.decodeUnknownSync(ScraperTweet)(body);
     } catch (error) {
-        return c.json({
-            error: error instanceof Error ? error.message : "validation failed",
-        }, 400);
+        return c.json(
+            {
+                error: error instanceof Error ? error.message : "validation failed",
+            },
+            400,
+        );
     }
 
     const now = new Date();
@@ -187,18 +190,21 @@ export async function putScraperState(c: AppContext) {
     try {
         parsed = Schema.decodeUnknownSync(ScraperState)(body);
     } catch (error) {
-        return c.json({
-            error: error instanceof Error ? error.message : "validation failed",
-        }, 400);
+        return c.json(
+            {
+                error: error instanceof Error ? error.message : "validation failed",
+            },
+            400,
+        );
     }
 
     const now = new Date();
     const [state] = await scraperOperations.upsertState(getDb(c), {
         id: c.req.param("id")!,
-        checkpoint: parsed.checkpoint ?? null,
-        startTweetId: parsed.startTweetId ?? null,
-        endTweetId: parsed.endTweetId ?? null,
-        lastSeenTweetId: parsed.lastSeenTweetId ?? null,
+        checkpoint: (parsed.checkpoint ?? null) as TweetId | null,
+        startTweetId: (parsed.startTweetId ?? null) as TweetId | null,
+        endTweetId: (parsed.endTweetId ?? null) as TweetId | null,
+        lastSeenTweetId: (parsed.lastSeenTweetId ?? null) as TweetId | null,
         lastRunAt: helpers.toDate(parsed.lastRunAt) ?? now,
         updatedAt: now,
     });
@@ -219,12 +225,18 @@ export async function exportPublicFeed(c: AppContext) {
     try {
         parsed = Schema.decodeUnknownSync(ExportPublicFeed)(body);
     } catch (error) {
-        return c.json({
-            error: error instanceof Error ? error.message : "validation failed",
-        }, 400);
+        return c.json(
+            {
+                error: error instanceof Error ? error.message : "validation failed",
+            },
+            400,
+        );
     }
 
-    const eventId = helpers.normalizeEventId(parsed.eventId, Schema.decodeUnknownSync(EventId)("cf22"));
+    const eventId = helpers.normalizeEventId(
+        parsed.eventId,
+        Schema.decodeUnknownSync(EventId)("cf22"),
+    );
     const db = getDb(c);
     const payload = JSON.stringify(await buildPublicFeed(db, eventId));
     await c.env.R2.put(`${eventId}/tweets.json`, payload, {

@@ -15,18 +15,11 @@ function loadEnvFiles() {
 
     envLoaded = true;
 
-    for (const path of [
-        resolve(currentDir, "../.env"),
-        resolve(currentDir, "../../.env"),
-    ]) {
+    for (const path of [resolve(currentDir, "../.env"), resolve(currentDir, "../../.env")]) {
         try {
             process.loadEnvFile(path);
         } catch (error) {
-            if (
-                !(error instanceof Error) ||
-                !("code" in error) ||
-                error.code !== "ENOENT"
-            ) {
+            if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
                 throw error;
             }
         }
@@ -94,10 +87,7 @@ export function loadConfig(argv = process.argv.slice(2)): ScraperConfig {
         eventId: str(env.EVENT_ID, "cf22").trim().toLowerCase(),
         stateId: str(env.SCRAPER_STATE_ID, "x-search:cf22"),
         searchQuery: str(env.SEARCH_QUERY, "(#comifuro22catalogue OR #cf22) filter:images"),
-        browserCdpUrl:
-            env.BROWSER_CDP_URL ??
-            env.STAGEHAND_CDP_URL ??
-            "http://127.0.0.1:9222",
+        browserCdpUrl: env.BROWSER_CDP_URL ?? env.STAGEHAND_CDP_URL ?? "http://127.0.0.1:9222",
         scraperBrowserCommand: env.SCRAPER_BROWSER_COMMAND,
         scraperPageUrlMatch: str(env.SCRAPER_PAGE_URL_MATCH, "https://x.com/"),
         scrollDelayMs: toInt(env.SCRAPER_SCROLL_DELAY_MS, 3000),
@@ -111,12 +101,14 @@ export function loadConfig(argv = process.argv.slice(2)): ScraperConfig {
         opencodeModelId: env.OPENCODE_MODEL_ID,
         opencodeUsername: env.OPENCODE_SERVER_USERNAME,
         opencodePassword: env.OPENCODE_SERVER_PASSWORD,
-        classifierPromptPath: str(env.CLASSIFIER_PROMPT_PATH, resolve(currentDir, "../prompts/catalogue-classifier.md")),
+        classifierPromptPath: str(
+            env.CLASSIFIER_PROMPT_PATH,
+            resolve(currentDir, "../prompts/catalogue-classifier.md"),
+        ),
         runMode: cliArgs.mode ?? "default",
         searchMaxId: cliArgs.maxId ?? null,
         searchSinceDate: cliArgs.since ?? null,
         updateState: cliArgs.updateState ?? cliArgs.mode === "default",
-        maxIdReloadPageLimit:
-            cliArgs.maxPages ?? toInt(env.SCRAPER_MAX_ID_RELOAD_LIMIT, 100),
+        maxIdReloadPageLimit: cliArgs.maxPages ?? toInt(env.SCRAPER_MAX_ID_RELOAD_LIMIT, 100),
     };
 }

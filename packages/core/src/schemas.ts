@@ -1,13 +1,5 @@
 import { createSelectSchema } from "drizzle-orm/effect-schema";
-import {
-    tweets,
-    TweetId,
-    UserId,
-    EventId,
-    BoothId,
-    TweetClassificationValues,
-    MarkValues,
-} from "./schema";
+import { tweets, TweetId, UserId, EventId, BoothId, MarkValues } from "./schema";
 import * as Schema from "effect/Schema";
 
 export type { TweetId, UserId, EventId, BoothId } from "./schema";
@@ -15,12 +7,13 @@ export type { TweetId, UserId, EventId, BoothId } from "./schema";
 const BaseTweetRow = createSelectSchema(tweets);
 
 const {
-    searchQuery,
-    classificationReason,
-    classifierPromptVersion,
-    inferredFandomsConfidence,
-    inferredBoothIdConfidence,
-    createdAt,
+    // unused fields destructured out to exclude them from sync schema
+    searchQuery: _searchQuery,
+    classificationReason: _classificationReason,
+    classifierPromptVersion: _classifierPromptVersion,
+    inferredFandomsConfidence: _inferredFandomsConfidence,
+    inferredBoothIdConfidence: _inferredBoothIdConfidence,
+    createdAt: _createdAt,
     ...byDefault
 } = BaseTweetRow.fields;
 

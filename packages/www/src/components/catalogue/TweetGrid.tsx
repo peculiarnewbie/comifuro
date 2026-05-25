@@ -1,10 +1,7 @@
 import { For, Show } from "solid-js";
 import type { Marks } from "@comifuro/core/types";
 import TweetCard from "../tweet";
-import type {
-    CatalogueTweetThread,
-    MarksStoreSession,
-} from "../../lib/catalogue-store";
+import type { CatalogueTweetThread, MarksStoreSession } from "../../lib/catalogue-store";
 
 export default function TweetGrid(props: {
     threads: CatalogueTweetThread[];
@@ -27,12 +24,8 @@ export default function TweetGrid(props: {
                         <TweetCard
                             thread={thread}
                             mark={props.marks[thread.groupId] ?? null}
-                            onMark={(mark) =>
-                                props.marksSession?.setMark(thread.groupId, mark)
-                            }
-                            onClearMark={() =>
-                                props.marksSession?.clearMark(thread.groupId)
-                            }
+                            onMark={(mark) => props.marksSession?.setMark(thread.groupId, mark)}
+                            onClearMark={() => props.marksSession?.clearMark(thread.groupId)}
                         />
                     )}
                 </For>

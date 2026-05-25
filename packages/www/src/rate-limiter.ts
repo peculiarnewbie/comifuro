@@ -7,7 +7,7 @@ export interface RateLimiterEnv {
 export class RateLimiter extends DurableObject<RateLimiterEnv> {
     constructor(ctx: DurableObjectState, env: RateLimiterEnv) {
         super(ctx, env);
-        ctx.blockConcurrencyWhile(async () => {
+        void ctx.blockConcurrencyWhile(async () => {
             this.ctx.storage.sql.exec(`
                 CREATE TABLE IF NOT EXISTS rate_limits (
                     key TEXT PRIMARY KEY NOT NULL,
@@ -18,22 +18,16 @@ export class RateLimiter extends DurableObject<RateLimiterEnv> {
         });
     }
 
-    check(
-        ip: string,
-        endpoint: string,
-        maxRequests: number,
-        windowMs: number,
-    ): boolean {
+    check(ip: string, endpoint: string, maxRequests: number, windowMs: number): boolean {
         const key = `${ip}:${endpoint}`;
         const now = Date.now();
 
-        const [result] = this.ctx.storage.sql.exec<{
-            count: number;
-            reset_at: number;
-        }>(
-            `SELECT count, reset_at FROM rate_limits WHERE key = ?`,
-            key,
-        ).toArray();
+        const [result] = this.ctx.storage.sql
+            .exec<{
+                count: number;
+                reset_at: number;
+            }>(`SELECT count, reset_at FROM rate_limits WHERE key = ?`, key)
+            .toArray();
 
         if (!result || now > result.reset_at) {
             this.ctx.storage.sql.exec(
@@ -48,10 +42,7 @@ export class RateLimiter extends DurableObject<RateLimiterEnv> {
             return false;
         }
 
-        this.ctx.storage.sql.exec(
-            `UPDATE rate_limits SET count = count + 1 WHERE key = ?`,
-            key,
-        );
+        this.ctx.storage.sql.exec(`UPDATE rate_limits SET count = count + 1 WHERE key = ?`, key);
         return true;
     }
 }

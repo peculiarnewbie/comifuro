@@ -44,10 +44,7 @@ export async function getMarks(c: AppContext) {
             c,
             Result.err(
                 new InternalError({
-                    message:
-                        error instanceof Error
-                            ? error.message
-                            : "failed to fetch marks",
+                    message: error instanceof Error ? error.message : "failed to fetch marks",
                     cause: error,
                 }),
             ),
@@ -73,9 +70,12 @@ export async function syncMarks(c: AppContext) {
     try {
         parsed = Schema.decodeUnknownSync(MarksBody)(body);
     } catch (error) {
-        return c.json({
-            error: error instanceof Error ? error.message : "validation failed",
-        }, 400);
+        return c.json(
+            {
+                error: error instanceof Error ? error.message : "validation failed",
+            },
+            400,
+        );
     }
 
     try {
@@ -102,10 +102,7 @@ export async function syncMarks(c: AppContext) {
             c,
             Result.err(
                 new InternalError({
-                    message:
-                        error instanceof Error
-                            ? error.message
-                            : "failed to sync marks",
+                    message: error instanceof Error ? error.message : "failed to sync marks",
                     cause: error,
                 }),
             ),

@@ -22,8 +22,7 @@ export default function AdminTweetRow(props: {
         setTagDraft(props.tweet.matchedTags.join(", "));
     });
 
-    const firstImage = () =>
-        props.tweet.thumbnails?.[0] ?? props.tweet.images[0];
+    const firstImage = () => props.tweet.thumbnails?.[0] ?? props.tweet.images[0];
 
     return (
         <section class="rounded-[1.5rem] border border-stone-200 bg-white/90 p-4 shadow-[0_20px_60px_-50px_rgba(41,37,36,0.45)]">
@@ -80,9 +79,7 @@ export default function AdminTweetRow(props: {
                             <textarea
                                 rows={3}
                                 value={fandomDraft()}
-                                onInput={(event) =>
-                                    setFandomDraft(event.currentTarget.value)
-                                }
+                                onInput={(event) => setFandomDraft(event.currentTarget.value)}
                                 class="min-h-24 w-full rounded-2xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-800 outline-none transition focus:border-stone-400"
                                 placeholder="Blue Archive, Uma Musume"
                             />
@@ -96,10 +93,7 @@ export default function AdminTweetRow(props: {
                                     tone="primary"
                                     disabled={props.pendingKeys[`fandom:${props.tweet.id}`]}
                                     onClick={() =>
-                                        void props.onSaveFandoms(
-                                            props.tweet.id,
-                                            fandomDraft(),
-                                        )
+                                        void props.onSaveFandoms(props.tweet.id, fandomDraft())
                                     }
                                 />
                                 <For each={props.tweet.inferredFandoms}>
@@ -179,9 +173,7 @@ export default function AdminTweetRow(props: {
                                 }
                                 tone="danger"
                                 disabled={props.pendingKeys[`remove:${props.tweet.id}`]}
-                                onClick={() =>
-                                    void props.onRemoveFollowUp?.(props.tweet.id)
-                                }
+                                onClick={() => void props.onRemoveFollowUp?.(props.tweet.id)}
                             />
                         </Show>
                     </div>

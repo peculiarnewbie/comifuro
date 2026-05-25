@@ -22,9 +22,7 @@ describe("parseScraperCliArgs", () => {
     });
 
     test("rejects unknown flags", () => {
-        expect(() => parseScraperCliArgs(["--wat"])).toThrow(
-            "unknown argument: --wat",
-        );
+        expect(() => parseScraperCliArgs(["--wat"])).toThrow("unknown argument: --wat");
     });
 });
 

@@ -160,10 +160,7 @@ function createBooth(args: {
     height: number;
 }): Booth {
     const code = `${args.section}-${padBoothNumber(args.baseNumber)}${args.suffix}`;
-    const seed =
-        args.baseNumber * 17 +
-        args.section.charCodeAt(0) * 11 +
-        args.suffix.charCodeAt(0);
+    const seed = args.baseNumber * 17 + args.section.charCodeAt(0) * 11 + args.suffix.charCodeAt(0);
     const status = getBoothStatus(seed);
     const vendor = getVendor(seed, status);
 
@@ -228,8 +225,7 @@ function createStack(args: {
         const isTopEdge = rowIndex === 0;
         const isBottomEdge = rowIndex === rowCount - 1;
         const rowMidpoint = rowY + CELL;
-        const sideCorridorY =
-            rowMidpoint < args.y + height / 2 ? topCorridorY : bottomCorridorY;
+        const sideCorridorY = rowMidpoint < args.y + height / 2 ? topCorridorY : bottomCorridorY;
 
         if (isTopEdge) {
             booths.push(
@@ -482,16 +478,12 @@ export function buildFloorPlan(): FloorPlan {
     }
 
     const firstColumnX = LEFT_MARGIN;
-    const lastColumnX =
-        LEFT_MARGIN + (SECTION_ORDER.length - 1) * (STACK_WIDTH + COLUMN_GAP);
+    const lastColumnX = LEFT_MARGIN + (SECTION_ORDER.length - 1) * (STACK_WIDTH + COLUMN_GAP);
     const mainAisleXs = [
         firstColumnX - 56,
         ...SECTION_ORDER.slice(0, -1).map(
             (_, index) =>
-                LEFT_MARGIN +
-                index * (STACK_WIDTH + COLUMN_GAP) +
-                STACK_WIDTH +
-                COLUMN_GAP / 2,
+                LEFT_MARGIN + index * (STACK_WIDTH + COLUMN_GAP) + STACK_WIDTH + COLUMN_GAP / 2,
         ),
         lastColumnX + STACK_WIDTH + 56,
     ];
@@ -531,11 +523,9 @@ export function buildRoutePoints(
         points.push(endCorridor);
     } else {
         const aisleX = mainAisleXs.reduce((best, candidate) => {
-            const bestDistance =
-                Math.abs(startCorridor.x - best) + Math.abs(endCorridor.x - best);
+            const bestDistance = Math.abs(startCorridor.x - best) + Math.abs(endCorridor.x - best);
             const candidateDistance =
-                Math.abs(startCorridor.x - candidate) +
-                Math.abs(endCorridor.x - candidate);
+                Math.abs(startCorridor.x - candidate) + Math.abs(endCorridor.x - candidate);
             return candidateDistance < bestDistance ? candidate : best;
         }, mainAisleXs[0] ?? startCorridor.x);
 
@@ -553,7 +543,7 @@ export function buildRoutePoints(
 
     return points.filter((point, index, array) => {
         if (index === 0) return true;
-        const prev = array[index - 1];
+        const prev = array[index - 1]!;
         return prev.x !== point.x || prev.y !== point.y;
     });
 }
@@ -561,10 +551,7 @@ export function buildRoutePoints(
 export function pointsToPath(points: Point[]) {
     if (points.length === 0) return "";
     return points
-        .map(
-            (point, index) =>
-                `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`,
-        )
+        .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
         .join(" ");
 }
 

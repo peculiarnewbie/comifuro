@@ -1,14 +1,6 @@
-export {
-    createTweetStoreSession,
-    groupTweetsIntoThreads,
-    getApiHost,
-} from "./tweet-store";
-export {
-    createMarksStoreSession,
-} from "./marks-store";
-export {
-    createSearchIndexManager,
-} from "./search-index";
+export { createTweetStoreSession, groupTweetsIntoThreads, getApiHost } from "./tweet-store";
+export { createMarksStoreSession } from "./marks-store";
+export { createSearchIndexManager } from "./search-index";
 export type {
     CatalogueTweet,
     CatalogueTweetThread,
@@ -18,7 +10,4 @@ export type {
     SyncStatus,
     AdminActions,
 } from "./tweet-store";
-export type {
-    MarksSnapshot,
-    MarksStoreSession,
-} from "./marks-store";
+export type { MarksSnapshot, MarksStoreSession } from "./marks-store";

@@ -1,11 +1,5 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import {
-    Show,
-    createEffect,
-    createMemo,
-    createSignal,
-    onCleanup,
-} from "solid-js";
+import { Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import type { Marks } from "@comifuro/core/types";
 import {
     createMarksStoreSession,
@@ -39,10 +33,8 @@ function readAdminFlag() {
 export function AppRouteComponent() {
     const [eventId, setEventId] = createSignal(
         typeof window !== "undefined"
-            ? new URLSearchParams(window.location.search)
-                  .get("event")
-                  ?.trim()
-                  .toLowerCase() || "cf22"
+            ? new URLSearchParams(window.location.search).get("event")?.trim().toLowerCase() ||
+                  "cf22"
             : "cf22",
     );
     const isAdminMode = readAdminFlag();
@@ -67,20 +59,15 @@ export function AppRouteComponent() {
     });
     const [adminPassword, setAdminPassword] = createSignal(
         typeof window !== "undefined"
-            ? window.sessionStorage.getItem(PASSWORD_STORAGE_KEY) ?? ""
+            ? (window.sessionStorage.getItem(PASSWORD_STORAGE_KEY) ?? "")
             : "",
     );
     const accountId = getOrCreateAccountId();
     const [statusBanner, setStatusBanner] = createSignal<StatusBanner | null>(null);
-    const [pendingActions, setPendingActions] = createSignal<
-        Record<string, boolean>
-    >({});
+    const [pendingActions, setPendingActions] = createSignal<Record<string, boolean>>({});
     const groupedThreads = createMemo(() => groupTweetsIntoThreads(tweets()));
     const groupedThreadsById = createMemo(
-        () =>
-            new Map(
-                groupedThreads().map((thread) => [thread.groupId, thread] as const),
-            ),
+        () => new Map(groupedThreads().map((thread) => [thread.groupId, thread] as const)),
     );
 
     const searchIndex = createSearchIndexManager();
@@ -94,7 +81,7 @@ export function AppRouteComponent() {
         let disposed = false;
         let unsubscribe = () => {};
 
-        (async () => {
+        void (async () => {
             const nextSession = await createTweetStoreSession({
                 eventId: selectedEventId,
                 apiHost: getApiHost(window.location.href),
@@ -129,7 +116,6 @@ export function AppRouteComponent() {
     });
 
     createEffect(() => {
-        const nextThreads = groupedThreads();
         if (typeof window === "undefined") return;
         searchIndex.update(tweets());
     });
@@ -145,7 +131,7 @@ export function AppRouteComponent() {
         let disposed = false;
         let unsubscribe = () => {};
 
-        (async () => {
+        void (async () => {
             const actId = getOrCreateAccountId();
             const nextSession = await createMarksStoreSession({
                 accountId: actId,
@@ -258,9 +244,6 @@ export function AppRouteComponent() {
         return window.confirm(message);
     };
 
-    const apiHost = () =>
-        typeof window !== "undefined" ? getApiHost(window.location.href) : "";
-
     const adminAuth = () => ({
         password: adminPassword().trim(),
         accountId,
@@ -291,8 +274,7 @@ export function AppRouteComponent() {
         } catch (error) {
             setStatusBanner({
                 tone: "error",
-                message:
-                    error instanceof Error ? error.message : "admin action failed",
+                message: error instanceof Error ? error.message : "admin action failed",
             });
         } finally {
             setPending(key, false);
@@ -304,27 +286,15 @@ export function AppRouteComponent() {
             `fandom:${tweetId}`,
             `Saved fandoms for tweet ${tweetId}.`,
             async () => {
-                await tweetSession!.admin.saveFandoms(
-                    tweetId,
-                    value,
-                    adminAuth(),
-                );
+                await tweetSession!.admin.saveFandoms(tweetId, value, adminAuth());
             },
         );
     };
 
     const saveTags = async (tweetId: string, value: string) => {
-        await runAdminAction(
-            `tags:${tweetId}`,
-            `Saved tags for tweet ${tweetId}.`,
-            async () => {
-                await tweetSession!.admin.saveTags(
-                    tweetId,
-                    value,
-                    adminAuth(),
-                );
-            },
-        );
+        await runAdminAction(`tags:${tweetId}`, `Saved tags for tweet ${tweetId}.`, async () => {
+            await tweetSession!.admin.saveTags(tweetId, value, adminAuth());
+        });
     };
 
     const makeRoot = async (thread: CatalogueTweetThread, tweetId: string) => {
@@ -340,11 +310,7 @@ export function AppRouteComponent() {
             `reroot:${tweetId}`,
             `Thread ${thread.groupId} rerooted to ${tweetId}.`,
             async () => {
-                await tweetSession!.admin.reroot(
-                    thread.groupId,
-                    tweetId,
-                    adminAuth(),
-                );
+                await tweetSession!.admin.reroot(thread.groupId, tweetId, adminAuth());
             },
         );
     };
@@ -380,10 +346,7 @@ export function AppRouteComponent() {
             `remove:${tweetId}`,
             `Follow-up ${tweetId} removed from the catalogue.`,
             async () => {
-                await tweetSession!.admin.removeFollowUp(
-                    tweetId,
-                    adminAuth(),
-                );
+                await tweetSession!.admin.removeFollowUp(tweetId, adminAuth());
             },
         );
     };

@@ -97,8 +97,7 @@
         --_u3oze5: var(--top__calc) calc(var(--top) * var(--_grid));
         justify-content: var(--justify-content, revert-layer);
         flex-basis: var(--_1cztp9a, var(--flex-basis, revert-layer));
-        --_1cztp9a: var(--flex-basis__calc)
-            calc(var(--flex-basis) * var(--_grid));
+        --_1cztp9a: var(--flex-basis__calc) calc(var(--flex-basis) * var(--_grid));
         flex-direction: var(--flex-direction, revert-layer);
     }
 }

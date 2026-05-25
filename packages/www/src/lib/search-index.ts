@@ -1,6 +1,10 @@
 import MiniSearch from "minisearch";
 import type { SearchIndexState } from "./tweet-store";
-import { groupTweetsIntoThreads, type CatalogueTweet, type CatalogueTweetThread } from "./tweet-store";
+import {
+    groupTweetsIntoThreads,
+    type CatalogueTweet,
+    type CatalogueTweetThread,
+} from "./tweet-store";
 import { createTweetThreadSearchText } from "./tweet-search";
 
 type SearchDocument = {
@@ -16,19 +20,11 @@ function createSearchIndex() {
     });
 }
 
-function toSearchDocument(
-    thread: CatalogueTweetThread,
-): SearchDocument {
+function toSearchDocument(thread: CatalogueTweetThread): SearchDocument {
     return {
         id: thread.groupId,
-        updatedAt: Math.max(
-            thread.root.updatedAt,
-            ...thread.replies.map((t) => t.updatedAt),
-        ),
-        searchText: createTweetThreadSearchText(
-            thread.root,
-            thread.replies,
-        ),
+        updatedAt: Math.max(thread.root.updatedAt, ...thread.replies.map((t) => t.updatedAt)),
+        searchText: createTweetThreadSearchText(thread.root, thread.replies),
     };
 }
 
@@ -63,9 +59,7 @@ export function createSearchIndexManager(): SearchIndexManager {
         state = { ready: false, count: threads.length };
 
         void (async () => {
-            const removedIds = [...indexedDocuments.keys()].filter(
-                (id) => !nextDocuments.has(id),
-            );
+            const removedIds = [...indexedDocuments.keys()].filter((id) => !nextDocuments.has(id));
 
             for (const tweetId of removedIds) {
                 if (revision !== searchRevision) return;
@@ -91,9 +85,7 @@ export function createSearchIndexManager(): SearchIndexManager {
 
                 processed += 1;
                 if (processed % 200 === 0) {
-                    await new Promise<void>((resolve) =>
-                        setTimeout(resolve, 0),
-                    );
+                    await new Promise<void>((resolve) => setTimeout(resolve, 0));
                 }
             }
 
@@ -111,17 +103,9 @@ export function createSearchIndexManager(): SearchIndexManager {
 
         if (!state.ready) {
             return threads.filter((thread) => {
-                const text = createTweetThreadSearchText(
-                    thread.root,
-                    thread.replies,
-                );
-                const tokens = query
-                    .toLowerCase()
-                    .split(/\s+/)
-                    .filter(Boolean);
-                return tokens.every((token) =>
-                    text.toLowerCase().includes(token),
-                );
+                const text = createTweetThreadSearchText(thread.root, thread.replies);
+                const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+                return tokens.every((token) => text.toLowerCase().includes(token));
             });
         }
 
@@ -134,9 +118,7 @@ export function createSearchIndexManager(): SearchIndexManager {
         return miniSearch
             .search({ combineWith: "AND", queries }, { prefix: true })
             .map((result) => threadMap.get(result.id))
-            .filter(
-                (thread): thread is CatalogueTweetThread => Boolean(thread),
-            );
+            .filter((thread): thread is CatalogueTweetThread => Boolean(thread));
     };
 
     return { getState, update, search };

@@ -4,10 +4,7 @@ import {
     type IndexedDbPersister,
 } from "tinybase/persisters/persister-indexed-db";
 import type { Marks } from "@comifuro/core/types";
-import {
-    createMarksSyncProtocol,
-    type MarksSyncProtocol,
-} from "./sync-protocol";
+import { createMarksSyncProtocol } from "./sync-protocol";
 
 const MARKS_TABLE = "marks";
 
@@ -20,10 +17,7 @@ type MarksStoreListener = (snapshot: MarksSnapshot) => void;
 const defaultMarksContent = (): Content => [{}, {}];
 
 const getMarksSnapshot = (store: Store): MarksSnapshot => {
-    const table = store.getTable(MARKS_TABLE) as Record<
-        string,
-        { mark?: Marks }
-    >;
+    const table = store.getTable(MARKS_TABLE) as Record<string, { mark?: Marks }>;
     return {
         marks: Object.fromEntries(
             Object.entries(table ?? {})
@@ -33,10 +27,7 @@ const getMarksSnapshot = (store: Store): MarksSnapshot => {
     };
 };
 
-const emitListeners = <T>(
-    listeners: Set<(snapshot: T) => void>,
-    snapshot: T,
-) => {
+const emitListeners = <T>(listeners: Set<(snapshot: T) => void>, snapshot: T) => {
     for (const listener of listeners) {
         listener(snapshot);
     }
@@ -92,8 +83,7 @@ export async function createMarksStoreSession({
         if (destroyed) return;
 
         const delay =
-            typeof document !== "undefined" &&
-            document.visibilityState === "visible"
+            typeof document !== "undefined" && document.visibilityState === "visible"
                 ? 30_000
                 : 300_000;
         pollTimer = setTimeout(() => void syncOnce(), delay);
@@ -114,10 +104,7 @@ export async function createMarksStoreSession({
                     }
                 });
 
-                lastKnownVersion = Math.max(
-                    lastKnownVersion,
-                    result.serverTime,
-                );
+                lastKnownVersion = Math.max(lastKnownVersion, result.serverTime);
             } catch (error) {
                 console.error("[marks] sync error", error);
             } finally {
@@ -165,10 +152,7 @@ export async function createMarksStoreSession({
             if (typeof window !== "undefined") {
                 window.removeEventListener("focus", onWindowSync);
                 window.removeEventListener("online", onWindowSync);
-                document.removeEventListener(
-                    "visibilitychange",
-                    onWindowSync,
-                );
+                document.removeEventListener("visibilitychange", onWindowSync);
             }
 
             await persister.destroy();

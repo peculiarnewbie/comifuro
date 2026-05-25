@@ -33,16 +33,26 @@ export class ApiClient {
     ) {}
 
     private async request<T>(path: string, init?: RequestInit): Promise<T> {
-        const baseUrl = this.apiBaseUrl.endsWith("/")
-            ? this.apiBaseUrl
-            : `${this.apiBaseUrl}/`;
+        const baseUrl = this.apiBaseUrl.endsWith("/") ? this.apiBaseUrl : `${this.apiBaseUrl}/`;
         const normalizedPath = path.replace(/^\/+/, "");
+        const extraHeaders: Record<string, string> = {
+            "pec-password": this.apiPassword,
+        };
+        const existingHeaders = init?.headers;
+        if (existingHeaders instanceof Headers) {
+            for (const [key, value] of existingHeaders) {
+                extraHeaders[key] = value;
+            }
+        } else if (Array.isArray(existingHeaders)) {
+            for (const [key, value] of existingHeaders) {
+                extraHeaders[key] = value;
+            }
+        } else if (existingHeaders) {
+            Object.assign(extraHeaders, existingHeaders);
+        }
         const response = await fetch(new URL(normalizedPath, baseUrl), {
             ...init,
-            headers: {
-                ...(init?.headers ?? {}),
-                "pec-password": this.apiPassword,
-            },
+            headers: extraHeaders,
         });
 
         if (!response.ok) {
@@ -57,13 +67,16 @@ export class ApiClient {
         return await this.request<ScraperState | null>(`/scraper/state/${id}`);
     }
 
-    async updateState(id: string, state: {
-        checkpoint: string | null;
-        startTweetId: string | null;
-        endTweetId: string | null;
-        lastRunAt: string;
-        lastSeenTweetId: string | null;
-    }) {
+    async updateState(
+        id: string,
+        state: {
+            checkpoint: string | null;
+            startTweetId: string | null;
+            endTweetId: string | null;
+            lastRunAt: string;
+            lastSeenTweetId: string | null;
+        },
+    ) {
         return await this.request<ScraperState>(`/scraper/state/${id}`, {
             method: "PUT",
             headers: {
@@ -82,13 +95,10 @@ export class ApiClient {
             }),
         );
 
-        return await this.request<{ ok: true; key: string }>(
-            `/upload/${encodeURIComponent(key)}`,
-            {
-                method: "POST",
-                body: formData,
-            },
-        );
+        return await this.request<{ ok: true; key: string }>(`/upload/${encodeURIComponent(key)}`, {
+            method: "POST",
+            body: formData,
+        });
     }
 
     async upsertTweet(payload: ScrapedTweetPayload) {
@@ -102,16 +112,13 @@ export class ApiClient {
     }
 
     async exportPublicFeed(eventId: string) {
-        return await this.request<{ ok: true; bytes: number }>(
-            "/scraper/export-public-feed",
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ eventId }),
+        return await this.request<{ ok: true; bytes: number }>("/scraper/export-public-feed", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
             },
-        );
+            body: JSON.stringify({ eventId }),
+        });
     }
 
     async listMediaMissingThumbnails(params?: {
@@ -124,10 +131,7 @@ export class ApiClient {
         }
         if (params?.cursor) {
             searchParams.set("cursorTweetId", params.cursor.tweetId);
-            searchParams.set(
-                "cursorMediaIndex",
-                String(params.cursor.mediaIndex),
-            );
+            searchParams.set("cursorMediaIndex", String(params.cursor.mediaIndex));
         }
         const query = searchParams.toString();
         return await this.request<{
@@ -137,9 +141,7 @@ export class ApiClient {
                 r2Key: string;
             }[];
             nextCursor: { tweetId: string; mediaIndex: number } | null;
-        }>(
-            `/admin/media/missing-thumbnails${query ? `?${query}` : ""}`,
-        );
+        }>(`/admin/media/missing-thumbnails${query ? `?${query}` : ""}`);
     }
 
     async setMediaThumbnail(input: {

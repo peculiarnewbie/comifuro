@@ -15,6 +15,7 @@
         "noEmit": true,
 
         // Best practices
+        "types": ["bun-types"],
         "strict": true,
         "skipLibCheck": true,
         "noFallthroughCasesInSwitch": true,

@@ -29,12 +29,8 @@ export default function SidebarNightMarket(props: {
     const selectedBooth = createMemo(
         () => floorPlan.boothById.get(props.selectedBoothId ?? "") ?? null,
     );
-    const startBooth = createMemo(
-        () => floorPlan.boothById.get(props.startBoothId ?? "") ?? null,
-    );
-    const endBooth = createMemo(
-        () => floorPlan.boothById.get(props.endBoothId ?? "") ?? null,
-    );
+    const startBooth = createMemo(() => floorPlan.boothById.get(props.startBoothId ?? "") ?? null);
+    const endBooth = createMemo(() => floorPlan.boothById.get(props.endBoothId ?? "") ?? null);
     const routePoints = createMemo(() =>
         buildRoutePoints(startBooth(), endBooth(), floorPlan.mainAisleXs),
     );
@@ -113,7 +109,10 @@ export default function SidebarNightMarket(props: {
                         "border-left": "1px solid rgba(255,255,255,0.06)",
                     }}
                 >
-                    <div class="mb-2 text-xs font-bold tracking-widest" style={{ color: "#334155" }}>
+                    <div
+                        class="mb-2 text-xs font-bold tracking-widest"
+                        style={{ color: "#334155" }}
+                    >
                         NAV
                     </div>
                     {tabButton("search", "🔍")}
@@ -139,7 +138,10 @@ export default function SidebarNightMarket(props: {
                             <div class="mb-6">
                                 <h2
                                     class="mb-1 text-2xl font-bold"
-                                    style={{ ...glowText("#e2e8f0"), "font-family": theme().fonts.display }}
+                                    style={{
+                                        ...glowText("#e2e8f0"),
+                                        "font-family": theme().fonts.display,
+                                    }}
                                 >
                                     Find Booth
                                 </h2>
@@ -179,15 +181,15 @@ export default function SidebarNightMarket(props: {
                                                 return (
                                                     <button
                                                         class="flex w-full items-center justify-between px-3 py-2 text-left transition"
-                                                style={{
-                                                    background: isSelected
-                                                        ? "rgba(34,211,238,0.1)"
-                                                        : "transparent",
-                                                    "border-radius": "4px",
-                                                    "border": isSelected
-                                                        ? "1px solid rgba(34,211,238,0.3)"
-                                                        : "1px solid transparent",
-                                                }}
+                                                        style={{
+                                                            background: isSelected
+                                                                ? "rgba(34,211,238,0.1)"
+                                                                : "transparent",
+                                                            "border-radius": "4px",
+                                                            border: isSelected
+                                                                ? "1px solid rgba(34,211,238,0.3)"
+                                                                : "1px solid transparent",
+                                                        }}
                                                         onClick={() => {
                                                             props.onFocusBooth(booth.id);
                                                             setMobileOpen(false);
@@ -196,7 +198,9 @@ export default function SidebarNightMarket(props: {
                                                         <span
                                                             class="font-mono text-sm font-semibold"
                                                             style={{
-                                                                color: isSelected ? "#22d3ee" : "#94a3b8",
+                                                                color: isSelected
+                                                                    ? "#22d3ee"
+                                                                    : "#94a3b8",
                                                                 "font-family": theme().fonts.mono,
                                                             }}
                                                         >
@@ -212,13 +216,28 @@ export default function SidebarNightMarket(props: {
                             </Show>
 
                             <div class="mt-8">
-                                <h3 class="mb-3 text-xs font-bold uppercase tracking-widest" style={{ color: "#334155" }}>
+                                <h3
+                                    class="mb-3 text-xs font-bold uppercase tracking-widest"
+                                    style={{ color: "#334155" }}
+                                >
                                     Quick Picks
                                 </h3>
                                 <div class="flex flex-wrap gap-2">
-                                    <QuickChip label="Available" color="#10b981" onClick={() => {}} />
-                                    <QuickChip label="Reserved" color="#f59e0b" onClick={() => {}} />
-                                    <QuickChip label="Occupied" color="#f43f5e" onClick={() => {}} />
+                                    <QuickChip
+                                        label="Available"
+                                        color="#10b981"
+                                        onClick={() => {}}
+                                    />
+                                    <QuickChip
+                                        label="Reserved"
+                                        color="#f59e0b"
+                                        onClick={() => {}}
+                                    />
+                                    <QuickChip
+                                        label="Occupied"
+                                        color="#f43f5e"
+                                        onClick={() => {}}
+                                    />
                                 </div>
                             </div>
                         </Show>
@@ -229,7 +248,9 @@ export default function SidebarNightMarket(props: {
                                 when={selectedBooth()}
                                 fallback={
                                     <div class="flex h-64 flex-col items-center justify-center gap-3">
-                                        <div class="text-4xl" style={{ opacity: 0.2 }}>📍</div>
+                                        <div class="text-4xl" style={{ opacity: 0.2 }}>
+                                            📍
+                                        </div>
                                         <p class="text-sm" style={{ color: "#475569" }}>
                                             Select a booth on the map
                                         </p>
@@ -262,11 +283,7 @@ export default function SidebarNightMarket(props: {
                                                 label="Exhibitor"
                                                 value={booth().vendor ?? "—"}
                                             />
-                                            <DataRow
-                                                label="Note"
-                                                value={booth().note}
-                                                muted
-                                            />
+                                            <DataRow label="Note" value={booth().note} muted />
                                         </div>
 
                                         <div class="flex gap-2">
@@ -291,7 +308,10 @@ export default function SidebarNightMarket(props: {
                             <div class="mb-6">
                                 <h2
                                     class="text-2xl font-bold"
-                                    style={{ ...glowText("#e2e8f0"), "font-family": theme().fonts.display }}
+                                    style={{
+                                        ...glowText("#e2e8f0"),
+                                        "font-family": theme().fonts.display,
+                                    }}
                                 >
                                     Route
                                 </h2>
@@ -304,10 +324,10 @@ export default function SidebarNightMarket(props: {
                                     color="#0891b2"
                                     emptyText="Not set"
                                 />
-                                    <div
-                                        class="ml-5 h-6 border-l border-dashed"
-                                        style={{ "border-color": "rgba(255,255,255,0.1)" }}
-                                    />
+                                <div
+                                    class="ml-5 h-6 border-l border-dashed"
+                                    style={{ "border-color": "rgba(255,255,255,0.1)" }}
+                                />
                                 <RouteNode
                                     label="END"
                                     booth={endBooth()}
@@ -325,11 +345,26 @@ export default function SidebarNightMarket(props: {
                                         border: "1px solid rgba(255,255,255,0.06)",
                                     }}
                                 >
-                                    <div class="text-xs uppercase tracking-widest" style={{ color: "#475569" }}>
+                                    <div
+                                        class="text-xs uppercase tracking-widest"
+                                        style={{ color: "#475569" }}
+                                    >
                                         Distance
                                     </div>
-                                    <div class="mt-1 text-2xl font-bold" style={{ color: "#e2e8f0", "font-family": theme().fonts.display }}>
-                                        {dist()} <span class="text-sm font-normal" style={{ color: "#64748b" }}>units</span>
+                                    <div
+                                        class="mt-1 text-2xl font-bold"
+                                        style={{
+                                            color: "#e2e8f0",
+                                            "font-family": theme().fonts.display,
+                                        }}
+                                    >
+                                        {dist()}{" "}
+                                        <span
+                                            class="text-sm font-normal"
+                                            style={{ color: "#64748b" }}
+                                        >
+                                            units
+                                        </span>
                                     </div>
                                 </div>
                             </Show>
@@ -384,10 +419,7 @@ function StatusLine(props: { status: "available" | "reserved" | "occupied" }) {
               ? "#f59e0b"
               : "#f43f5e";
     return (
-        <span
-            class="h-px w-8"
-            style={{ background: color, "box-shadow": `0 0 8px ${color}` }}
-        />
+        <span class="h-px w-8" style={{ background: color, "box-shadow": `0 0 8px ${color}` }} />
     );
 }
 
@@ -400,21 +432,14 @@ function DataRow(props: { label: string; value: string; muted?: boolean }) {
             <span class="text-xs uppercase tracking-widest" style={{ color: "#475569" }}>
                 {props.label}
             </span>
-            <span
-                class="text-right text-sm"
-                style={{ color: props.muted ? "#64748b" : "#e2e8f0" }}
-            >
+            <span class="text-right text-sm" style={{ color: props.muted ? "#64748b" : "#e2e8f0" }}>
                 {props.value}
             </span>
         </div>
     );
 }
 
-function ActionButton(props: {
-    color: string;
-    label: string;
-    onClick: () => void;
-}) {
+function ActionButton(props: { color: string; label: string; onClick: () => void }) {
     return (
         <button
             class="flex-1 py-2 text-sm font-medium transition hover:opacity-90"
@@ -454,7 +479,10 @@ function RouteNode(props: {
                 <div class="text-[10px] uppercase tracking-widest" style={{ color: "#475569" }}>
                     {props.label}
                 </div>
-                <div class="font-mono text-sm font-semibold" style={{ color: props.booth ? "#e2e8f0" : "#475569" }}>
+                <div
+                    class="font-mono text-sm font-semibold"
+                    style={{ color: props.booth ? "#e2e8f0" : "#475569" }}
+                >
                     {props.booth?.code ?? props.emptyText}
                 </div>
             </div>
@@ -462,11 +490,7 @@ function RouteNode(props: {
     );
 }
 
-function QuickChip(props: {
-    label: string;
-    color: string;
-    onClick: () => void;
-}) {
+function QuickChip(props: { label: string; color: string; onClick: () => void }) {
     return (
         <button
             class="px-3 py-1 text-xs transition hover:opacity-80"

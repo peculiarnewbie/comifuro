@@ -1,13 +1,9 @@
-import type { Context, Next } from "hono";
+import type { Next } from "hono";
 import { drizzle, DrizzleD1Database } from "drizzle-orm/d1";
 import { users } from "@comifuro/core/schema";
-import {
-    UnauthorizedError,
-    ForbiddenError,
-    ValidationError,
-} from "./errors";
+import { UnauthorizedError, ForbiddenError } from "./errors";
 import { Result } from "./responder";
-import type { Env, AppContext } from "./types";
+import type { AppContext } from "./types";
 
 export function getDb(c: AppContext): DrizzleD1Database {
     return drizzle(c.env.DB) as DrizzleD1Database;
@@ -24,15 +20,10 @@ async function safeEqual(
     const hashA = await crypto.subtle.digest("SHA-256", a);
     const hashB = await crypto.subtle.digest("SHA-256", b);
 
-    return (crypto.subtle as any).timingSafeEqual(
-        new Uint8Array(hashA),
-        new Uint8Array(hashB),
-    );
+    return (crypto.subtle as any).timingSafeEqual(new Uint8Array(hashA), new Uint8Array(hashB));
 }
 
-export async function requirePassword(
-    c: AppContext,
-): Promise<Result<null, ForbiddenError>> {
+export async function requirePassword(c: AppContext): Promise<Result<null, ForbiddenError>> {
     const password = c.req.header("pec-password");
 
     if (!(await safeEqual(password, c.env.PASSWORD))) {
@@ -69,20 +60,22 @@ export async function resolveAccount(c: AppContext, next: Next) {
         })
         .returning();
 
+    if (!user) {
+        c.set("userId", null);
+        c.set("isAdmin", false);
+        return next();
+    }
+
     c.set("userId", user.id);
     c.set("isAdmin", user.isAdmin ?? false);
 
     return next();
 }
 
-export function requireAccount(
-    c: AppContext,
-): Result<null, UnauthorizedError> {
+export function requireAccount(c: AppContext): Result<null, UnauthorizedError> {
     const userId = c.get("userId");
     if (!userId) {
-        return Result.err(
-            new UnauthorizedError({ message: "unauthorized: missing account" }),
-        );
+        return Result.err(new UnauthorizedError({ message: "unauthorized: missing account" }));
     }
     return Result.ok(null);
 }
@@ -97,9 +90,7 @@ export async function requireAdmin(
 
     const isAdmin = c.get("isAdmin");
     if (!isAdmin) {
-        return Result.err(
-            new ForbiddenError({ message: "forbidden: admin only" }),
-        );
+        return Result.err(new ForbiddenError({ message: "forbidden: admin only" }));
     }
 
     return requirePassword(c);

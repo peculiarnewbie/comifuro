@@ -1,6 +1,28 @@
 packages:
-  - "packages/*"
+    - "packages/*"
+
 catalog:
-  drizzle-orm: "1.0.0-rc.3"
-  effect: "4.0.0-beta.70"
-  wrangler: "^4.40.2"
+    "@effect/platform-node": 4.0.0-beta.70
+    "@types/node": ^22.15.3
+    "@typescript/native-preview": beta
+    typescript: ^5.7.2
+    alchemy: 2.0.0-beta.43
+    drizzle-kit: 1.0.0-rc.3
+    drizzle-orm: 1.0.0-rc.3
+    effect: 4.0.0-beta.70
+    vite: npm:@voidzero-dev/vite-plus-core@latest
+    vite-plus: ^0.1.18
+    vitest: npm:@voidzero-dev/vite-plus-test@latest
+    wrangler: ^4.84.0
+
+catalogMode: prefer
+overrides:
+    vite: "catalog:"
+    vitest: "catalog:"
+peerDependencyRules:
+    allowAny:
+        - vite
+        - vitest
+    allowedVersions:
+        vite: "*"
+        vitest: "*"

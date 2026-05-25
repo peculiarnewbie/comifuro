@@ -1,32 +1,12 @@
-import {
-    type SQLWrapper,
-    and,
-    asc,
-    desc,
-    eq,
-    gt,
-    inArray,
-    isNull,
-    lt,
-    or,
-    sql,
-} from "drizzle-orm";
-import {
-    tweets,
-    tweetMedia,
-} from "../schema";
-import type { TweetId, UserId, EventId, BoothId } from "../schema";
-import type {
-    TweetClassification,
-    TweetInsert,
-    TweetMediaInsert,
-} from "../types";
+import { type SQLWrapper, and, asc, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { tweets, tweetMedia } from "../schema";
+import type { TweetId, EventId } from "../schema";
+import type { TweetClassification, TweetInsert, TweetMediaInsert } from "../types";
 import type { SupportedDb, HasTransaction, ScrapedTweetUpsert } from "./_shared";
 import { getFallbackImageRefs } from "../helpers";
 import type { FallbackImageRef } from "../helpers";
 
-const excludedColumn = (column: { name: string }) =>
-    sql.raw(`excluded.${column.name}`);
+const excludedColumn = (column: { name: string }) => sql.raw(`excluded.${column.name}`);
 
 const classificationRank = (value: SQLWrapper) =>
     sql<number>`case
@@ -83,36 +63,29 @@ const buildTweetUpsertSet = () => ({
     inferredBoothId: excludedColumn(tweets.inferredBoothId),
     inferredBoothIdConfidence: excludedColumn(tweets.inferredBoothIdConfidence),
     inferredItemTypes: excludedColumn(tweets.inferredItemTypes),
-    rootTweetId: sql<string | null>`coalesce(${excludedColumn(tweets.rootTweetId)}, ${tweets.rootTweetId})`,
-    parentTweetId: sql<string | null>`coalesce(${excludedColumn(tweets.parentTweetId)}, ${tweets.parentTweetId})`,
-    threadPosition: sql<number | null>`coalesce(${excludedColumn(tweets.threadPosition)}, ${tweets.threadPosition})`,
+    rootTweetId: sql<
+        string | null
+    >`coalesce(${excludedColumn(tweets.rootTweetId)}, ${tweets.rootTweetId})`,
+    parentTweetId: sql<
+        string | null
+    >`coalesce(${excludedColumn(tweets.parentTweetId)}, ${tweets.parentTweetId})`,
+    threadPosition: sql<
+        number | null
+    >`coalesce(${excludedColumn(tweets.threadPosition)}, ${tweets.threadPosition})`,
     updatedAt: excludedColumn(tweets.updatedAt),
     deleted: excludedColumn(tweets.deleted),
 });
 
-export const getTweet = async (
-    db: SupportedDb,
-    id: TweetId,
-) => {
-    const tweet = await db
-        .select()
-        .from(tweets)
-        .where(eq(tweets.id, id))
-        .limit(1);
+export const getTweet = async (db: SupportedDb, id: TweetId) => {
+    const tweet = await db.select().from(tweets).where(eq(tweets.id, id)).limit(1);
     return tweet[0];
 };
 
-export const insertTweet = async (
-    db: SupportedDb,
-    tweet: TweetInsert,
-) => {
+export const insertTweet = async (db: SupportedDb, tweet: TweetInsert) => {
     return await db.insert(tweets).values(tweet).returning();
 };
 
-export const upsertTweet = async (
-    db: SupportedDb,
-    tweet: TweetInsert,
-) => {
+export const upsertTweet = async (db: SupportedDb, tweet: TweetInsert) => {
     return await db
         .insert(tweets)
         .values(tweet)
@@ -123,10 +96,7 @@ export const upsertTweet = async (
         .returning();
 };
 
-export const upsertMultipleTweets = async (
-    db: SupportedDb,
-    tweetsInsert: TweetInsert[],
-) => {
+export const upsertMultipleTweets = async (db: SupportedDb, tweetsInsert: TweetInsert[]) => {
     if (tweetsInsert.length === 0) {
         return [];
     }
@@ -155,10 +125,7 @@ export const replaceTweetMedia = async (
     return await db.insert(tweetMedia).values(media).returning();
 };
 
-export const upsertScrapedTweet = async (
-    db: SupportedDb,
-    input: ScrapedTweetUpsert,
-) => {
+export const upsertScrapedTweet = async (db: SupportedDb, input: ScrapedTweetUpsert) => {
     const [tweet] = await upsertTweet(db, input.tweet);
     if (input.media.length > 0) {
         await replaceTweetMedia(db, input.tweet.id, input.media);
@@ -215,31 +182,20 @@ export const setTweetMediaThumbnail = async (
         .update(tweetMedia)
         .set({ thumbnailR2Key: input.thumbnailR2Key })
         .where(
-            and(
-                eq(tweetMedia.tweetId, input.tweetId),
-                eq(tweetMedia.mediaIndex, input.mediaIndex),
-            ),
+            and(eq(tweetMedia.tweetId, input.tweetId), eq(tweetMedia.mediaIndex, input.mediaIndex)),
         )
         .returning();
 };
 
-export const listThreadTweets = async (
-    db: SupportedDb,
-    rootTweetId: TweetId,
-) => {
+export const listThreadTweets = async (db: SupportedDb, rootTweetId: TweetId) => {
     return await db
         .select()
         .from(tweets)
-        .where(
-            or(eq(tweets.id, rootTweetId), eq(tweets.rootTweetId, rootTweetId)),
-        )
+        .where(or(eq(tweets.id, rootTweetId), eq(tweets.rootTweetId, rootTweetId)))
         .orderBy(asc(tweets.threadPosition), asc(tweets.id));
 };
 
-export const listTweetMediaByTweetIds = async (
-    db: SupportedDb,
-    tweetIds: TweetId[],
-) => {
+export const listTweetMediaByTweetIds = async (db: SupportedDb, tweetIds: TweetId[]) => {
     if (tweetIds.length === 0) {
         return [];
     }
@@ -273,18 +229,12 @@ export const listPublicTweets = async (
                       gt(tweets.imageMask, 0),
                       eq(tweets.eventId, eventId),
                   )
-                : and(
-                      eq(tweets.classification, classification),
-                      gt(tweets.imageMask, 0),
-                  ),
+                : and(eq(tweets.classification, classification), gt(tweets.imageMask, 0)),
         )
         .orderBy(desc(tweets.id));
 };
 
-export const listPublicTweetMedia = async (
-    db: SupportedDb,
-    tweetIds: TweetId[],
-) => {
+export const listPublicTweetMedia = async (db: SupportedDb, tweetIds: TweetId[]) => {
     if (tweetIds.length === 0) {
         return [];
     }
@@ -336,9 +286,7 @@ export const listTweetsForSync = async (
             ),
         );
 
-    return await baseQuery
-        .orderBy(asc(tweets.updatedAt), asc(tweets.id))
-        .limit(limit);
+    return await baseQuery.orderBy(asc(tweets.updatedAt), asc(tweets.id)).limit(limit);
 };
 
 export const listTweetImages = async (
@@ -382,10 +330,7 @@ export const selectTweets = async (
     const { offset = 0, limit = 100, eventId } = opt || {};
     const query = db.select().from(tweets);
 
-    return await (eventId
-        ? query.where(eq(tweets.eventId, eventId))
-        : query
-    )
+    return await (eventId ? query.where(eq(tweets.eventId, eventId)) : query)
         .orderBy(desc(tweets.id))
         .limit(limit)
         .offset(offset);
@@ -394,10 +339,7 @@ export const selectTweets = async (
 export const getNewestTweet = async (db: SupportedDb, eventId?: EventId) => {
     const query = db.select().from(tweets);
 
-    return await (eventId
-        ? query.where(eq(tweets.eventId, eventId))
-        : query
-    )
+    return await (eventId ? query.where(eq(tweets.eventId, eventId)) : query)
         .orderBy(desc(tweets.id))
         .limit(1);
 };
@@ -416,10 +358,7 @@ export const getNewerTweets = async (
         .from(tweets)
         .where(
             eventId
-                ? and(
-                      gt(tweets.id, newerThan),
-                      eq(tweets.eventId, eventId),
-                  )
+                ? and(gt(tweets.id, newerThan), eq(tweets.eventId, eventId))
                 : gt(tweets.id, newerThan),
         )
         .orderBy(desc(tweets.id))
@@ -440,10 +379,7 @@ export const getOlderTweets = async (
         .from(tweets)
         .where(
             eventId
-                ? and(
-                      lt(tweets.id, olderThan),
-                      eq(tweets.eventId, eventId),
-                  )
+                ? and(lt(tweets.id, olderThan), eq(tweets.eventId, eventId))
                 : lt(tweets.id, olderThan),
         )
         .orderBy(desc(tweets.id))
@@ -510,12 +446,7 @@ export const rerootThread = async (
         const threadTweets = await tx
             .select()
             .from(tweets)
-            .where(
-                or(
-                    eq(tweets.id, input.rootTweetId),
-                    eq(tweets.rootTweetId, input.rootTweetId),
-                ),
-            )
+            .where(or(eq(tweets.id, input.rootTweetId), eq(tweets.rootTweetId, input.rootTweetId)))
             .orderBy(asc(tweets.threadPosition), asc(tweets.id));
 
         const orderedTweets = threadTweets.sort((left, right) => {
@@ -538,9 +469,7 @@ export const rerootThread = async (
 
             return BigInt(left.id) > BigInt(right.id) ? 1 : -1;
         });
-        const newRoot = orderedTweets.find(
-            (tweet) => tweet.id === input.newRootTweetId,
-        );
+        const newRoot = orderedTweets.find((tweet) => tweet.id === input.newRootTweetId);
 
         if (!newRoot) {
             throw new Error("new root tweet is not part of the thread");
@@ -552,8 +481,7 @@ export const rerootThread = async (
         ];
 
         for (const [index, tweet] of nextOrder.entries()) {
-            const parentTweetId =
-                index === 0 ? null : (nextOrder[index - 1]?.id ?? null);
+            const parentTweetId = index === 0 ? null : (nextOrder[index - 1]?.id ?? null);
             await tx
                 .update(tweets)
                 .set({

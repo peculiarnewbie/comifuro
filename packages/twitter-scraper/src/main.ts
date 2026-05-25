@@ -93,7 +93,7 @@ async function storeCatalogueTweet(params: {
         media = await uploadRawImages(apiClient, tweet.id, rawImages, {
             continueOnError: continueOnImageError,
         });
-    } catch (error) {
+    } catch {
         media = [];
     }
 
@@ -377,8 +377,7 @@ async function processDiscoveredTweet(params: {
                     type: "thread-crawl-failed",
                     rootTweetId: tweet.id,
                     tweetUrl: tweet.tweetUrl,
-                    error:
-                        error instanceof Error ? error.message : String(error),
+                    error: error instanceof Error ? error.message : String(error),
                 }),
             );
         }
@@ -399,8 +398,7 @@ async function processDiscoveredTweet(params: {
                 matchedTags: tweet.matchedTags,
                 imageMask: 0,
                 classification: "error",
-                classificationReason:
-                    error instanceof Error ? error.message : String(error),
+                classificationReason: error instanceof Error ? error.message : String(error),
                 classifierPromptVersion: classifier.promptVersion,
                 inferredFandoms: [],
                 inferredBoothId: null,
@@ -414,10 +412,7 @@ async function processDiscoveredTweet(params: {
                 media: [],
             });
         } catch (upsertError) {
-            console.error(
-                `failed to persist scraper error for ${tweet.id}`,
-                upsertError,
-            );
+            console.error(`failed to persist scraper error for ${tweet.id}`, upsertError);
         }
 
         return 0;
@@ -433,12 +428,12 @@ async function runDefaultSearch(params: {
 }) {
     const { apiClient, classifier, page, config, persistedSearchQuery } = params;
     const state = await apiClient.getState(config.stateId);
-    
+
     const checkpoint = state?.checkpoint;
     const previousEnd = state?.endTweetId;
     let totalAccepted = 0;
     let latestSeenOverall: string | null = null;
-    
+
     // Phase 1: Resume interrupted run (previousEnd → checkpoint)
     // Only if there's a gap (previousEnd > checkpoint, meaning newer tweets not yet processed)
     if (previousEnd && checkpoint && compareTweetIds(previousEnd, checkpoint) > 0) {
@@ -451,9 +446,9 @@ async function runDefaultSearch(params: {
             previousEnd,
             checkpoint,
         });
-        
+
         totalAccepted += result.acceptedCount;
-        
+
         // Update checkpoint to where the interrupted run started (previousStart)
         const newCheckpoint = state?.startTweetId || result.latestSeenThisRun || checkpoint;
         if (config.updateState && newCheckpoint) {
@@ -466,11 +461,10 @@ async function runDefaultSearch(params: {
             });
         }
     }
-    
+
     // Phase 2: Normal run from updated checkpoint
-    const effectiveCheckpoint = (previousEnd && checkpoint) 
-        ? (state?.startTweetId || checkpoint)
-        : checkpoint;
+    const effectiveCheckpoint =
+        previousEnd && checkpoint ? state?.startTweetId || checkpoint : checkpoint;
     if (effectiveCheckpoint) {
         const result = await runFromCheckpoint({
             apiClient,
@@ -480,13 +474,13 @@ async function runDefaultSearch(params: {
             persistedSearchQuery,
             checkpoint: effectiveCheckpoint,
         });
-        
+
         totalAccepted += result.acceptedCount;
         if (result.latestSeenThisRun) {
             latestSeenOverall = result.latestSeenThisRun;
         }
     }
-    
+
     // Save final state
     if (config.updateState && latestSeenOverall) {
         await apiClient.updateState(config.stateId, {
@@ -522,8 +516,13 @@ async function resumeFromCheckpoint(params: {
     persistedSearchQuery: string;
     previousEnd: string;
     checkpoint: string;
-}): Promise<{ acceptedCount: number; latestSeenThisRun: string | null; startTweetId: string | null }> {
-    const { apiClient, classifier, page, config, persistedSearchQuery, previousEnd, checkpoint } = params;
+}): Promise<{
+    acceptedCount: number;
+    latestSeenThisRun: string | null;
+    startTweetId: string | null;
+}> {
+    const { apiClient, classifier, page, config, persistedSearchQuery, previousEnd, checkpoint } =
+        params;
 
     // Use maxId to start from where we left off (tweets older than previousEnd)
     const searchQuery = buildSearchQuery(persistedSearchQuery, {
@@ -616,7 +615,11 @@ async function runFromCheckpoint(params: {
     config: ReturnType<typeof loadConfig>;
     persistedSearchQuery: string;
     checkpoint: string;
-}): Promise<{ acceptedCount: number; latestSeenThisRun: string | null; startTweetId: string | null }> {
+}): Promise<{
+    acceptedCount: number;
+    latestSeenThisRun: string | null;
+    startTweetId: string | null;
+}> {
     const { apiClient, classifier, page, config, persistedSearchQuery, checkpoint } = params;
 
     // Open search from checkpoint, no maxId filter so we get newest tweets

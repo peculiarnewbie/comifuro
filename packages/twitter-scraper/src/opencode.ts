@@ -78,10 +78,7 @@ export async function createClassifier(config: ScraperConfig) {
     const headers =
         config.opencodePassword && config.opencodeUsername
             ? {
-                  Authorization: encodeBasicAuth(
-                      config.opencodeUsername,
-                      config.opencodePassword,
-                  ),
+                  Authorization: encodeBasicAuth(config.opencodeUsername, config.opencodePassword),
               }
             : undefined;
 
@@ -91,26 +88,20 @@ export async function createClassifier(config: ScraperConfig) {
     });
 
     const promptTemplate = await readFile(config.classifierPromptPath, "utf8");
-    const promptVersion = createHash("sha1")
-        .update(promptTemplate)
-        .digest("hex")
-        .slice(0, 12);
+    const promptVersion = createHash("sha1").update(promptTemplate).digest("hex").slice(0, 12);
 
     const providersResult = await client.config.providers();
     if (providersResult.error || !providersResult.data) {
         throw new Error("failed to load opencode providers");
     }
 
-    const providerId =
-        config.opencodeProviderId ??
-        Object.keys(providersResult.data.default)[0];
+    const providerId = config.opencodeProviderId ?? Object.keys(providersResult.data.default)[0];
 
     if (!providerId) {
         throw new Error("No opencode provider configured");
     }
 
-    const modelId =
-        config.opencodeModelId ?? providersResult.data.default[providerId];
+    const modelId = config.opencodeModelId ?? providersResult.data.default[providerId];
 
     if (!modelId) {
         throw new Error(`No default model configured for provider ${providerId}`);
@@ -137,7 +128,10 @@ export async function createClassifier(config: ScraperConfig) {
             const sessionId = sessionResult.data.id;
 
             try {
-                const parts: ({ type: "text"; text: string } | { type: "file"; mime: string; url: string })[] = [
+                const parts: (
+                    | { type: "text"; text: string }
+                    | { type: "file"; mime: string; url: string }
+                )[] = [
                     {
                         type: "text",
                         text: renderPrompt(promptTemplate, input),
@@ -164,8 +158,7 @@ export async function createClassifier(config: ScraperConfig) {
                     body: {
                         providerID: providerId,
                         modelID: modelId,
-                        system:
-                            "You are a strict binary classifier. Return JSON only, no prose, no markdown.",
+                        system: "You are a strict binary classifier. Return JSON only, no prose, no markdown.",
                         parts: parts as any,
                     },
                 });
