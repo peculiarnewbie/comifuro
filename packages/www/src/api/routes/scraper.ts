@@ -61,6 +61,9 @@ const ScraperTweet = Schema.Struct({
 });
 
 const ScraperState = Schema.Struct({
+    checkpoint: Schema.optional(Schema.NullOr(Schema.String)),
+    startTweetId: Schema.optional(Schema.NullOr(Schema.String)),
+    endTweetId: Schema.optional(Schema.NullOr(Schema.String)),
     lastSeenTweetId: Schema.optional(Schema.NullOr(TweetId)),
     lastRunAt: Schema.optional(Schema.NullOr(Schema.Union([Schema.Number, Schema.String]))),
 });
@@ -192,6 +195,9 @@ export async function putScraperState(c: AppContext) {
     const now = new Date();
     const [state] = await scraperOperations.upsertState(getDb(c), {
         id: c.req.param("id")!,
+        checkpoint: parsed.checkpoint ?? null,
+        startTweetId: parsed.startTweetId ?? null,
+        endTweetId: parsed.endTweetId ?? null,
         lastSeenTweetId: parsed.lastSeenTweetId ?? null,
         lastRunAt: helpers.toDate(parsed.lastRunAt) ?? now,
         updatedAt: now,

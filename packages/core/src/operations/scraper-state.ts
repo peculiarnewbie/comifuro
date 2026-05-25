@@ -28,6 +28,15 @@ export const upsertState = async (
         .onConflictDoUpdate({
             target: scraperState.id,
             set: {
+                checkpoint: sql.raw(
+                    `excluded.${scraperState.checkpoint.name}`,
+                ),
+                startTweetId: sql.raw(
+                    `excluded.${scraperState.startTweetId.name}`,
+                ),
+                endTweetId: sql.raw(
+                    `excluded.${scraperState.endTweetId.name}`,
+                ),
                 lastSeenTweetId: sql.raw(
                     `excluded.${scraperState.lastSeenTweetId.name}`,
                 ),

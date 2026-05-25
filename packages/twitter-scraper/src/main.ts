@@ -433,22 +433,119 @@ async function runDefaultSearch(params: {
 }) {
     const { apiClient, classifier, page, config, persistedSearchQuery } = params;
     const state = await apiClient.getState(config.stateId);
+    
+    const checkpoint = state?.checkpoint;
+    const previousEnd = state?.endTweetId;
+    let totalAccepted = 0;
+    let latestSeenOverall: string | null = null;
+    
+    // Phase 1: Resume interrupted run (previousEnd → checkpoint)
+    // Only if there's a gap (previousEnd > checkpoint, meaning newer tweets not yet processed)
+    if (previousEnd && checkpoint && compareTweetIds(previousEnd, checkpoint) > 0) {
+        const result = await resumeFromCheckpoint({
+            apiClient,
+            classifier,
+            page,
+            config,
+            persistedSearchQuery,
+            previousEnd,
+            checkpoint,
+        });
+        
+        totalAccepted += result.acceptedCount;
+        
+        // Update checkpoint to where the interrupted run started (previousStart)
+        const newCheckpoint = state?.startTweetId || result.latestSeenThisRun || checkpoint;
+        if (config.updateState && newCheckpoint) {
+            await apiClient.updateState(config.stateId, {
+                checkpoint: newCheckpoint,
+                startTweetId: newCheckpoint,
+                endTweetId: newCheckpoint,
+                lastRunAt: new Date().toISOString(),
+                lastSeenTweetId: newCheckpoint,
+            });
+        }
+    }
+    
+    // Phase 2: Normal run from updated checkpoint
+    const effectiveCheckpoint = (previousEnd && checkpoint) 
+        ? (state?.startTweetId || checkpoint)
+        : checkpoint;
+    if (effectiveCheckpoint) {
+        const result = await runFromCheckpoint({
+            apiClient,
+            classifier,
+            page,
+            config,
+            persistedSearchQuery,
+            checkpoint: effectiveCheckpoint,
+        });
+        
+        totalAccepted += result.acceptedCount;
+        if (result.latestSeenThisRun) {
+            latestSeenOverall = result.latestSeenThisRun;
+        }
+    }
+    
+    // Save final state
+    if (config.updateState && latestSeenOverall) {
+        await apiClient.updateState(config.stateId, {
+            checkpoint: latestSeenOverall,
+            startTweetId: latestSeenOverall,
+            endTweetId: latestSeenOverall,
+            lastRunAt: new Date().toISOString(),
+            lastSeenTweetId: latestSeenOverall,
+        });
+    }
 
-    await openLiveSearch(page, persistedSearchQuery);
+    if (totalAccepted > 0) {
+        await apiClient.exportPublicFeed(config.eventId);
+    }
 
-    let idleScrolls = 0;
-    let stopAtKnownTweet = false;
+    console.log(
+        JSON.stringify({
+            mode: config.runMode,
+            acceptedCount: totalAccepted,
+            checkpoint,
+            previousEnd,
+            latestSeenOverall,
+            sinceDate: config.searchSinceDate,
+        }),
+    );
+}
+
+async function resumeFromCheckpoint(params: {
+    apiClient: ApiClient;
+    classifier: Awaited<ReturnType<typeof createClassifier>>;
+    page: Page;
+    config: ReturnType<typeof loadConfig>;
+    persistedSearchQuery: string;
+    previousEnd: string;
+    checkpoint: string;
+}): Promise<{ acceptedCount: number; latestSeenThisRun: string | null; startTweetId: string | null }> {
+    const { apiClient, classifier, page, config, persistedSearchQuery, previousEnd, checkpoint } = params;
+
+    // Use maxId to start from where we left off (tweets older than previousEnd)
+    const searchQuery = buildSearchQuery(persistedSearchQuery, {
+        maxId: previousEnd,
+    });
+
+    await openLiveSearch(page, searchQuery);
+
     let latestSeenThisRun: string | null = null;
+    let startTweetId: string | null = null;
     let acceptedCount = 0;
     const seenTweetIds = new Set<string>();
 
-    while (idleScrolls < config.idleScrollLimit && !stopAtKnownTweet) {
+    let idleScrolls = 0;
+    let stopAtCheckpoint = true;
+
+    while (idleScrolls < config.idleScrollLimit && stopAtCheckpoint) {
         const visibleTweets = await extractVisibleTweets(page);
         const newTweets = visibleTweets.filter((tweet) => {
             if (seenTweetIds.has(tweet.id)) {
                 return false;
             }
-
             seenTweetIds.add(tweet.id);
             return true;
         });
@@ -465,17 +562,18 @@ async function runDefaultSearch(params: {
             if (!latestSeenThisRun) {
                 latestSeenThisRun = tweet.id;
             }
+            if (!startTweetId) {
+                startTweetId = tweet.id;
+            }
 
-            if (isTweetBeforeSinceDate(tweet, config.searchSinceDate)) {
-                stopAtKnownTweet = true;
+            if (compareTweetIds(tweet.id, checkpoint) < 0) {
+                // Reached checkpoint, stop
+                stopAtCheckpoint = false;
                 break;
             }
 
-            if (
-                state?.lastSeenTweetId &&
-                compareTweetIds(tweet.id, state.lastSeenTweetId) <= 0
-            ) {
-                stopAtKnownTweet = true;
+            if (isTweetBeforeSinceDate(tweet, config.searchSinceDate)) {
+                stopAtCheckpoint = false;
                 break;
             }
 
@@ -490,30 +588,117 @@ async function runDefaultSearch(params: {
                 threadIdleScrollLimit: config.threadIdleScrollLimit,
                 seenTweetIds,
             });
+
+            // Save state after each tweet
+            if (config.updateState && latestSeenThisRun) {
+                await apiClient.updateState(config.stateId, {
+                    checkpoint: checkpoint,
+                    startTweetId: startTweetId,
+                    endTweetId: latestSeenThisRun,
+                    lastRunAt: new Date().toISOString(),
+                    lastSeenTweetId: latestSeenThisRun,
+                });
+            }
         }
 
-        if (!stopAtKnownTweet) {
+        if (stopAtCheckpoint) {
             await scrollTimeline(page, config.scrollDelayMs);
         }
     }
 
-    if (latestSeenThisRun && config.updateState) {
-        await apiClient.updateState(config.stateId, latestSeenThisRun);
+    return { acceptedCount, latestSeenThisRun, startTweetId };
+}
+
+async function runFromCheckpoint(params: {
+    apiClient: ApiClient;
+    classifier: Awaited<ReturnType<typeof createClassifier>>;
+    page: Page;
+    config: ReturnType<typeof loadConfig>;
+    persistedSearchQuery: string;
+    checkpoint: string;
+}): Promise<{ acceptedCount: number; latestSeenThisRun: string | null; startTweetId: string | null }> {
+    const { apiClient, classifier, page, config, persistedSearchQuery, checkpoint } = params;
+
+    // Open search from checkpoint, no maxId filter so we get newest tweets
+    const searchQuery = buildSearchQuery(persistedSearchQuery);
+
+    await openLiveSearch(page, searchQuery);
+
+    let latestSeenThisRun: string | null = null;
+    let startTweetId: string | null = null;
+    let acceptedCount = 0;
+    const seenTweetIds = new Set<string>();
+
+    let idleScrolls = 0;
+    let stopAtCheckpoint = true;
+
+    while (idleScrolls < config.idleScrollLimit && stopAtCheckpoint) {
+        const visibleTweets = await extractVisibleTweets(page);
+        const newTweets = visibleTweets.filter((tweet) => {
+            if (seenTweetIds.has(tweet.id)) {
+                return false;
+            }
+            seenTweetIds.add(tweet.id);
+            return true;
+        });
+
+        if (newTweets.length === 0) {
+            idleScrolls += 1;
+            await scrollTimeline(page, config.scrollDelayMs);
+            continue;
+        }
+
+        idleScrolls = 0;
+
+        for (const tweet of newTweets) {
+            if (!latestSeenThisRun) {
+                latestSeenThisRun = tweet.id;
+            }
+            if (!startTweetId) {
+                startTweetId = tweet.id;
+            }
+
+            if (compareTweetIds(tweet.id, checkpoint) <= 0) {
+                // Reached checkpoint, stop
+                stopAtCheckpoint = false;
+                break;
+            }
+
+            if (isTweetBeforeSinceDate(tweet, config.searchSinceDate)) {
+                stopAtCheckpoint = false;
+                break;
+            }
+
+            acceptedCount += await processDiscoveredTweet({
+                apiClient,
+                classifier,
+                page,
+                tweet,
+                eventId: config.eventId,
+                searchQuery: persistedSearchQuery,
+                threadScrollDelayMs: config.threadScrollDelayMs,
+                threadIdleScrollLimit: config.threadIdleScrollLimit,
+                seenTweetIds,
+            });
+
+            // Save state after each tweet
+            if (config.updateState && latestSeenThisRun) {
+                await apiClient.updateState(config.stateId, {
+                    checkpoint: checkpoint,
+                    startTweetId: startTweetId,
+                    endTweetId: latestSeenThisRun,
+                    lastRunAt: new Date().toISOString(),
+                    lastSeenTweetId: latestSeenThisRun,
+                });
+            }
+        }
+
+        if (stopAtCheckpoint) {
+            await scrollTimeline(page, config.scrollDelayMs);
+        }
     }
 
-    if (acceptedCount > 0) {
-        await apiClient.exportPublicFeed(config.eventId);
-    }
-
-    console.log(
-        JSON.stringify({
-            mode: config.runMode,
-            acceptedCount,
-            lastSeenBeforeRun: state?.lastSeenTweetId ?? null,
-            lastSeenAfterRun: latestSeenThisRun,
-            sinceDate: config.searchSinceDate,
-        }),
-    );
+    return { acceptedCount, latestSeenThisRun, startTweetId };
 }
 
 async function runMaxIdSearch(params: {
@@ -636,7 +821,13 @@ async function runMaxIdSearch(params: {
     }
 
     if (latestSeenThisRun && config.updateState) {
-        await apiClient.updateState(config.stateId, latestSeenThisRun);
+        await apiClient.updateState(config.stateId, {
+            checkpoint: latestSeenThisRun,
+            startTweetId: latestSeenThisRun,
+            endTweetId: latestSeenThisRun,
+            lastRunAt: new Date().toISOString(),
+            lastSeenTweetId: latestSeenThisRun,
+        });
     }
 
     if (acceptedCount > 0) {

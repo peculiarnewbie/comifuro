@@ -210,6 +210,9 @@ export const items = sqliteTable(
 
 export const scraperState = sqliteTable("scraper_state", {
     id: text("id").primaryKey(),
+    checkpoint: text("checkpoint").$type<TweetId | null>(),
+    startTweetId: text("start_tweet_id").$type<TweetId | null>(),
+    endTweetId: text("end_tweet_id").$type<TweetId | null>(),
     lastSeenTweetId: text("last_seen_tweet_id").$type<TweetId | null>(),
     lastRunAt: integer("last_run_at", { mode: "timestamp_ms" }),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })

@@ -57,16 +57,19 @@ export class ApiClient {
         return await this.request<ScraperState | null>(`/scraper/state/${id}`);
     }
 
-    async updateState(id: string, lastSeenTweetId: string | null) {
+    async updateState(id: string, state: {
+        checkpoint: string | null;
+        startTweetId: string | null;
+        endTweetId: string | null;
+        lastRunAt: string;
+        lastSeenTweetId: string | null;
+    }) {
         return await this.request<ScraperState>(`/scraper/state/${id}`, {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify({
-                lastSeenTweetId,
-                lastRunAt: new Date().toISOString(),
-            }),
+            body: JSON.stringify(state),
         });
     }
 

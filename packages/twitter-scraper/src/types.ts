@@ -44,6 +44,9 @@ export type UploadedMedia = {
 
 export type ScraperState = {
     id: string;
+    checkpoint: string | null;
+    startTweetId: string | null;
+    endTweetId: string | null;
     lastSeenTweetId: string | null;
     lastRunAt: string | null;
     updatedAt: string;
