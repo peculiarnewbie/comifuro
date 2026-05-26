@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createOpencodeClient } from "@opencode-ai/sdk";
-import type { Part } from "@opencode-ai/sdk";
+import type { Part, TextPartInput, FilePartInput } from "@opencode-ai/sdk";
 import { extractBoothIdsFromText, parseClassificationResponse } from "./classification";
 import type { ClassificationResult, ScraperConfig } from "./types";
 
@@ -128,10 +128,7 @@ export async function createClassifier(config: ScraperConfig) {
             const sessionId = sessionResult.data.id;
 
             try {
-                const parts: (
-                    | { type: "text"; text: string }
-                    | { type: "file"; mime: string; url: string }
-                )[] = [
+                const parts: (TextPartInput | FilePartInput)[] = [
                     {
                         type: "text",
                         text: renderPrompt(promptTemplate, input),
@@ -159,7 +156,7 @@ export async function createClassifier(config: ScraperConfig) {
                         providerID: providerId,
                         modelID: modelId,
                         system: "You are a strict binary classifier. Return JSON only, no prose, no markdown.",
-                        parts: parts as any,
+                        parts,
                     },
                 });
 

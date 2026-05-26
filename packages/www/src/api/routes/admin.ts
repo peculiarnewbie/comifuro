@@ -254,7 +254,7 @@ export async function rerootThread(c: AppContext) {
     }
 }
 
-export async function uncatalogueTweet(c: AppContext) {
+async function doUncatalogue(c: AppContext, reason: string, errorLabel: string) {
     const authResult = await requireAdmin(c);
     if (Result.isError(authResult)) {
         return handleResult(c, authResult, () => {
@@ -265,7 +265,7 @@ export async function uncatalogueTweet(c: AppContext) {
     try {
         const [tweet] = await tweetsOperations.manualUncatalogueTweet(getDb(c), {
             id: c.req.param("id")! as TweetId,
-            reason: "uncatalogued manually",
+            reason,
             updatedAt: new Date(),
         });
 
@@ -290,7 +290,7 @@ export async function uncatalogueTweet(c: AppContext) {
             c,
             Result.err(
                 new InternalError({
-                    message: error instanceof Error ? error.message : "uncatalogue failed",
+                    message: error instanceof Error ? error.message : `${errorLabel} failed`,
                     cause: error,
                 }),
             ),
@@ -301,49 +301,10 @@ export async function uncatalogueTweet(c: AppContext) {
     }
 }
 
+export async function uncatalogueTweet(c: AppContext) {
+    return doUncatalogue(c, "uncatalogued manually", "uncatalogue");
+}
+
 export async function removeFollowUp(c: AppContext) {
-    const authResult = await requireAdmin(c);
-    if (Result.isError(authResult)) {
-        return handleResult(c, authResult, () => {
-            throw new Error("unreachable");
-        });
-    }
-
-    try {
-        const [tweet] = await tweetsOperations.manualUncatalogueTweet(getDb(c), {
-            id: c.req.param("id")! as TweetId,
-            reason: "removed from follow ups manually",
-            updatedAt: new Date(),
-        });
-
-        if (!tweet) {
-            return handleResult(
-                c,
-                Result.err(
-                    new NotFoundError({
-                        message: "tweet not found",
-                        resource: "tweet",
-                    }),
-                ),
-                () => {
-                    throw new Error("unreachable");
-                },
-            );
-        }
-
-        return c.json({ ok: true, tweet });
-    } catch (error) {
-        return handleResult(
-            c,
-            Result.err(
-                new InternalError({
-                    message: error instanceof Error ? error.message : "remove failed",
-                    cause: error,
-                }),
-            ),
-            () => {
-                throw new Error("unreachable");
-            },
-        );
-    }
+    return doUncatalogue(c, "removed from follow ups manually", "remove");
 }

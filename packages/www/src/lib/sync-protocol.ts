@@ -113,7 +113,7 @@ export function createMarksSyncProtocol(apiHost: string): MarksSyncProtocol {
             .filter(([, v]) => v.mark !== null)
             .map(([tweetId, v]) => ({
                 tweetId,
-                mark: v.mark as Marks,
+                mark: v.mark!,
             }));
 
         if (marks.length === 0) {
@@ -156,7 +156,7 @@ export function createMarksSyncProtocol(apiHost: string): MarksSyncProtocol {
         return {
             marks: data.marks.map((m) => ({
                 tweetId: m.tweetId,
-                mark: m.mark as Marks,
+                mark: m.mark,
             })),
             serverTime: data.serverTime,
         };

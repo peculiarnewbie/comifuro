@@ -16,3 +16,5 @@ export const scraperOperations = _scraperState;
 
 import * as _helpers from "./helpers";
 export const helpers = _helpers;
+
+export type { SupportedDb, TransactionDb } from "./operations/_shared";

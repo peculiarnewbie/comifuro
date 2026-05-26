@@ -1,10 +1,10 @@
-import type { DrizzleD1Database } from "drizzle-orm/d1";
 import { tweetsOperations, helpers } from "@comifuro/core";
+import type { SupportedDb } from "@comifuro/core";
 import type { EventId } from "@comifuro/core/schema";
 
 export const CURRENT_SCHEMA_VERSION = 9;
 
-export async function buildPublicFeed(db: DrizzleD1Database, eventId: EventId) {
+export async function buildPublicFeed(db: SupportedDb, eventId: EventId) {
     const publicTweets = await tweetsOperations.listPublicTweets(db, "catalogue", eventId);
     const media = await tweetsOperations.listPublicTweetMedia(
         db,

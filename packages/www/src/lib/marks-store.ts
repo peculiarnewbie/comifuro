@@ -1,4 +1,4 @@
-import { createStore, type Content, type Store } from "tinybase";
+import { createStore, type Content, type Store, type Table } from "tinybase";
 import {
     createIndexedDbPersister,
     type IndexedDbPersister,
@@ -17,13 +17,13 @@ type MarksStoreListener = (snapshot: MarksSnapshot) => void;
 const defaultMarksContent = (): Content => [{}, {}];
 
 const getMarksSnapshot = (store: Store): MarksSnapshot => {
-    const table = store.getTable(MARKS_TABLE) as Record<string, { mark?: Marks }>;
+    const table: Table = store.getTable(MARKS_TABLE);
     return {
         marks: Object.fromEntries(
-            Object.entries(table ?? {})
-                .filter(([, row]) => row?.mark)
-                .map(([tweetId, row]) => [tweetId, row.mark as Marks]),
-        ),
+            Object.entries(table)
+                .filter(([, row]) => row.mark != null)
+                .map(([tweetId, row]) => [tweetId, row.mark]),
+        ) as Record<string, Marks>,
     };
 };
 

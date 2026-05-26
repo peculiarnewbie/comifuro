@@ -2,7 +2,7 @@ import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { booths, tweets } from "../schema";
 import type { EventId, BoothId, TweetId, UserId } from "../schema";
 import type { BoothInsert } from "../types";
-import type { SupportedDb, HasTransaction } from "./_shared";
+import type { SupportedDb, TransactionDb } from "./_shared";
 
 function parseSectionFromBoothId(boothId: string): string {
     const match = boothId.match(/^([A-Z]+)/i);
@@ -114,7 +114,7 @@ export const getBoothWithTweets = async (db: SupportedDb, eventId: EventId, id: 
 };
 
 export const rebuildBoothsFromTweets = async (db: SupportedDb, eventId: EventId) => {
-    return (db as HasTransaction).transaction(async (tx) => {
+    return (db as TransactionDb).transaction(async (tx) => {
         await tx.delete(booths).where(eq(booths.eventId, eventId));
 
         const tweetRows = await tx

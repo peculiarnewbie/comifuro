@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema";
-import { createStore, type Content, type Store } from "tinybase";
+import { createStore, type Content, type Store, type Table } from "tinybase";
 import { createIndexedDbPersister } from "tinybase/persisters/persister-indexed-db";
 import type { TweetSyncItem } from "@comifuro/core/types";
 import { TweetSyncItemSchema } from "@comifuro/core/schemas";
@@ -171,7 +171,7 @@ export async function createTweetStoreSession({
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
     const getSnapshot = (): TweetStoreSnapshot => {
-        const table = store.getTable(TWEETS_TABLE) as Record<string, Record<string, unknown>>;
+        const table: Table = store.getTable(TWEETS_TABLE);
         const tweets = Object.entries(table ?? {})
             .map(([id, row]) => Schema.decodeUnknownSync(CatalogueTweetSchema)({ id, ...row }))
             .sort((left, right) => compareTweetIdsDesc(left.id, right.id));

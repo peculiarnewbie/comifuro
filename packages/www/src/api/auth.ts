@@ -1,12 +1,14 @@
 import type { Next } from "hono";
-import { drizzle, DrizzleD1Database } from "drizzle-orm/d1";
+import { drizzle } from "drizzle-orm/d1";
+import type { DrizzleD1Database } from "drizzle-orm/d1";
 import { users } from "@comifuro/core/schema";
+import * as coreSchema from "@comifuro/core/schema";
 import { UnauthorizedError, ForbiddenError } from "./errors";
 import { Result } from "./responder";
 import type { AppContext } from "./types";
 
-export function getDb(c: AppContext): DrizzleD1Database {
-    return drizzle(c.env.DB) as DrizzleD1Database;
+export function getDb(c: AppContext): DrizzleD1Database<typeof coreSchema> {
+    return drizzle(c.env.DB, { schema: coreSchema });
 }
 
 async function safeEqual(
@@ -20,7 +22,8 @@ async function safeEqual(
     const hashA = await crypto.subtle.digest("SHA-256", a);
     const hashB = await crypto.subtle.digest("SHA-256", b);
 
-    return (crypto.subtle as any).timingSafeEqual(new Uint8Array(hashA), new Uint8Array(hashB));
+    // @ts-expect-error — timingSafeEqual is a Cloudflare Workers extension not in the standard Web Crypto types
+    return crypto.subtle.timingSafeEqual(new Uint8Array(hashA), new Uint8Array(hashB));
 }
 
 export async function requirePassword(c: AppContext): Promise<Result<null, ForbiddenError>> {

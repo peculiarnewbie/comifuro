@@ -17,6 +17,7 @@ export async function listBooths(c: AppContext) {
     const limit = Math.min(Math.max(helpers.toNumberParam(c.req.query("limit")) ?? 500, 1), 1000);
     const offset = Math.max(helpers.toNumberParam(c.req.query("offset")) ?? 0, 0);
 
+    const status = c.req.query("status");
     let parsedStatus: string | undefined;
     if (status) {
         try {

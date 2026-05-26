@@ -1,21 +1,33 @@
 import { type SQLWrapper, and, asc, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
-import { tweets, tweetMedia } from "../schema";
+import { tweets, tweetMedia, TweetClassificationValues } from "../schema";
 import type { TweetId, EventId } from "../schema";
 import type { TweetClassification, TweetInsert, TweetMediaInsert } from "../types";
-import type { SupportedDb, HasTransaction, ScrapedTweetUpsert } from "./_shared";
+import type { SupportedDb, TransactionDb, ScrapedTweetUpsert } from "./_shared";
 import { getFallbackImageRefs } from "../helpers";
 import type { FallbackImageRef } from "../helpers";
 
 const excludedColumn = (column: { name: string }) => sql.raw(`excluded.${column.name}`);
 
-const classificationRank = (value: SQLWrapper) =>
-    sql<number>`case
-        when ${value} = 'catalogue' then 3
-        when ${value} = 'unknown' then 2
-        when ${value} = 'error' then 1
-        when ${value} = 'not_catalogue' then 0
-        else 0
-    end`;
+// Higher rank wins on conflict. Every classification value must have an entry —
+// TypeScript errors if a new value is added to TweetClassificationValues without a rank here.
+const classificationRankMap: Record<(typeof TweetClassificationValues)[number], number> = {
+    catalogue: 3,
+    unknown: 2,
+    error: 1,
+    not_catalogue: 0,
+};
+
+const classificationRank = (value: SQLWrapper) => {
+    const entries = Object.entries(classificationRankMap) as [
+        (typeof TweetClassificationValues)[number],
+        number,
+    ][];
+    let query = sql<number>`case`;
+    for (const [label, rank] of entries) {
+        query = sql`${query} when ${value} = ${label} then ${rank}`;
+    }
+    return sql`${query} else 0 end`;
+};
 
 const maxImageMask = sql<number>`case
     when ${tweets.imageMask} > ${excludedColumn(tweets.imageMask)}
@@ -442,7 +454,7 @@ export const rerootThread = async (
 ) => {
     const updatedAt = input.updatedAt ?? new Date();
 
-    return (db as HasTransaction).transaction(async (tx) => {
+    return (db as TransactionDb).transaction(async (tx) => {
         const threadTweets = await tx
             .select()
             .from(tweets)
