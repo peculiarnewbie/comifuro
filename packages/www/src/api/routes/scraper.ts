@@ -11,7 +11,7 @@ import { EventId } from "@comifuro/core/schema";
 import type { BoothId } from "@comifuro/core/schema";
 import { getDb, requirePassword } from "../auth";
 
-import { Result, handleResult } from "../responder";
+import { Result, handleResult, validate } from "../responder";
 import { helpers } from "@comifuro/core";
 import { buildPublicFeed } from "../helpers";
 import type { AppContext } from "../types";
@@ -97,6 +97,9 @@ export async function upsertScraperTweet(c: AppContext) {
     const db = getDb(c);
 
     const eventId = helpers.normalizeEventId(tweet.eventId);
+    const inferredBoothId = tweet.inferredBoothId as BoothId | null;
+    const rootTweetId = tweet.rootTweetId as TweetId | null;
+    const parentTweetId = tweet.parentTweetId as TweetId | null;
 
     await tweetsOperations.upsertScrapedTweet(db, {
         tweet: {
@@ -114,11 +117,11 @@ export async function upsertScraperTweet(c: AppContext) {
             classificationReason: tweet.classificationReason ?? null,
             classifierPromptVersion: tweet.classifierPromptVersion ?? null,
             inferredFandoms: [...(tweet.inferredFandoms ?? [])],
-            inferredBoothId: (tweet.inferredBoothId ?? null) as BoothId | null,
+            inferredBoothId: inferredBoothId,
             inferredBoothIdConfidence: tweet.inferredBoothIdConfidence ?? null,
             inferredItemTypes: [...(tweet.inferredItemTypes ?? [])],
-            rootTweetId: (tweet.rootTweetId ?? null) as TweetId | null,
-            parentTweetId: (tweet.parentTweetId ?? null) as TweetId | null,
+            rootTweetId: rootTweetId,
+            parentTweetId: parentTweetId,
             threadPosition: tweet.threadPosition ?? null,
             updatedAt: now,
         },
@@ -138,7 +141,7 @@ export async function upsertScraperTweet(c: AppContext) {
         if (tweet.inferredBoothId) {
             await boothsOperations.upsertBoothFromTweet(db, {
                 eventId,
-                inferredBoothId: (tweet.inferredBoothId ?? null) as BoothId | null,
+                inferredBoothId: inferredBoothId,
                 user: tweet.user,
                 displayName: tweet.displayName ?? null,
                 id: tweet.id,
@@ -148,7 +151,7 @@ export async function upsertScraperTweet(c: AppContext) {
         await userMetaOperations.upsertUserMeta(db, {
             user: tweet.user,
             eventId,
-            boothId: (tweet.inferredBoothId ?? null) as BoothId | null,
+            boothId: inferredBoothId,
             preorderDeadline: tweet.preorderDeadline ?? null,
         });
 
@@ -185,6 +188,12 @@ export async function putScraperState(c: AppContext) {
         });
     }
 
+    const idParam = c.req.param("id");
+    if (!idParam) {
+        return c.json({ error: "missing id" }, 400);
+    }
+    const id = idParam;
+
     const body = await c.req.json();
     let parsed: Schema.Schema.Type<typeof ScraperState>;
     try {
@@ -200,7 +209,7 @@ export async function putScraperState(c: AppContext) {
 
     const now = new Date();
     const [state] = await scraperOperations.upsertState(getDb(c), {
-        id: c.req.param("id")!,
+        id: id,
         checkpoint: (parsed.checkpoint ?? null) as TweetId | null,
         startTweetId: (parsed.startTweetId ?? null) as TweetId | null,
         endTweetId: (parsed.endTweetId ?? null) as TweetId | null,

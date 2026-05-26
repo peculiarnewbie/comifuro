@@ -138,11 +138,16 @@ export const replaceTweetMedia = async (
 };
 
 export const upsertScrapedTweet = async (db: SupportedDb, input: ScrapedTweetUpsert) => {
-    const [tweet] = await upsertTweet(db, input.tweet);
-    if (input.media.length > 0) {
-        await replaceTweetMedia(db, input.tweet.id, input.media);
-    }
-    return tweet;
+    // Wrap in a transaction so upsertTweet + replaceTweetMedia are atomic.
+    // Both D1 and bun:sqlite Drizzle instances support .transaction();
+    // the TransactionDb cast is safe because SupportedDb always resolves to one of those two.
+    return (db as TransactionDb).transaction(async (tx) => {
+        const [tweet] = await upsertTweet(tx, input.tweet);
+        if (input.media.length > 0) {
+            await replaceTweetMedia(tx, input.tweet.id, input.media);
+        }
+        return tweet;
+    });
 };
 
 export const listTweetMedia = async (db: SupportedDb, tweetId: TweetId) => {
@@ -454,6 +459,8 @@ export const rerootThread = async (
 ) => {
     const updatedAt = input.updatedAt ?? new Date();
 
+    // Both D1 and bun:sqlite Drizzle instances support .transaction();
+    // the TransactionDb cast is safe at runtime.
     return (db as TransactionDb).transaction(async (tx) => {
         const threadTweets = await tx
             .select()

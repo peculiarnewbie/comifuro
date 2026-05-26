@@ -6,6 +6,9 @@ export type { TweetId, UserId, EventId, BoothId } from "./schema";
 
 const BaseTweetRow = createSelectSchema(tweets);
 
+// Exclusion-by-destructure: fields listed below are NOT sent to clients.
+// When adding a sensitive column to the tweets table, add it to this
+// destructure (or explicitly pick the safe fields) to prevent leaking it.
 const {
     // unused fields destructured out to exclude them from sync schema
     searchQuery: _searchQuery,

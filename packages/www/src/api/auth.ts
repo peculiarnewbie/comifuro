@@ -6,6 +6,11 @@ import * as coreSchema from "@comifuro/core/schema";
 import { UnauthorizedError, ForbiddenError } from "./errors";
 import { Result } from "./responder";
 import type { AppContext } from "./types";
+import * as Schema from "effect/Schema";
+import { UserId } from "@comifuro/core/schema";
+
+export const PASSWORD_HEADER = "pec-password";
+export const ACCOUNT_ID_HEADER = "x-account-id";
 
 export function getDb(c: AppContext): DrizzleD1Database<typeof coreSchema> {
     return drizzle(c.env.DB, { schema: coreSchema });
@@ -27,7 +32,7 @@ async function safeEqual(
 }
 
 export async function requirePassword(c: AppContext): Promise<Result<null, ForbiddenError>> {
-    const password = c.req.header("pec-password");
+    const password = c.req.header(PASSWORD_HEADER);
 
     if (!(await safeEqual(password, c.env.PASSWORD))) {
         return Result.err(new ForbiddenError({ message: "unauthed" }));
@@ -37,9 +42,19 @@ export async function requirePassword(c: AppContext): Promise<Result<null, Forbi
 }
 
 export async function resolveAccount(c: AppContext, next: Next) {
-    const accountId = c.req.header("x-account-id")?.trim();
+    const accountId = c.req.header(ACCOUNT_ID_HEADER)?.trim();
 
     if (!accountId) {
+        c.set("userId", null);
+        c.set("isAdmin", false);
+        return next();
+    }
+
+    // Validate the account ID at the boundary — only accept properly branded user IDs.
+    let userId: string;
+    try {
+        userId = Schema.decodeUnknownSync(UserId)(accountId);
+    } catch {
         c.set("userId", null);
         c.set("isAdmin", false);
         return next();
@@ -51,7 +66,7 @@ export async function resolveAccount(c: AppContext, next: Next) {
     const [user] = await db
         .insert(users)
         .values({
-            id: accountId,
+            id: userId,
             version: 0,
             updatedAt: now,
         })
@@ -69,7 +84,7 @@ export async function resolveAccount(c: AppContext, next: Next) {
         return next();
     }
 
-    c.set("userId", user.id);
+    c.set("userId", userId as UserId);
     c.set("isAdmin", user.isAdmin ?? false);
 
     return next();

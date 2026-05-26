@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import type { RateLimiterEnv } from "../rate-limiter";
+import { UserId } from "@comifuro/core/schema";
 
 export type WorkerBindings = RateLimiterEnv & {
     ASSETS: Fetcher;
@@ -11,7 +12,7 @@ export type WorkerBindings = RateLimiterEnv & {
 export type Env = {
     Bindings: WorkerBindings;
     Variables: {
-        userId: string | null;
+        userId: UserId | null;
         isAdmin: boolean;
     };
 };

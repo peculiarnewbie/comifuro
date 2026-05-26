@@ -1,9 +1,9 @@
 import { and, eq, gt, sql } from "drizzle-orm";
 import { userToTweet, MarkValues } from "../schema";
-import type { TweetId } from "../schema";
+import type { TweetId, UserId } from "../schema";
 import type { SupportedDb } from "./_shared";
 
-export const getUserMarks = async (db: SupportedDb, userId: string, prevVersion: number) => {
+export const getUserMarks = async (db: SupportedDb, userId: UserId, prevVersion: number) => {
     return await db
         .select()
         .from(userToTweet)
@@ -15,9 +15,9 @@ export const getUserMarks = async (db: SupportedDb, userId: string, prevVersion:
 export const upsertUserMark = async (
     db: SupportedDb,
     input: {
-        userId: string;
+        userId: UserId;
         tweetId: TweetId;
-        mark: string;
+        mark: (typeof MarkValues)[number];
         version: number;
     },
 ) => {
@@ -26,7 +26,7 @@ export const upsertUserMark = async (
         .values({
             userId: input.userId,
             tweetId: input.tweetId,
-            mark: input.mark as (typeof MarkValues)[number],
+            mark: input.mark,
             lastModifiedVersion: input.version,
             updatedAt: new Date(),
         })
@@ -41,7 +41,7 @@ export const upsertUserMark = async (
         .returning();
 };
 
-export const deleteUserMark = async (db: SupportedDb, userId: string, tweetId: TweetId) => {
+export const deleteUserMark = async (db: SupportedDb, userId: UserId, tweetId: TweetId) => {
     return await db
         .delete(userToTweet)
         .where(and(eq(userToTweet.userId, userId), eq(userToTweet.tweetId, tweetId)))
@@ -50,8 +50,8 @@ export const deleteUserMark = async (db: SupportedDb, userId: string, tweetId: T
 
 export const batchUpsertUserMarks = async (
     db: SupportedDb,
-    userId: string,
-    marks: { tweetId: TweetId; mark: string }[],
+    userId: UserId,
+    marks: { tweetId: TweetId; mark: (typeof MarkValues)[number] }[],
     version: number,
 ) => {
     if (marks.length === 0) {
@@ -62,7 +62,7 @@ export const batchUpsertUserMarks = async (
     const values = marks.map((m) => ({
         userId,
         tweetId: m.tweetId,
-        mark: m.mark as (typeof MarkValues)[number],
+        mark: m.mark,
         lastModifiedVersion: version,
         updatedAt: now,
     }));

@@ -1,6 +1,8 @@
 import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { booths, tweets } from "../schema";
-import type { EventId, BoothId, TweetId, UserId } from "../schema";
+import { BoothId } from "../schema";
+import type { EventId, TweetId, UserId } from "../schema";
+import * as Schema from "effect/Schema";
 import type { BoothInsert } from "../types";
 import type { SupportedDb, TransactionDb } from "./_shared";
 
@@ -30,7 +32,7 @@ export const upsertBoothFromTweet = async (
         .insert(booths)
         .values({
             eventId: tweet.eventId,
-            id: tweet.inferredBoothId.toUpperCase() as BoothId,
+            id: Schema.decodeUnknownSync(BoothId)(tweet.inferredBoothId.toUpperCase()),
             section,
             status: "occupied",
             exhibitorUser: tweet.user,
@@ -113,6 +115,8 @@ export const getBoothWithTweets = async (db: SupportedDb, eventId: EventId, id: 
     return { booth, tweets: tweetRows };
 };
 
+// Both D1 and bun:sqlite Drizzle instances support .transaction();
+// the TransactionDb cast is safe at runtime.
 export const rebuildBoothsFromTweets = async (db: SupportedDb, eventId: EventId) => {
     return (db as TransactionDb).transaction(async (tx) => {
         await tx.delete(booths).where(eq(booths.eventId, eventId));
@@ -147,7 +151,7 @@ export const rebuildBoothsFromTweets = async (db: SupportedDb, eventId: EventId)
             const section = parseSectionFromBoothId(upperBoothId);
             const row: BoothInsert = {
                 eventId,
-                id: upperBoothId as BoothId,
+                id: Schema.decodeUnknownSync(BoothId)(upperBoothId),
                 section,
                 status: "occupied",
                 exhibitorUser: tweet.user,

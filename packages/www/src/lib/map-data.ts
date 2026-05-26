@@ -584,18 +584,29 @@ export function createBoothSearchText(booth: Booth) {
         .toLowerCase();
 }
 
-export function getBoothSearchScore(booth: Booth, query: string) {
+export const getBoothSearchScore = (booth: Booth, query: string) => {
     const normalizedCode = booth.code.toLowerCase();
     const normalizedVendor = booth.vendor?.toLowerCase() ?? "";
     const normalizedGroup = booth.groupLabel.toLowerCase();
 
-    if (normalizedCode === query) return 0;
-    if (normalizedCode.startsWith(query)) return 1;
-    if (normalizedVendor === query) return 2;
-    if (normalizedVendor.startsWith(query)) return 3;
-    if (normalizedGroup.startsWith(query)) return 4;
-    return 5;
-}
+    // Match quality tiers ordered from best to worst.
+    // Lower enum value = higher-priority match.
+    const enum MatchQuality {
+        ExactCode = 0,
+        PrefixCode = 1,
+        ExactVendor = 2,
+        PrefixVendor = 3,
+        PrefixGroup = 4,
+        Fallback = 5,
+    }
+
+    if (normalizedCode === query) return MatchQuality.ExactCode;
+    if (normalizedCode.startsWith(query)) return MatchQuality.PrefixCode;
+    if (normalizedVendor === query) return MatchQuality.ExactVendor;
+    if (normalizedVendor.startsWith(query)) return MatchQuality.PrefixVendor;
+    if (normalizedGroup.startsWith(query)) return MatchQuality.PrefixGroup;
+    return MatchQuality.Fallback;
+};
 
 export const floorPlan = buildFloorPlan();
 export const DEFAULT_SELECTED_BOOTH = "E-31a";

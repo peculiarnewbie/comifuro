@@ -6,6 +6,7 @@ import { TweetId, UserId, EventId } from "@comifuro/core/schema";
 import { getDb, requirePassword } from "../auth";
 import { InternalError } from "../errors";
 import { Result, handleResult } from "../responder";
+import { validate } from "../responder";
 import { helpers } from "@comifuro/core";
 import { CURRENT_SCHEMA_VERSION } from "../helpers";
 import type { AppContext } from "../types";
@@ -43,15 +44,24 @@ export async function syncTweets(c: AppContext) {
     const cursorUpdatedAt = helpers.toNumberParam(c.req.query("cursorUpdatedAt"));
     const cursorId = c.req.query("cursorId");
 
+    let cursorIdValue: TweetId | undefined;
+    if (cursorId) {
+        const cursorIdResult = validate(TweetId, cursorId);
+        if (Result.isError(cursorIdResult)) {
+            return c.json({ error: cursorIdResult.error.message }, 400);
+        }
+        cursorIdValue = cursorIdResult.value;
+    }
+
     try {
         const db = getDb(c);
         const rows = await tweetsOperations.listTweetsForSync(db, {
             eventId,
             cursor:
-                cursorUpdatedAt != null && cursorId
+                cursorUpdatedAt != null && cursorIdValue
                     ? {
                           updatedAt: cursorUpdatedAt,
-                          id: Schema.decodeUnknownSync(TweetId)(cursorId),
+                          id: cursorIdValue,
                       }
                     : undefined,
             limit: limit + 1,

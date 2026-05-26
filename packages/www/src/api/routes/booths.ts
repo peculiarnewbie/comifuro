@@ -2,34 +2,37 @@ import * as Schema from "effect/Schema";
 import { boothsOperations } from "@comifuro/core";
 import { getDb, requireAdmin } from "../auth";
 import { NotFoundError, InternalError } from "../errors";
-import { Result, handleResult } from "../responder";
+import { Result, handleResult, validate } from "../responder";
 import { helpers } from "@comifuro/core";
 import type { AppContext } from "../types";
 import { EventId, BoothId } from "@comifuro/core/schema";
 
-const BoothStatus = Schema.Literals(["unknown", "available", "occupied", "reserved"] as const);
+const BoothStatusValues = ["unknown", "available", "occupied", "reserved"] as const;
+const BoothStatus = Schema.Literals(BoothStatusValues);
+type BoothStatusValue = (typeof BoothStatusValues)[number];
 
 export async function listBooths(c: AppContext) {
-    const eventId = helpers.normalizeEventId(
-        c.req.query("eventId"),
-        Schema.decodeUnknownSync(EventId)("cf22"),
-    );
+    const eventIdResult = validate(EventId, c.req.query("eventId"));
+    if (Result.isError(eventIdResult)) {
+        return c.json({ error: eventIdResult.error.message }, 400);
+    }
+    const eventId = eventIdResult.value;
     const limit = Math.min(Math.max(helpers.toNumberParam(c.req.query("limit")) ?? 500, 1), 1000);
     const offset = Math.max(helpers.toNumberParam(c.req.query("offset")) ?? 0, 0);
 
     const status = c.req.query("status");
-    let parsedStatus: string | undefined;
+    let parsedStatus: BoothStatusValue | undefined;
     if (status) {
-        try {
-            parsedStatus = Schema.decodeUnknownSync(BoothStatus)(status);
-        } catch {
-            return c.json({ error: "invalid status" }, 400);
+        const statusResult = validate(BoothStatus, status);
+        if (Result.isError(statusResult)) {
+            return c.json({ error: statusResult.error.message }, 400);
         }
+        parsedStatus = statusResult.value as BoothStatusValue;
     }
 
     try {
         const rows = await boothsOperations.listBooths(getDb(c), eventId, {
-            status: parsedStatus as "unknown" | "available" | "occupied" | "reserved" | undefined,
+            status: parsedStatus,
             limit,
             offset,
         });
@@ -52,15 +55,24 @@ export async function listBooths(c: AppContext) {
 }
 
 export async function getBooth(c: AppContext) {
-    const eventId = helpers.normalizeEventId(
-        c.req.query("eventId"),
-        Schema.decodeUnknownSync(EventId)("cf22"),
-    );
-    const id = c.req.param("id")!;
+    const eventIdResult = validate(EventId, c.req.query("eventId"));
+    if (Result.isError(eventIdResult)) {
+        return c.json({ error: eventIdResult.error.message }, 400);
+    }
+    const eventId = eventIdResult.value;
+
+    const idParam = c.req.param("id");
+    if (!idParam) {
+        return c.json({ error: "missing id" }, 400);
+    }
+    const idResult = validate(BoothId, idParam.toUpperCase());
+    if (Result.isError(idResult)) {
+        return c.json({ error: idResult.error.message }, 400);
+    }
+    const id = idResult.value;
 
     try {
-        const idValue = Schema.decodeUnknownSync(BoothId)(id.toUpperCase());
-        const result = await boothsOperations.getBoothWithTweets(getDb(c), eventId, idValue);
+        const result = await boothsOperations.getBoothWithTweets(getDb(c), eventId, id);
         if (!result.booth) {
             return handleResult(
                 c,
@@ -77,7 +89,7 @@ export async function getBooth(c: AppContext) {
         }
         return c.json({ eventId, booth: result.booth, tweets: result.tweets });
     } catch (error) {
-        console.error("[booths] get error", { eventId, id }, error);
+        console.error("[booths] get error", { eventId, id: idParam }, error);
         return handleResult(
             c,
             Result.err(
@@ -101,10 +113,11 @@ export async function rebuildBooths(c: AppContext) {
         });
     }
 
-    const eventId = helpers.normalizeEventId(
-        c.req.query("eventId"),
-        Schema.decodeUnknownSync(EventId)("cf22"),
-    );
+    const eventIdResult = validate(EventId, c.req.query("eventId"));
+    if (Result.isError(eventIdResult)) {
+        return c.json({ error: eventIdResult.error.message }, 400);
+    }
+    const eventId = eventIdResult.value;
 
     try {
         const inserted = await boothsOperations.rebuildBoothsFromTweets(getDb(c), eventId);

@@ -1,6 +1,8 @@
 import type { Context } from "hono";
 import type { ApiError } from "./errors";
 import type { Env } from "./types";
+import * as EffectSchema from "effect/Schema";
+import { ValidationError } from "./errors";
 
 export type Result<T, E extends ApiError = ApiError> =
     | { _tag: "ok"; value: T }
@@ -57,4 +59,51 @@ export function handleResult<T>(
         ok: okHandler,
         err: (error) => mapErrorToResponse(c, error),
     });
+}
+
+/**
+ * Validate a raw string value against an Effect Schema.
+ * Returns Result on failure so routes can return 400 without try/catch.
+ */
+export function validate<T>(
+    schema: EffectSchema.Schema<T>,
+    raw: string | undefined,
+): Result<T, ValidationError> {
+    if (raw === undefined || raw === "") {
+        return Result.err(new ValidationError({ message: "missing required value", field: raw }));
+    }
+    try {
+        const decoded = EffectSchema.decodeUnknownSync(schema as any)(raw);
+        return Result.ok(decoded as T);
+    } catch (error) {
+        return Result.err(
+            new ValidationError({
+                message: error instanceof Error ? error.message : "validation failed",
+                field: raw,
+            }),
+        );
+    }
+}
+
+/**
+ * Validate an optional query parameter. Returns undefined when absent.
+ */
+export function validateOptional<T>(
+    schema: EffectSchema.Schema<T>,
+    value: string | undefined,
+): Result<T | undefined, ValidationError> {
+    if (value === undefined || value === "") {
+        return Result.ok(undefined);
+    }
+    try {
+        const decoded = EffectSchema.decodeUnknownSync(schema as any)(value);
+        return Result.ok(decoded as T);
+    } catch (error) {
+        return Result.err(
+            new ValidationError({
+                message: error instanceof Error ? error.message : "validation failed",
+                field: value,
+            }),
+        );
+    }
 }

@@ -1,8 +1,8 @@
 import * as Schema from "effect/Schema";
 import { marksOperations } from "@comifuro/core";
-import { MarkValues, TweetId } from "@comifuro/core/schema";
+import { MarkValues, TweetId, UserId } from "@comifuro/core/schema";
 import { getDb, requireAccount } from "../auth";
-import { InternalError } from "../errors";
+import { InternalError, UnauthorizedError } from "../errors";
 import { Result, handleResult } from "../responder";
 import type { AppContext } from "../types";
 
@@ -23,7 +23,8 @@ export async function getMarks(c: AppContext) {
         });
     }
 
-    const userId = c.get("userId")!;
+    // requireAccount already guards userId is not null, and it's now UserId | null.
+    const userId = c.get("userId") as UserId;
     const version = Number(c.req.query("version") ?? "0");
 
     try {
@@ -63,7 +64,8 @@ export async function syncMarks(c: AppContext) {
         });
     }
 
-    const userId = c.get("userId")!;
+    // requireAccount already guards userId is not null, and it's now UserId | null.
+    const userId = c.get("userId") as UserId;
 
     const body = await c.req.json();
     let parsed: Schema.Schema.Type<typeof MarksBody>;

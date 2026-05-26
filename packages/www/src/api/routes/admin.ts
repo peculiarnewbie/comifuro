@@ -1,12 +1,11 @@
 import * as Schema from "effect/Schema";
-import { Result } from "../responder";
+import { Result, handleResult, validate } from "../responder";
 import { tweetsOperations } from "@comifuro/core";
 import { getDb, requireAdmin } from "../auth";
 import { NotFoundError, InternalError } from "../errors";
-import { handleResult } from "../responder";
 import { helpers } from "@comifuro/core";
 import type { AppContext } from "../types";
-import { TweetId } from "@comifuro/core/schema";
+import { TweetId, EventId } from "@comifuro/core/schema";
 
 const AdminTweetMetadata = Schema.Struct({
     inferredFandoms: Schema.optional(Schema.Array(Schema.String)),
@@ -28,10 +27,15 @@ export async function listMissingThumbnails(c: AppContext) {
     const limit = Math.min(Math.max(Number(c.req.query("limit") ?? 100), 1), 500);
     const cursorTweetId = c.req.query("cursorTweetId");
     const cursorMediaIndex = helpers.toNumberParam(c.req.query("cursorMediaIndex"));
-    const cursor =
-        cursorTweetId && cursorMediaIndex != null
-            ? { tweetId: cursorTweetId as TweetId, mediaIndex: cursorMediaIndex }
-            : undefined;
+
+    let cursor: { tweetId: TweetId; mediaIndex: number } | undefined;
+    if (cursorTweetId && cursorMediaIndex != null) {
+        const tweetIdResult = validate(TweetId, cursorTweetId);
+        if (Result.isError(tweetIdResult)) {
+            return c.json({ error: tweetIdResult.error.message }, 400);
+        }
+        cursor = { tweetId: tweetIdResult.value, mediaIndex: cursorMediaIndex };
+    }
 
     try {
         const rows = await tweetsOperations.listTweetMediaMissingThumbnails(getDb(c), {
@@ -78,8 +82,21 @@ export async function setThumbnail(c: AppContext) {
         });
     }
 
-    const tweetId = c.req.param("tweetId")!;
-    const mediaIndex = Number(c.req.param("mediaIndex")!);
+    const tweetIdParam = c.req.param("tweetId");
+    if (!tweetIdParam) {
+        return c.json({ error: "missing tweetId" }, 400);
+    }
+    const tweetIdResult = validate(TweetId, tweetIdParam);
+    if (Result.isError(tweetIdResult)) {
+        return c.json({ error: tweetIdResult.error.message }, 400);
+    }
+    const tweetId = tweetIdResult.value;
+
+    const mediaIndexRaw = c.req.param("mediaIndex");
+    if (!mediaIndexRaw) {
+        return c.json({ error: "missing mediaIndex" }, 400);
+    }
+    const mediaIndex = Number(mediaIndexRaw);
     if (!Number.isInteger(mediaIndex) || mediaIndex < 0) {
         return c.json({ error: "invalid mediaIndex" }, 400);
     }
@@ -99,7 +116,7 @@ export async function setThumbnail(c: AppContext) {
 
     try {
         const updated = await tweetsOperations.setTweetMediaThumbnail(getDb(c), {
-            tweetId: tweetId as TweetId,
+            tweetId,
             mediaIndex,
             thumbnailR2Key: parsed.thumbnailR2Key,
         });
@@ -148,6 +165,16 @@ export async function updateTweetMetadata(c: AppContext) {
         });
     }
 
+    const idParam = c.req.param("id");
+    if (!idParam) {
+        return c.json({ error: "missing id" }, 400);
+    }
+    const idResult = validate(TweetId, idParam);
+    if (Result.isError(idResult)) {
+        return c.json({ error: idResult.error.message }, 400);
+    }
+    const id = idResult.value;
+
     const body = await c.req.json();
     let parsed: Schema.Schema.Type<typeof AdminTweetMetadata>;
     try {
@@ -167,7 +194,7 @@ export async function updateTweetMetadata(c: AppContext) {
 
     try {
         const [tweet] = await tweetsOperations.updateTweetAdminMetadata(getDb(c), {
-            id: c.req.param("id")! as TweetId,
+            id,
             inferredFandoms: helpers.normalizeTagList(
                 parsed.inferredFandoms ? [...parsed.inferredFandoms] : undefined,
             ),
@@ -217,6 +244,16 @@ export async function rerootThread(c: AppContext) {
         });
     }
 
+    const rootParam = c.req.param("id");
+    if (!rootParam) {
+        return c.json({ error: "missing root tweet id" }, 400);
+    }
+    const rootResult = validate(TweetId, rootParam);
+    if (Result.isError(rootResult)) {
+        return c.json({ error: rootResult.error.message }, 400);
+    }
+    const rootTweetId = rootResult.value;
+
     const body = await c.req.json();
     let parsed: Schema.Schema.Type<typeof RerootThread>;
     try {
@@ -232,7 +269,7 @@ export async function rerootThread(c: AppContext) {
 
     try {
         const tweets = await tweetsOperations.rerootThread(getDb(c), {
-            rootTweetId: c.req.param("id")! as TweetId,
+            rootTweetId: rootTweetId,
             newRootTweetId: parsed.newRootTweetId,
             updatedAt: new Date(),
         });
@@ -262,9 +299,19 @@ async function doUncatalogue(c: AppContext, reason: string, errorLabel: string) 
         });
     }
 
+    const idParam = c.req.param("id");
+    if (!idParam) {
+        return c.json({ error: "missing id" }, 400);
+    }
+    const idResult = validate(TweetId, idParam);
+    if (Result.isError(idResult)) {
+        return c.json({ error: idResult.error.message }, 400);
+    }
+    const id = idResult.value;
+
     try {
         const [tweet] = await tweetsOperations.manualUncatalogueTweet(getDb(c), {
-            id: c.req.param("id")! as TweetId,
+            id: id,
             reason,
             updatedAt: new Date(),
         });

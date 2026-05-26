@@ -16,28 +16,13 @@ export async function uploadImage(c: AppContext) {
         });
     }
 
-    let decodedKey: string;
-    try {
-        const keyParam = c.req.param("key");
-        if (!keyParam) {
-            return c.json({ error: "missing key" }, 400);
-        }
-        decodedKey = decodeURIComponent(keyParam);
-    } catch {
-        return c.json({ error: "invalid key encoding" }, 400);
+    const keyParam = c.req.param("key");
+    if (!keyParam) {
+        return c.json({ error: "missing key" }, 400);
     }
 
-    let parsed: Schema.Schema.Type<typeof ImageUpload>;
-    try {
-        parsed = Schema.decodeUnknownSync(ImageUpload)({ key: decodedKey });
-    } catch (error) {
-        return c.json(
-            {
-                error: error instanceof Error ? error.message : "validation failed",
-            },
-            400,
-        );
-    }
+    const decodedKey = decodeURIComponent(keyParam);
+    const parsed = Schema.decodeUnknownSync(ImageUpload)({ key: decodedKey });
 
     if (!helpers.TWEET_MEDIA_KEY_REGEX.test(parsed.key)) {
         return c.json({ error: "invalid key format" }, 400);
