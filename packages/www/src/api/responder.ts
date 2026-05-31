@@ -39,13 +39,13 @@ export function mapErrorToResponse(c: Context<Env>, error: ApiError): Response {
         case "NotFoundError":
             return c.json({ error: error.message }, 404);
         case "DatabaseError":
-            console.error("[db error]", error.cause);
+            console.error("[db error]", { requestId: c.get("requestId") }, error.cause);
             return c.json({ error: error.message }, 500);
         case "InternalError":
-            console.error("[internal error]", error.cause);
+            console.error("[internal error]", { requestId: c.get("requestId") }, error.cause);
             return c.json({ error: error.message }, 500);
         default:
-            console.error("[unknown error]", error);
+            console.error("[unknown error]", { requestId: c.get("requestId") }, error);
             return c.json({ error: "internal server error" }, 500);
     }
 }

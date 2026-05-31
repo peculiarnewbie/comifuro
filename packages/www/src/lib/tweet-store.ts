@@ -3,6 +3,7 @@ import { createStore, type Content, type Store, type Table } from "tinybase";
 import { createIndexedDbPersister } from "tinybase/persisters/persister-indexed-db";
 import type { TweetSyncItem } from "@comifuro/core/types";
 import { TweetSyncItemSchema } from "@comifuro/core/schemas";
+import { EventId } from "@comifuro/core/schema";
 import { createTweetSyncProtocol, type TweetSyncProtocol } from "./sync-protocol";
 import {
     parseTagInput,
@@ -152,6 +153,7 @@ export async function createTweetStoreSession({
     eventId: string;
     apiHost: string;
 }): Promise<TweetStoreSession> {
+    const parsedEventId = Schema.decodeUnknownSync(EventId)(eventId);
     const store = createStore();
     const persister = createIndexedDbPersister(store, `comifuro-tweets-${eventId}`);
 
@@ -228,7 +230,7 @@ export async function createTweetStoreSession({
 
                 let continuePaging = true;
                 while (continuePaging && !destroyed) {
-                    const page = await sync.syncOnce(eventId);
+                    const page = await sync.syncOnce(parsedEventId);
 
                     if (page.tokenChanged) {
                         store.transaction(() => {

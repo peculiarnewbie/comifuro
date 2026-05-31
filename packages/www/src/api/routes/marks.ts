@@ -2,8 +2,9 @@ import * as Schema from "effect/Schema";
 import { marksOperations } from "@comifuro/core";
 import { MarkValues, TweetId, UserId } from "@comifuro/core/schema";
 import { getDb, requireAccount } from "../auth";
-import { InternalError, UnauthorizedError } from "../errors";
+import { InternalError } from "../errors";
 import { Result, handleResult } from "../responder";
+import { parseIntegerQuery } from "../helpers";
 import type { AppContext } from "../types";
 
 const Mark = Schema.Struct({
@@ -25,7 +26,15 @@ export async function getMarks(c: AppContext) {
 
     // requireAccount already guards userId is not null, and it's now UserId | null.
     const userId = c.get("userId") as UserId;
-    const version = Number(c.req.query("version") ?? "0");
+    const versionResult = parseIntegerQuery(c.req.query("version"), {
+        name: "version",
+        defaultValue: 0,
+        min: 0,
+    });
+    if (!versionResult.ok) {
+        return c.json({ error: versionResult.error }, 400);
+    }
+    const version = versionResult.value;
 
     try {
         const marks = await marksOperations.getUserMarks(getDb(c), userId, version);

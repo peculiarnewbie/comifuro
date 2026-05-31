@@ -14,6 +14,7 @@ export type Env = {
     Variables: {
         userId: UserId | null;
         isAdmin: boolean;
+        requestId: string;
     };
 };
 

@@ -4,6 +4,40 @@ import type { EventId } from "@comifuro/core/schema";
 
 export const CURRENT_SCHEMA_VERSION = 9;
 
+export function parseIntegerQuery(
+    value: string | undefined,
+    {
+        name,
+        defaultValue,
+        min,
+        max,
+    }: {
+        name: string;
+        defaultValue: number;
+        min?: number;
+        max?: number;
+    },
+): { ok: true; value: number } | { ok: false; error: string } {
+    if (value === undefined || value === "") {
+        return { ok: true, value: defaultValue };
+    }
+
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed)) {
+        return { ok: false, error: `${name} must be an integer` };
+    }
+
+    if (min !== undefined && parsed < min) {
+        return { ok: false, error: `${name} must be at least ${min}` };
+    }
+
+    if (max !== undefined && parsed > max) {
+        return { ok: false, error: `${name} must be at most ${max}` };
+    }
+
+    return { ok: true, value: parsed };
+}
+
 export async function buildPublicFeed(db: SupportedDb, eventId: EventId) {
     const publicTweets = await tweetsOperations.listPublicTweets(db, "catalogue", eventId);
     const media = await tweetsOperations.listPublicTweetMedia(

@@ -8,10 +8,10 @@ import {
 } from "@comifuro/core";
 import { TweetClassificationValues, TweetId, UserId } from "@comifuro/core/schema";
 import { EventId } from "@comifuro/core/schema";
-import type { BoothId } from "@comifuro/core/schema";
+import { BoothId } from "@comifuro/core/schema";
 import { getDb, requirePassword } from "../auth";
 
-import { Result, handleResult, validate } from "../responder";
+import { Result, handleResult } from "../responder";
 import { helpers } from "@comifuro/core";
 import { buildPublicFeed } from "../helpers";
 import type { AppContext } from "../types";
@@ -49,21 +49,21 @@ const ScraperTweet = Schema.Struct({
     classificationReason: Schema.optional(NullableString),
     classifierPromptVersion: Schema.optional(NullableString),
     inferredFandoms: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
-    inferredBoothId: Schema.optional(NullableString),
+    inferredBoothId: Schema.optional(Schema.NullOr(BoothId)),
     inferredBoothIdConfidence: Schema.optional(NullableString),
     inferredItemTypes: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
     preorderDeadline: Schema.optional(NullableString),
     items: Schema.optional(Schema.Array(ScraperItem)),
-    rootTweetId: Schema.optional(NullableString),
-    parentTweetId: Schema.optional(NullableString),
+    rootTweetId: Schema.optional(Schema.NullOr(TweetId)),
+    parentTweetId: Schema.optional(Schema.NullOr(TweetId)),
     threadPosition: Schema.optional(Schema.NullOr(Schema.Number)),
     media: Schema.optional(Schema.Array(ScraperMedia)),
 });
 
 const ScraperState = Schema.Struct({
-    checkpoint: Schema.optional(Schema.NullOr(Schema.String)),
-    startTweetId: Schema.optional(Schema.NullOr(Schema.String)),
-    endTweetId: Schema.optional(Schema.NullOr(Schema.String)),
+    checkpoint: Schema.optional(Schema.NullOr(TweetId)),
+    startTweetId: Schema.optional(Schema.NullOr(TweetId)),
+    endTweetId: Schema.optional(Schema.NullOr(TweetId)),
     lastSeenTweetId: Schema.optional(Schema.NullOr(TweetId)),
     lastRunAt: Schema.optional(Schema.NullOr(Schema.Union([Schema.Number, Schema.String]))),
 });
@@ -97,9 +97,9 @@ export async function upsertScraperTweet(c: AppContext) {
     const db = getDb(c);
 
     const eventId = helpers.normalizeEventId(tweet.eventId);
-    const inferredBoothId = tweet.inferredBoothId as BoothId | null;
-    const rootTweetId = tweet.rootTweetId as TweetId | null;
-    const parentTweetId = tweet.parentTweetId as TweetId | null;
+    const inferredBoothId = tweet.inferredBoothId ?? null;
+    const rootTweetId = tweet.rootTweetId ?? null;
+    const parentTweetId = tweet.parentTweetId ?? null;
 
     await tweetsOperations.upsertScrapedTweet(db, {
         tweet: {
@@ -210,10 +210,10 @@ export async function putScraperState(c: AppContext) {
     const now = new Date();
     const [state] = await scraperOperations.upsertState(getDb(c), {
         id: id,
-        checkpoint: (parsed.checkpoint ?? null) as TweetId | null,
-        startTweetId: (parsed.startTweetId ?? null) as TweetId | null,
-        endTweetId: (parsed.endTweetId ?? null) as TweetId | null,
-        lastSeenTweetId: (parsed.lastSeenTweetId ?? null) as TweetId | null,
+        checkpoint: parsed.checkpoint ?? null,
+        startTweetId: parsed.startTweetId ?? null,
+        endTweetId: parsed.endTweetId ?? null,
+        lastSeenTweetId: parsed.lastSeenTweetId ?? null,
         lastRunAt: helpers.toDate(parsed.lastRunAt) ?? now,
         updatedAt: now,
     });

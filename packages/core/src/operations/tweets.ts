@@ -143,9 +143,7 @@ export const upsertScrapedTweet = async (db: SupportedDb, input: ScrapedTweetUps
     // the TransactionDb cast is safe because SupportedDb always resolves to one of those two.
     return (db as TransactionDb).transaction(async (tx) => {
         const [tweet] = await upsertTweet(tx, input.tweet);
-        if (input.media.length > 0) {
-            await replaceTweetMedia(tx, input.tweet.id, input.media);
-        }
+        await replaceTweetMedia(tx, input.tweet.id, input.media);
         return tweet;
     });
 };

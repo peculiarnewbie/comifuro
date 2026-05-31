@@ -4,8 +4,9 @@ import { tweetsOperations } from "@comifuro/core";
 import { getDb, requireAdmin } from "../auth";
 import { NotFoundError, InternalError } from "../errors";
 import { helpers } from "@comifuro/core";
+import { parseIntegerQuery } from "../helpers";
 import type { AppContext } from "../types";
-import { TweetId, EventId } from "@comifuro/core/schema";
+import { TweetId } from "@comifuro/core/schema";
 
 const AdminTweetMetadata = Schema.Struct({
     inferredFandoms: Schema.optional(Schema.Array(Schema.String)),
@@ -24,7 +25,16 @@ export async function listMissingThumbnails(c: AppContext) {
         });
     }
 
-    const limit = Math.min(Math.max(Number(c.req.query("limit") ?? 100), 1), 500);
+    const limitResult = parseIntegerQuery(c.req.query("limit"), {
+        name: "limit",
+        defaultValue: 100,
+        min: 1,
+        max: 500,
+    });
+    if (!limitResult.ok) {
+        return c.json({ error: limitResult.error }, 400);
+    }
+    const limit = limitResult.value;
     const cursorTweetId = c.req.query("cursorTweetId");
     const cursorMediaIndex = helpers.toNumberParam(c.req.query("cursorMediaIndex"));
 

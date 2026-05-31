@@ -3,7 +3,7 @@ import { boothsOperations } from "@comifuro/core";
 import { getDb, requireAdmin } from "../auth";
 import { NotFoundError, InternalError } from "../errors";
 import { Result, handleResult, validate } from "../responder";
-import { helpers } from "@comifuro/core";
+import { parseIntegerQuery } from "../helpers";
 import type { AppContext } from "../types";
 import { EventId, BoothId } from "@comifuro/core/schema";
 
@@ -17,8 +17,25 @@ export async function listBooths(c: AppContext) {
         return c.json({ error: eventIdResult.error.message }, 400);
     }
     const eventId = eventIdResult.value;
-    const limit = Math.min(Math.max(helpers.toNumberParam(c.req.query("limit")) ?? 500, 1), 1000);
-    const offset = Math.max(helpers.toNumberParam(c.req.query("offset")) ?? 0, 0);
+    const limitResult = parseIntegerQuery(c.req.query("limit"), {
+        name: "limit",
+        defaultValue: 500,
+        min: 1,
+        max: 1000,
+    });
+    if (!limitResult.ok) {
+        return c.json({ error: limitResult.error }, 400);
+    }
+    const offsetResult = parseIntegerQuery(c.req.query("offset"), {
+        name: "offset",
+        defaultValue: 0,
+        min: 0,
+    });
+    if (!offsetResult.ok) {
+        return c.json({ error: offsetResult.error }, 400);
+    }
+    const limit = limitResult.value;
+    const offset = offsetResult.value;
 
     const status = c.req.query("status");
     let parsedStatus: BoothStatusValue | undefined;

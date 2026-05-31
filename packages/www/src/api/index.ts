@@ -32,6 +32,19 @@ function getAllowedOrigins(): string[] {
 
 const api = new Hono<Env>();
 
+api.use("*", async (c, next) => {
+    const requestId = c.req.header("CF-Ray") ?? crypto.randomUUID();
+    const startedAt = Date.now();
+    c.set("requestId", requestId);
+    c.header("X-Request-ID", requestId);
+
+    try {
+        await next();
+    } finally {
+        c.header("Server-Timing", `app;dur=${Date.now() - startedAt}`);
+    }
+});
+
 api.use(
     "*",
     cors({

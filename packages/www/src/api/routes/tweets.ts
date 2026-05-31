@@ -8,7 +8,7 @@ import { InternalError } from "../errors";
 import { Result, handleResult } from "../responder";
 import { validate } from "../responder";
 import { helpers } from "@comifuro/core";
-import { CURRENT_SCHEMA_VERSION } from "../helpers";
+import { CURRENT_SCHEMA_VERSION, parseIntegerQuery } from "../helpers";
 import type { AppContext } from "../types";
 
 const LegacyTweet = Schema.Struct({
@@ -40,7 +40,16 @@ export async function syncTweets(c: AppContext) {
         c.req.query("eventId"),
         Schema.decodeUnknownSync(EventId)("cf22"),
     );
-    const limit = Math.min(Math.max(Number(c.req.query("limit") ?? 500), 1), 1000);
+    const limitResult = parseIntegerQuery(c.req.query("limit"), {
+        name: "limit",
+        defaultValue: 500,
+        min: 1,
+        max: 1000,
+    });
+    if (!limitResult.ok) {
+        return c.json({ error: limitResult.error }, 400);
+    }
+    const limit = limitResult.value;
     const cursorUpdatedAt = helpers.toNumberParam(c.req.query("cursorUpdatedAt"));
     const cursorId = c.req.query("cursorId");
 

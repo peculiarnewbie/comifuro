@@ -3,26 +3,27 @@ import {
     TweetSyncResponse as TweetSyncResponseSchema,
     MarksResponse as MarksResponseSchema,
 } from "@comifuro/core/schemas";
-import type { TweetSyncItem, Marks } from "@comifuro/core/types";
+import type { TweetSyncCursor, TweetSyncItem, Marks } from "@comifuro/core/types";
+import type { EventId } from "@comifuro/core/schema";
 
 export type TweetSyncPage = {
     items: TweetSyncItem[];
-    nextCursor: { updatedAt: number; id: string } | null;
+    nextCursor: TweetSyncCursor | null;
     hasMore: boolean;
     serverTime: number;
     tokenChanged: boolean;
 };
 
 export type TweetSyncProtocol = {
-    syncOnce(eventId: string): Promise<TweetSyncPage>;
+    syncOnce(eventId: EventId): Promise<TweetSyncPage>;
     reset(): void;
 };
 
 export function createTweetSyncProtocol(apiHost: string): TweetSyncProtocol {
-    let cursor: { updatedAt: number; id: string } | undefined;
+    let cursor: TweetSyncCursor | undefined;
     let syncToken: string | null = null;
 
-    const fetchSyncPage = async (eventId: string) => {
+    const fetchSyncPage = async (eventId: EventId) => {
         const params = new URLSearchParams();
         params.set("eventId", eventId);
         params.set("limit", "500");
@@ -39,7 +40,7 @@ export function createTweetSyncProtocol(apiHost: string): TweetSyncProtocol {
         return Schema.decodeUnknownSync(TweetSyncResponseSchema)(await response.json());
     };
 
-    const syncOnce = async (eventId: string): Promise<TweetSyncPage> => {
+    const syncOnce = async (eventId: EventId): Promise<TweetSyncPage> => {
         const raw = await fetchSyncPage(eventId);
 
         if (syncToken !== null && syncToken !== raw.syncToken) {
