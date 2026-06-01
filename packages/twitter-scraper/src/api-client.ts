@@ -27,16 +27,15 @@ type ScrapedTweetPayload = {
 };
 
 export class ApiClient {
-    constructor(
-        private readonly apiBaseUrl: string,
-        private readonly apiPassword: string,
-    ) {}
+    constructor(private readonly opts: { apiBaseUrl: string; apiPassword: string }) {}
 
     private async request<T>(path: string, init?: RequestInit): Promise<T> {
-        const baseUrl = this.apiBaseUrl.endsWith("/") ? this.apiBaseUrl : `${this.apiBaseUrl}/`;
+        const baseUrl = this.opts.apiBaseUrl.endsWith("/")
+            ? this.opts.apiBaseUrl
+            : `${this.opts.apiBaseUrl}/`;
         const normalizedPath = path.replace(/^\/+/, "");
         const extraHeaders: Record<string, string> = {
-            "pec-password": this.apiPassword,
+            "pec-password": this.opts.apiPassword,
         };
         const existingHeaders = init?.headers;
         if (existingHeaders instanceof Headers) {

@@ -18,3 +18,5 @@ import * as _helpers from "./helpers";
 export const helpers = _helpers;
 
 export type { SupportedDb, TransactionDb } from "./operations/_shared";
+export { withTransaction } from "./operations/_shared";
+export type { TweetId, UserId, EventId, BoothId } from "./schemas";

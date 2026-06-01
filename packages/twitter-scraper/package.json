@@ -9,14 +9,14 @@
     },
     "dependencies": {
         "@comifuro/core": "workspace:*",
-        "@opencode-ai/sdk": "^0.5.19",
+        "@opencode-ai/sdk": "^0.5.29",
         "effect": "catalog:",
-        "playwright": "^1.59.1",
-        "sharp": "^0.34.1"
+        "playwright": "^1.60.0",
+        "sharp": "^0.34.5"
     },
     "devDependencies": {
         "@types/bun": "latest",
-        "tsx": "^4.20.6"
+        "tsx": "^4.22.4"
     },
     "peerDependencies": {
         "typescript": "^5"

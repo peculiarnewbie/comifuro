@@ -19,7 +19,7 @@ describe("parseClassificationResponse", () => {
         `);
 
         expect(parsed).toEqual({
-            isCatalogue: true,
+            classification: "catalogue",
             reason: "catalogue post",
             inferredFandoms: ["Blue Archive", "Project Sekai"],
             inferredBoothId: "A12",
@@ -40,8 +40,11 @@ describe("parseClassificationResponse", () => {
             }),
         );
 
-        expect(parsed.inferredFandoms).toEqual([]);
+        expect(parsed.classification).toBe("catalogue");
         expect(parsed.inferredBoothId).toBeNull();
+        if (parsed.classification === "catalogue") {
+            expect(parsed.inferredFandoms).toEqual([]);
+        }
     });
 
     test("tolerates string nulls and bonus metadata format drift", () => {
@@ -55,7 +58,7 @@ describe("parseClassificationResponse", () => {
         );
 
         expect(parsed).toEqual({
-            isCatalogue: true,
+            classification: "catalogue",
             reason: "catalogue post",
             inferredFandoms: ["Blue Archive"],
             inferredBoothId: null,

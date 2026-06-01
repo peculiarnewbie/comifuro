@@ -1,3 +1,5 @@
+import type { TweetId } from "@comifuro/core";
+
 export type ExtractedTweet = {
     id: string;
     user: string;
@@ -20,17 +22,25 @@ export type ItemInfo = {
     fandom?: string | null;
 };
 
-export type ClassificationResult = {
-    isCatalogue: boolean;
-    reason: string;
-    inferredFandoms: string[];
-    inferredBoothId: string | null;
-    inferredBoothIdConfidence: string | null;
-    inferredItemTypes: string[];
-    preorderDeadline: string | null;
-    items: ItemInfo[];
-    raw: string;
-};
+export type ClassificationResult =
+    | {
+          classification: "catalogue";
+          reason: string;
+          inferredFandoms: string[];
+          inferredBoothId: string | null;
+          inferredBoothIdConfidence: string | null;
+          inferredItemTypes: string[];
+          preorderDeadline: string | null;
+          items: ItemInfo[];
+          raw: string;
+      }
+    | {
+          classification: "not_catalogue";
+          reason: string;
+          inferredBoothId: string | null;
+          inferredBoothIdConfidence: string | null;
+          raw: string;
+      };
 
 export type UploadedMedia = {
     mediaIndex: number;
@@ -44,10 +54,10 @@ export type UploadedMedia = {
 
 export type ScraperState = {
     id: string;
-    checkpoint: string | null;
-    startTweetId: string | null;
-    endTweetId: string | null;
-    lastSeenTweetId: string | null;
+    checkpoint: TweetId | null;
+    startTweetId: TweetId | null;
+    endTweetId: TweetId | null;
+    lastSeenTweetId: TweetId | null;
     lastRunAt: string | null;
     updatedAt: string;
 };

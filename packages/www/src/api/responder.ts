@@ -73,8 +73,10 @@ export function validate<T>(
         return Result.err(new ValidationError({ message: "missing required value", field: raw }));
     }
     try {
-        const decoded = EffectSchema.decodeUnknownSync(schema as any)(raw);
-        return Result.ok(decoded as T);
+        // decodeUnknownSync requires DecodingServices: never, but Schema<T> has DecodingServices: unknown.
+        // The cast is safe because our schemas never require services.
+        const decoded = EffectSchema.decodeUnknownSync(schema as any)(raw) as T;
+        return Result.ok(decoded);
     } catch (error) {
         return Result.err(
             new ValidationError({
@@ -96,8 +98,8 @@ export function validateOptional<T>(
         return Result.ok(undefined);
     }
     try {
-        const decoded = EffectSchema.decodeUnknownSync(schema as any)(value);
-        return Result.ok(decoded as T);
+        const decoded = EffectSchema.decodeUnknownSync(schema as any)(value) as T;
+        return Result.ok(decoded);
     } catch (error) {
         return Result.err(
             new ValidationError({

@@ -2,7 +2,8 @@ import { type SQLWrapper, and, asc, desc, eq, gt, inArray, isNull, lt, or, sql }
 import { tweets, tweetMedia, TweetClassificationValues } from "../schema";
 import type { TweetId, EventId } from "../schema";
 import type { TweetClassification, TweetInsert, TweetMediaInsert } from "../types";
-import type { SupportedDb, TransactionDb, ScrapedTweetUpsert } from "./_shared";
+import type { SupportedDb, ScrapedTweetUpsert } from "./_shared";
+import { withTransaction } from "./_shared";
 import { getFallbackImageRefs } from "../helpers";
 import type { FallbackImageRef } from "../helpers";
 
@@ -138,10 +139,7 @@ export const replaceTweetMedia = async (
 };
 
 export const upsertScrapedTweet = async (db: SupportedDb, input: ScrapedTweetUpsert) => {
-    // Wrap in a transaction so upsertTweet + replaceTweetMedia are atomic.
-    // Both D1 and bun:sqlite Drizzle instances support .transaction();
-    // the TransactionDb cast is safe because SupportedDb always resolves to one of those two.
-    return (db as TransactionDb).transaction(async (tx) => {
+    return withTransaction(db, async (tx) => {
         const [tweet] = await upsertTweet(tx, input.tweet);
         await replaceTweetMedia(tx, input.tweet.id, input.media);
         return tweet;
@@ -457,9 +455,7 @@ export const rerootThread = async (
 ) => {
     const updatedAt = input.updatedAt ?? new Date();
 
-    // Both D1 and bun:sqlite Drizzle instances support .transaction();
-    // the TransactionDb cast is safe at runtime.
-    return (db as TransactionDb).transaction(async (tx) => {
+    return withTransaction(db, async (tx) => {
         const threadTweets = await tx
             .select()
             .from(tweets)

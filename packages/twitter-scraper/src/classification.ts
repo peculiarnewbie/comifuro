@@ -168,12 +168,26 @@ export function normalizeItems(value: unknown): ItemInfo[] {
     return result;
 }
 
-export function parseClassificationResponse(raw: string): Omit<ClassificationResult, "raw"> {
+export type ParsedClassification =
+    | Omit<Extract<ClassificationResult, { classification: "catalogue" }>, "raw">
+    | Omit<Extract<ClassificationResult, { classification: "not_catalogue" }>, "raw">;
+
+export function parseClassificationResponse(raw: string): ParsedClassification {
     const parsed = extractJsonObject(raw);
     const parsedRecord = asObjectRecord(parsed);
     const required = Schema.decodeUnknownSync(requiredClassificationSchema)(parsed);
-    const inferredFandoms = normalizeInferredFandoms(parsedRecord?.inferredFandoms);
     const inferredBoothId = normalizeInferredBoothId(parsedRecord?.inferredBoothId);
+
+    if (!required.isCatalogue) {
+        return {
+            classification: "not_catalogue",
+            reason: required.reason.trim(),
+            inferredBoothId,
+            inferredBoothIdConfidence: null,
+        };
+    }
+
+    const inferredFandoms = normalizeInferredFandoms(parsedRecord?.inferredFandoms);
     const inferredItemTypes = normalizeInferredItemTypes(parsedRecord?.inferredItemTypes);
     const preorderDeadline =
         typeof parsedRecord?.preorderDeadline === "string" &&
@@ -183,11 +197,11 @@ export function parseClassificationResponse(raw: string): Omit<ClassificationRes
     const items = normalizeItems(parsedRecord?.items);
 
     return {
-        isCatalogue: required.isCatalogue,
+        classification: "catalogue",
         reason: required.reason.trim(),
         inferredFandoms,
         inferredBoothId,
-        inferredBoothIdConfidence: null as string | null,
+        inferredBoothIdConfidence: null,
         inferredItemTypes,
         preorderDeadline,
         items,

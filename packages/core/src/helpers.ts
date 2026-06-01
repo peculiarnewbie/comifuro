@@ -1,4 +1,4 @@
-import { EventId } from "./schema";
+import { EventId, TweetId } from "./schema";
 import * as Schema from "effect/Schema";
 
 export const TWEET_MEDIA_KEY_REGEX = /^[A-Za-z0-9_-]+\/\d+(?:\.thumb)?\.webp$/;
@@ -55,7 +55,7 @@ export type FallbackImageRef = {
 };
 
 export function getFallbackImageRefs(
-    tweetId: string,
+    tweetId: TweetId,
     mask: number,
     maxBits = 8,
 ): FallbackImageRef[] {

@@ -9,6 +9,13 @@ export type TransactionDb = SupportedDb & {
     transaction: <T>(fn: (tx: SupportedDb) => Promise<T>) => Promise<T>;
 };
 
+export function withTransaction<T>(
+    db: SupportedDb,
+    fn: (tx: SupportedDb) => Promise<T>,
+): Promise<T> {
+    return (db as TransactionDb).transaction(fn);
+}
+
 export type ScrapedTweetUpsert = {
     tweet: TweetInsert;
     media: TweetMediaInsert[];

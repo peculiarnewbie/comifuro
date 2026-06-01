@@ -4,7 +4,8 @@ import { BoothId } from "../schema";
 import type { EventId, TweetId, UserId } from "../schema";
 import * as Schema from "effect/Schema";
 import type { BoothInsert } from "../types";
-import type { SupportedDb, TransactionDb } from "./_shared";
+import type { SupportedDb } from "./_shared";
+import { withTransaction } from "./_shared";
 
 function parseSectionFromBoothId(boothId: string): string {
     const match = boothId.match(/^([A-Z]+)/i);
@@ -115,10 +116,8 @@ export const getBoothWithTweets = async (db: SupportedDb, eventId: EventId, id: 
     return { booth, tweets: tweetRows };
 };
 
-// Both D1 and bun:sqlite Drizzle instances support .transaction();
-// the TransactionDb cast is safe at runtime.
 export const rebuildBoothsFromTweets = async (db: SupportedDb, eventId: EventId) => {
-    return (db as TransactionDb).transaction(async (tx) => {
+    return withTransaction(db, async (tx) => {
         await tx.delete(booths).where(eq(booths.eventId, eventId));
 
         const tweetRows = await tx

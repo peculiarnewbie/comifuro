@@ -19,9 +19,9 @@
         "alchemy": "catalog:",
         "effect": "catalog:",
         "typescript": "catalog:",
-        "vite": "catalog:",
+        "vite": "npm:@voidzero-dev/vite-plus-core@^0.1.24",
         "vite-plus": "catalog:",
-        "vitest": "catalog:"
+        "vitest": "npm:@voidzero-dev/vite-plus-test@^0.1.24"
     },
     "packageManager": "pnpm@10.33.0"
 }

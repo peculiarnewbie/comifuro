@@ -16,7 +16,7 @@ if (!API_PASSWORD) {
     throw new Error("API_PASSWORD or PEC_PASSWORD is required");
 }
 
-const apiClient = new ApiClient(API_BASE_URL, API_PASSWORD);
+const apiClient = new ApiClient({ apiBaseUrl: API_BASE_URL, apiPassword: API_PASSWORD });
 const r2BaseUrl = R2_PUBLIC_BASE_URL.replace(/\/$/, "");
 const delayMs = Math.round(1000 / RATE_PER_SEC);
 
