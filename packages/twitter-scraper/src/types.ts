@@ -1,20 +1,23 @@
 import type { TweetId } from "@comifuro/core";
 
-export type ExtractedTweet = {
-    id: string;
-    user: string;
-    displayName: string | null;
-    text: string;
-    tweetUrl: string;
-    timestamp: string;
-    matchedTags: string[];
-    previewImageUrls: string[];
-    hasQuotedTweet: boolean;
-    rootTweetId: string | null;
-    parentTweetId: string | null;
-    threadPosition: number | null;
-    discoverySource: "search" | "thread";
-};
+import * as Schema from "effect/Schema";
+
+export const ExtractedTweetSchema = Schema.Struct({
+    id: Schema.String,
+    user: Schema.String,
+    displayName: Schema.NullOr(Schema.String),
+    text: Schema.String,
+    tweetUrl: Schema.String,
+    timestamp: Schema.String,
+    matchedTags: Schema.mutable(Schema.Array(Schema.String)),
+    previewImageUrls: Schema.mutable(Schema.Array(Schema.String)),
+    hasQuotedTweet: Schema.Boolean,
+    rootTweetId: Schema.NullOr(Schema.String),
+    parentTweetId: Schema.NullOr(Schema.String),
+    threadPosition: Schema.NullOr(Schema.Number),
+    discoverySource: Schema.Literals(["search", "thread"]),
+});
+export type ExtractedTweet = Schema.Schema.Type<typeof ExtractedTweetSchema>;
 
 export type ItemInfo = {
     type: string;
@@ -90,4 +93,7 @@ export type ScraperConfig = {
     searchSinceDate: string | null;
     updateState: boolean;
     maxIdReloadPageLimit: number;
+    runDbPath: string;
+    maxScrollsPerPage: number;
+    pageDelayMs: number;
 };

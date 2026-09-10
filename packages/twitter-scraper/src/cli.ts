@@ -55,6 +55,11 @@ export function parseScraperCliArgs(argv: string[]) {
             throw new Error(`missing argument at index ${index}`);
         }
 
+        if (current === "--") {
+            index += 1;
+            continue;
+        }
+
         if (!current.startsWith("--")) {
             throw new Error(`unknown positional argument: ${current}`);
         }
@@ -109,6 +114,27 @@ export function parseScraperCliArgs(argv: string[]) {
         throw new Error(error instanceof Error ? error.message : "invalid scraper CLI args");
     }
 
+    if (parsed.maxId !== undefined && !/^[1-9]\d{0,19}$/.test(parsed.maxId)) {
+        throw new Error("--max-id must be a positive decimal tweet ID");
+    }
+    if (parsed.maxId && parsed.mode !== "max-id")
+        throw new Error("--max-id requires --mode=max-id");
+    if (
+        parsed.since !== undefined &&
+        (!/^\d{4}-\d{2}-\d{2}$/.test(parsed.since) ||
+            !Number.isFinite(Date.parse(parsed.since)) ||
+            new Date(parsed.since).toISOString().slice(0, 10) !== parsed.since)
+    ) {
+        throw new Error("--since must be a valid YYYY-MM-DD date");
+    }
+    if (
+        parsed.maxPages !== undefined &&
+        (!Number.isSafeInteger(parsed.maxPages) || parsed.maxPages <= 0)
+    ) {
+        throw new Error("--max-pages must be a positive integer");
+    }
+    if (parsed.mode === "max-id" && parsed.updateState)
+        throw new Error("Backfills cannot update the incremental checkpoint; omit --update-state");
     return parsed;
 }
 

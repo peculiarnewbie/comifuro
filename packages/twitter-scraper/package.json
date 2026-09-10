@@ -5,11 +5,16 @@
     "scripts": {
         "scrape": "tsx src/main.ts",
         "scrape:max-id": "tsx src/main.ts --mode=max-id",
-        "dev": "tsx watch src/main.ts"
+        "dev": "tsx watch src/main.ts",
+        "typecheck": "tsgo --noEmit",
+        "test": "bun test src"
     },
     "dependencies": {
         "@comifuro/core": "workspace:*",
         "@opencode-ai/sdk": "^0.5.29",
+        "@opentelemetry/api": "catalog:",
+        "@opentelemetry/exporter-trace-otlp-http": "catalog:",
+        "@opentelemetry/sdk-trace-node": "catalog:",
         "effect": "catalog:",
         "playwright": "^1.60.0",
         "sharp": "^0.34.5"

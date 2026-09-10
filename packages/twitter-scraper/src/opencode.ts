@@ -1,3 +1,5 @@
+import { defaultRuntime, type Runtime } from "./runtime";
+import type { RawImage } from "./images";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createOpencodeClient } from "@opencode-ai/sdk";
@@ -52,29 +54,7 @@ Use real JSON null for unknown booth IDs, never the string "null". Leave bonus m
 {"isCatalogue":false,"reason":"not a catalogue post","inferredFandoms":[],"inferredBoothId":null,"inferredItemTypes":[],"preorderDeadline":null,"items":[]}`;
 }
 
-async function fetchImageAsDataUri(url: string): Promise<{ mime: string; dataUri: string }> {
-    const response = await fetch(url, {
-        headers: {
-            "user-agent":
-                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-        },
-    });
-
-    if (!response.ok) {
-        throw new Error(`failed to fetch ${url}: ${response.status}`);
-    }
-
-    const buffer = await response.arrayBuffer();
-    const contentType = response.headers.get("content-type") ?? "image/jpeg";
-    const base64 = Buffer.from(buffer).toString("base64");
-
-    return {
-        mime: contentType,
-        dataUri: `data:${contentType};base64,${base64}`,
-    };
-}
-
-export async function createClassifier(config: ScraperConfig) {
+export async function createClassifier(config: ScraperConfig, runtime: Runtime = defaultRuntime) {
     const headers =
         config.opencodePassword && config.opencodeUsername
             ? {
@@ -85,6 +65,19 @@ export async function createClassifier(config: ScraperConfig) {
     const client = createOpencodeClient({
         baseUrl: config.opencodeBaseUrl,
         headers,
+        fetch: async (input) =>
+            runtime.request(
+                input,
+                {},
+                async (response) => {
+                    // The SDK reads the returned body later; buffer it inside our timeout.
+                    return new Response(await response.arrayBuffer(), {
+                        status: response.status,
+                        headers: response.headers,
+                    });
+                },
+                180_000,
+            ),
     });
 
     const promptTemplate = await readFile(config.classifierPromptPath, "utf8");
@@ -108,12 +101,15 @@ export async function createClassifier(config: ScraperConfig) {
     }
 
     return {
+        fingerprint: createHash("sha256")
+            .update(JSON.stringify({ promptVersion, providerId, modelId }))
+            .digest("hex"),
         promptVersion,
         async classify(input: {
             tweetText: string;
             matchedTags: string[];
             searchQuery: string;
-            imageUrls?: string[];
+            images?: RawImage[];
         }): Promise<ClassificationResult> {
             const sessionResult = await client.session.create({
                 body: {
@@ -135,19 +131,12 @@ export async function createClassifier(config: ScraperConfig) {
                     },
                 ];
 
-                if (input.imageUrls && input.imageUrls.length > 0) {
-                    for (const imageUrl of input.imageUrls) {
-                        try {
-                            const { mime, dataUri } = await fetchImageAsDataUri(imageUrl);
-                            parts.push({
-                                type: "file",
-                                mime,
-                                url: dataUri,
-                            });
-                        } catch {
-                            console.warn(`failed to fetch image for LLM: ${imageUrl}`);
-                        }
-                    }
+                for (const image of input.images ?? []) {
+                    parts.push({
+                        type: "file",
+                        mime: image.contentType,
+                        url: `data:${image.contentType};base64,${image.buffer.toString("base64")}`,
+                    });
                 }
 
                 const chatResult = await client.session.chat({
@@ -189,8 +178,8 @@ export async function createClassifier(config: ScraperConfig) {
                     raw,
                 };
             } finally {
-                await client.session.delete({
-                    path: { id: sessionId },
+                await client.session.delete({ path: { id: sessionId } }).catch(() => {
+                    console.warn(`Could not clean up classifier session ${sessionId}`);
                 });
             }
         },

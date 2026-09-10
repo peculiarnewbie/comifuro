@@ -1,3 +1,4 @@
+import { defaultRuntime, parseRetryAfter, type Runtime } from "./runtime";
 import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { chromium, type Browser, type Page } from "playwright";
@@ -23,7 +24,14 @@ function normalizeTweet(raw: {
     threadPosition?: number | null;
     discoverySource: "search" | "thread";
 }): ExtractedTweet | null {
-    if (!raw.id || !raw.user || !raw.tweetUrl || !raw.timestamp) {
+    if (
+        !raw.id ||
+        !/^[1-9]\d*$/.test(raw.id) ||
+        !raw.user ||
+        !raw.tweetUrl ||
+        !raw.timestamp ||
+        !Number.isFinite(Date.parse(raw.timestamp))
+    ) {
         return null;
     }
 
@@ -113,7 +121,7 @@ export function buildThreadContinuationChain(rootTweet: ExtractedTweet, tweets: 
 }
 
 export async function connectBrowser(config: ScraperConfig) {
-    return await chromium.connectOverCDP(config.browserCdpUrl);
+    return await chromium.connectOverCDP(config.browserCdpUrl, { timeout: 30_000 });
 }
 
 async function isCdpReachable(cdpUrl: string) {
@@ -162,8 +170,7 @@ export async function ensureBrowserAvailable(config: ScraperConfig) {
 
 export async function findExistingPage(browser: Browser, config: ScraperConfig) {
     const pages = browser.contexts().flatMap((context) => context.pages());
-    const matched =
-        pages.find((page) => page.url().includes(config.scraperPageUrlMatch)) ?? pages[0];
+    const matched = pages.find((page) => page.url().includes(config.scraperPageUrlMatch));
 
     if (!matched) {
         throw new Error(
@@ -174,15 +181,89 @@ export async function findExistingPage(browser: Browser, config: ScraperConfig) 
     return matched;
 }
 
+export class TimelineUnavailableError extends Error {}
+export class TimelineRateLimitError extends Error {
+    constructor(
+        message: string,
+        readonly retryAfterMs = 15 * 60_000,
+    ) {
+        super(message);
+    }
+}
+const rateLimits = new WeakMap<Page, number>();
+function watchRateLimits(page: Page) {
+    if (rateLimits.has(page)) return;
+    rateLimits.set(page, 0);
+    page.on("response", (response) => {
+        const url = new URL(response.url());
+        if (
+            response.status() === 429 &&
+            ["x.com", "api.x.com", "twitter.com", "api.twitter.com"].includes(url.hostname)
+        ) {
+            rateLimits.set(
+                page,
+                Date.now() +
+                    Math.max(
+                        15 * 60_000,
+                        parseRetryAfter(response.headers()["retry-after"] ?? null),
+                    ),
+            );
+        }
+    });
+}
+
+async function assertPageAvailable(page: Page) {
+    const remaining = (rateLimits.get(page) ?? 0) - Date.now();
+    if (remaining > 0) throw new TimelineRateLimitError("X returned HTTP 429", remaining);
+    // Ignore tweet text: a post discussing rate limits is not a site error.
+    const text = await page.evaluate(() => {
+        const body = document.body.cloneNode(true) as HTMLElement;
+        for (const article of body.querySelectorAll('article[data-testid="tweet"]'))
+            article.remove();
+        return body.textContent ?? "";
+    });
+    if (/rate limit exceeded|you are over the daily limit|try again later/i.test(text)) {
+        throw new TimelineRateLimitError("X is limiting requests; waiting before retrying");
+    }
+    if (
+        /\/(?:i\/flow\/login|account\/access)(?:[/?]|$)/.test(page.url()) ||
+        /something went wrong|retry loading|verify you are human/i.test(text)
+    ) {
+        throw new TimelineUnavailableError(
+            "X requires attention or failed to load; checkpoint retained",
+        );
+    }
+    return text;
+}
+
+export async function inspectTimeline(page: Page): Promise<"ready" | "empty"> {
+    const text = await assertPageAvailable(page);
+    if (
+        (await page.locator('[data-testid="emptyState"]').count()) > 0 &&
+        /no results for/i.test(text)
+    )
+        return "empty";
+    if ((await page.locator(SEARCH_TIMELINE_SELECTOR).count()) === 0) {
+        throw new TimelineUnavailableError("Search timeline is missing; checkpoint retained");
+    }
+    return "ready";
+}
+
 export async function openLiveSearch(page: Page, query: string) {
+    watchRateLimits(page);
     const target = `https://x.com/search?q=${encodeURIComponent(query)}&src=typed_query&f=live`;
     await page.goto(target, {
         waitUntil: "domcontentloaded",
         timeout: 60_000,
     });
-    await page.waitForSelector(SEARCH_TIMELINE_SELECTOR, {
-        timeout: 60_000,
-    });
+    try {
+        await page.waitForSelector(`${SEARCH_TIMELINE_SELECTOR}, [data-testid="emptyState"]`, {
+            timeout: 60_000,
+        });
+    } catch (error) {
+        await assertPageAvailable(page);
+        throw error;
+    }
     await page.waitForTimeout(4_000);
 }
 
@@ -195,10 +276,9 @@ async function extractTweetsFromPage(
 ) {
     const rawTweets = await page.evaluate(
         ({ scopeSelector, discoverySource }) => {
-            const scope =
-                (scopeSelector ? document.querySelector(scopeSelector) : null) ?? document.body;
+            const scope = scopeSelector ? document.querySelector(scopeSelector) : document.body;
             const articles = Array.from(
-                scope.querySelectorAll<HTMLElement>('article[data-testid="tweet"]'),
+                scope?.querySelectorAll<HTMLElement>('article[data-testid="tweet"]') ?? [],
             );
 
             return articles.map((article) => {
@@ -279,13 +359,17 @@ export async function extractVisibleTweets(page: Page) {
 }
 
 async function navigateToTweetDetailPage(page: Page, tweetUrl: string) {
+    watchRateLimits(page);
     await page.goto(tweetUrl, {
         waitUntil: "domcontentloaded",
         timeout: 60_000,
     });
-    await page.waitForSelector(TWEET_ARTICLE_SELECTOR, {
-        timeout: 60_000,
-    });
+    try {
+        await page.waitForSelector(TWEET_ARTICLE_SELECTOR, { timeout: 60_000 });
+    } catch (error) {
+        await assertPageAvailable(page);
+        throw error;
+    }
     await page.waitForTimeout(3_000);
     return page;
 }
@@ -301,6 +385,7 @@ async function openBackgroundPage(sourcePage: Page) {
         predicate: (page) => !existingPages.has(page),
         timeout: 15_000,
     });
+    void nextPagePromise.catch(() => {});
     const browserSession = await browser.newBrowserCDPSession();
 
     try {
@@ -318,22 +403,18 @@ async function openBackgroundPage(sourcePage: Page) {
 }
 
 export async function openTweetDetailPage(sourcePage: Page, tweetUrl: string) {
-    let detailPage: Page | null = null;
-
+    let detailPage: Page;
     try {
         detailPage = await openBackgroundPage(sourcePage);
+    } catch {
+        detailPage = await sourcePage.context().newPage();
+    }
+    try {
         return await navigateToTweetDetailPage(detailPage, tweetUrl);
     } catch (error) {
-        await detailPage?.close().catch(() => {});
-        console.warn(
-            `background tab creation failed, falling back to a normal tab: ${
-                error instanceof Error ? error.message : String(error)
-            }`,
-        );
+        await detailPage.close().catch(() => {});
+        throw error;
     }
-
-    const fallbackPage = await sourcePage.context().newPage();
-    return await navigateToTweetDetailPage(fallbackPage, tweetUrl);
 }
 
 export async function crawlThreadContinuations(params: {
@@ -341,16 +422,28 @@ export async function crawlThreadContinuations(params: {
     rootTweet: ExtractedTweet;
     scrollDelayMs: number;
     idleScrollLimit: number;
+    runtime?: Runtime;
 }) {
     const { page, rootTweet, scrollDelayMs, idleScrollLimit } = params;
     let idleScrolls = 0;
     let lastResult = buildThreadContinuationChain(rootTweet, []);
+    const accumulated = new Map<string, ExtractedTweet>();
+    let scrolls = 0;
+    const runtime = params.runtime ?? defaultRuntime;
 
-    while (idleScrolls < idleScrollLimit && lastResult.chain.length < MAX_THREAD_CONTINUATIONS) {
+    while (
+        idleScrolls < idleScrollLimit &&
+        lastResult.chain.length < MAX_THREAD_CONTINUATIONS &&
+        scrolls < 100
+    ) {
+        runtime.signal.throwIfAborted();
+        scrolls += 1;
+        await assertPageAvailable(page);
         const visibleTweets = await extractTweetsFromPage(page, {
             discoverySource: "thread",
         });
-        const nextResult = buildThreadContinuationChain(rootTweet, visibleTweets);
+        for (const tweet of visibleTweets) accumulated.set(tweet.id, tweet);
+        const nextResult = buildThreadContinuationChain(rootTweet, [...accumulated.values()]);
         const chainLengthChanged = nextResult.chain.length > lastResult.chain.length;
 
         if (chainLengthChanged) {
@@ -369,6 +462,8 @@ export async function crawlThreadContinuations(params: {
         }
     }
 
+    if (!lastResult.rootFound)
+        throw new TimelineUnavailableError(`Thread root ${rootTweet.id} was not found`);
     return lastResult;
 }
 

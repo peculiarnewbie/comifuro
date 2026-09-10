@@ -12,28 +12,36 @@ export const replaceUserItems = async (
         items: { type: string; price?: string | null; fandom?: string | null }[];
     },
 ) => {
-    const now = new Date();
-    await db.delete(items).where(and(eq(items.eventId, input.eventId), eq(items.user, input.user)));
-
-    if (input.items.length === 0) {
-        return [];
+    const condition = and(
+        eq(items.eventId, input.eventId),
+        eq(items.user, input.user),
+        eq(items.sourceTweetId, input.sourceTweetId),
+    );
+    const values = input.items.map((item) => ({
+        eventId: input.eventId,
+        user: input.user,
+        sourceTweetId: input.sourceTweetId,
+        type: item.type,
+        price: item.price ?? null,
+        fandom: item.fandom ?? null,
+        createdAt: new Date(),
+    }));
+    if ("batch" in db) {
+        const remove = db.delete(items).where(condition);
+        if (!values.length) {
+            await remove;
+            return [];
+        }
+        const [, ...rows] = await db.batch([
+            remove,
+            ...values.map((value) => db.insert(items).values(value).returning()),
+        ]);
+        return rows.flat();
     }
-
-    return await db
-        .insert(items)
-        .values(
-            input.items.map((item) => ({
-                eventId: input.eventId,
-                user: input.user,
-                sourceTweetId: input.sourceTweetId,
-                type: item.type,
-                price: item.price ?? null,
-                fandom: item.fandom ?? null,
-                createdAt: now,
-                updatedAt: now,
-            })),
-        )
-        .returning();
+    return db.transaction((tx) => {
+        tx.delete(items).where(condition).run();
+        return values.length ? tx.insert(items).values(values).returning().all() : [];
+    });
 };
 
 export const listUserItems = async (db: SupportedDb, eventId: EventId, user: UserId) => {

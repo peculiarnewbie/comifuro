@@ -16,14 +16,17 @@ import { helpers } from "@comifuro/core";
 import { buildPublicFeed } from "../helpers";
 import type { AppContext } from "../types";
 
+const NumericTweetId = TweetId.check(Schema.isPattern(/^[1-9]\d{0,19}$/));
+const NonNegativeInt = Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0));
+
 const ScraperMedia = Schema.Struct({
-    mediaIndex: Schema.Number,
+    mediaIndex: NonNegativeInt.check(Schema.isBetween({ minimum: 0, maximum: 3 })),
     r2Key: Schema.String,
     thumbnailR2Key: Schema.optional(Schema.String),
     sourceUrl: Schema.String,
     contentType: Schema.optional(Schema.String),
-    width: Schema.optional(Schema.Number),
-    height: Schema.optional(Schema.Number),
+    width: Schema.optional(NonNegativeInt),
+    height: Schema.optional(NonNegativeInt),
 });
 
 const ScraperItem = Schema.Struct({
@@ -35,7 +38,7 @@ const ScraperItem = Schema.Struct({
 const NullableString = Schema.NullOr(Schema.String);
 
 const ScraperTweet = Schema.Struct({
-    id: TweetId,
+    id: NumericTweetId,
     eventId: Schema.optional(Schema.String),
     user: UserId,
     displayName: Schema.optional(NullableString),
@@ -44,7 +47,7 @@ const ScraperTweet = Schema.Struct({
     tweetUrl: Schema.String,
     searchQuery: Schema.String,
     matchedTags: Schema.optional(Schema.Array(Schema.String)),
-    imageMask: Schema.Number,
+    imageMask: NonNegativeInt.check(Schema.isBetween({ minimum: 0, maximum: 15 })),
     classification: Schema.optional(Schema.Literals(TweetClassificationValues)),
     classificationReason: Schema.optional(NullableString),
     classifierPromptVersion: Schema.optional(NullableString),
@@ -54,17 +57,17 @@ const ScraperTweet = Schema.Struct({
     inferredItemTypes: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
     preorderDeadline: Schema.optional(NullableString),
     items: Schema.optional(Schema.Array(ScraperItem)),
-    rootTweetId: Schema.optional(Schema.NullOr(TweetId)),
-    parentTweetId: Schema.optional(Schema.NullOr(TweetId)),
-    threadPosition: Schema.optional(Schema.NullOr(Schema.Number)),
-    media: Schema.optional(Schema.Array(ScraperMedia)),
+    rootTweetId: Schema.optional(Schema.NullOr(NumericTweetId)),
+    parentTweetId: Schema.optional(Schema.NullOr(NumericTweetId)),
+    threadPosition: Schema.optional(Schema.NullOr(NonNegativeInt)),
+    media: Schema.optional(Schema.Array(ScraperMedia).check(Schema.isMaxLength(4))),
 });
 
 const ScraperState = Schema.Struct({
-    checkpoint: Schema.optional(Schema.NullOr(TweetId)),
-    startTweetId: Schema.optional(Schema.NullOr(TweetId)),
-    endTweetId: Schema.optional(Schema.NullOr(TweetId)),
-    lastSeenTweetId: Schema.optional(Schema.NullOr(TweetId)),
+    checkpoint: Schema.optional(Schema.NullOr(NumericTweetId)),
+    startTweetId: Schema.optional(Schema.NullOr(NumericTweetId)),
+    endTweetId: Schema.optional(Schema.NullOr(NumericTweetId)),
+    lastSeenTweetId: Schema.optional(Schema.NullOr(NumericTweetId)),
     lastRunAt: Schema.optional(Schema.NullOr(Schema.Union([Schema.Number, Schema.String]))),
 });
 
@@ -80,7 +83,7 @@ export async function upsertScraperTweet(c: AppContext) {
         });
     }
 
-    const body = await c.req.json();
+    const body = await c.req.json().catch(() => null);
     let tweet: Schema.Schema.Type<typeof ScraperTweet>;
     try {
         tweet = Schema.decodeUnknownSync(ScraperTweet)(body);
@@ -92,6 +95,16 @@ export async function upsertScraperTweet(c: AppContext) {
             400,
         );
     }
+
+    const timestamp = helpers.toDate(tweet.timestamp);
+    if (!timestamp || !Number.isFinite(timestamp.getTime()))
+        return c.json({ error: "invalid tweet timestamp" }, 400);
+    const mediaIndices = (tweet.media ?? []).map((media) => media.mediaIndex);
+    if (new Set(mediaIndices).size !== mediaIndices.length)
+        return c.json({ error: "duplicate media indices" }, 400);
+    const mediaMask = mediaIndices.reduce((mask, index) => mask | (1 << index), 0);
+    if (tweet.imageMask !== mediaMask)
+        return c.json({ error: "imageMask must match uploaded media" }, 400);
 
     const now = new Date();
     const db = getDb(c);
@@ -107,7 +120,7 @@ export async function upsertScraperTweet(c: AppContext) {
             eventId,
             user: tweet.user,
             displayName: tweet.displayName ?? null,
-            timestamp: helpers.toDate(tweet.timestamp) ?? now,
+            timestamp,
             text: tweet.text,
             tweetUrl: tweet.tweetUrl,
             searchQuery: tweet.searchQuery,
@@ -194,7 +207,7 @@ export async function putScraperState(c: AppContext) {
     }
     const id = idParam;
 
-    const body = await c.req.json();
+    const body = await c.req.json().catch(() => null);
     let parsed: Schema.Schema.Type<typeof ScraperState>;
     try {
         parsed = Schema.decodeUnknownSync(ScraperState)(body);
@@ -229,7 +242,7 @@ export async function exportPublicFeed(c: AppContext) {
         });
     }
 
-    const body = await c.req.json().catch(() => ({}));
+    const body = await c.req.json().catch(() => null);
     let parsed: Schema.Schema.Type<typeof ExportPublicFeed>;
     try {
         parsed = Schema.decodeUnknownSync(ExportPublicFeed)(body);

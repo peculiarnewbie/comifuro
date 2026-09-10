@@ -1,3 +1,4 @@
+import { defaultRuntime, type Runtime } from "./runtime";
 import type { ItemInfo, ScraperState, UploadedMedia } from "./types";
 
 type ScrapedTweetPayload = {
@@ -27,7 +28,9 @@ type ScrapedTweetPayload = {
 };
 
 export class ApiClient {
-    constructor(private readonly opts: { apiBaseUrl: string; apiPassword: string }) {}
+    constructor(
+        private readonly opts: { apiBaseUrl: string; apiPassword: string; runtime?: Runtime },
+    ) {}
 
     private async request<T>(path: string, init?: RequestInit): Promise<T> {
         const baseUrl = this.opts.apiBaseUrl.endsWith("/")
@@ -49,21 +52,18 @@ export class ApiClient {
         } else if (existingHeaders) {
             Object.assign(extraHeaders, existingHeaders);
         }
-        const response = await fetch(new URL(normalizedPath, baseUrl), {
-            ...init,
-            headers: extraHeaders,
-        });
-
-        if (!response.ok) {
-            const message = await response.text();
-            throw new Error(`${response.status} ${response.statusText}: ${message}`);
-        }
-
-        return (await response.json()) as T;
+        return (this.opts.runtime ?? defaultRuntime).request(
+            new URL(normalizedPath, baseUrl),
+            {
+                ...init,
+                headers: extraHeaders,
+            },
+            async (response) => (await response.json()) as T,
+        );
     }
 
     async getState(id: string) {
-        return await this.request<ScraperState | null>(`/scraper/state/${id}`);
+        return await this.request<ScraperState | null>(`/scraper/state/${encodeURIComponent(id)}`);
     }
 
     async updateState(
@@ -76,7 +76,7 @@ export class ApiClient {
             lastSeenTweetId: string | null;
         },
     ) {
-        return await this.request<ScraperState>(`/scraper/state/${id}`, {
+        return await this.request<ScraperState>(`/scraper/state/${encodeURIComponent(id)}`, {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json",

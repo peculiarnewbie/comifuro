@@ -6,7 +6,7 @@
         "allowSyntheticDefaultImports": true,
         "strict": true,
         "esModuleInterop": true,
-        "types": ["bun-types"],
+        "types": ["bun"],
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
         "declaration": true,

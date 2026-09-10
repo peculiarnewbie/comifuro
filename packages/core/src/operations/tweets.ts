@@ -3,7 +3,6 @@ import { tweets, tweetMedia, TweetClassificationValues } from "../schema";
 import type { TweetId, EventId } from "../schema";
 import type { TweetClassification, TweetInsert, TweetMediaInsert } from "../types";
 import type { SupportedDb, ScrapedTweetUpsert } from "./_shared";
-import { withTransaction } from "./_shared";
 import { getFallbackImageRefs } from "../helpers";
 import type { FallbackImageRef } from "../helpers";
 
@@ -13,9 +12,9 @@ const excludedColumn = (column: { name: string }) => sql.raw(`excluded.${column.
 // TypeScript errors if a new value is added to TweetClassificationValues without a rank here.
 const classificationRankMap: Record<(typeof TweetClassificationValues)[number], number> = {
     catalogue: 3,
-    unknown: 2,
-    error: 1,
-    not_catalogue: 0,
+    unknown: 1,
+    error: 0,
+    not_catalogue: 2,
 };
 
 const classificationRank = (value: SQLWrapper) => {
@@ -25,16 +24,14 @@ const classificationRank = (value: SQLWrapper) => {
     ][];
     let query = sql<number>`case`;
     for (const [label, rank] of entries) {
-        query = sql`${query} when ${value} = ${label} then ${rank}`;
+        // Labels/ranks are fixed schema constants, not request data. Repeated bind parameters
+        // here exceed D1's per-statement limit when this expression appears in multiple columns.
+        query = sql`${query} when ${value} = ${sql.raw(`'${label}'`)} then ${sql.raw(String(rank))}`;
     }
     return sql`${query} else 0 end`;
 };
 
-const maxImageMask = sql<number>`case
-    when ${tweets.imageMask} > ${excludedColumn(tweets.imageMask)}
-        then ${tweets.imageMask}
-    else ${excludedColumn(tweets.imageMask)}
-end`;
+const maxImageMask = sql<number>`${tweets.imageMask} | ${excludedColumn(tweets.imageMask)}`;
 
 const preferredClassification = sql<TweetClassification>`case
     when ${classificationRank(tweets.classification)} >= ${classificationRank(
@@ -71,11 +68,21 @@ const buildTweetUpsertSet = () => ({
             then coalesce(${excludedColumn(tweets.classifierPromptVersion)}, ${tweets.classifierPromptVersion})
         else ${tweets.classifierPromptVersion}
     end`,
-    inferredFandoms: excludedColumn(tweets.inferredFandoms),
-    inferredFandomsConfidence: excludedColumn(tweets.inferredFandomsConfidence),
-    inferredBoothId: excludedColumn(tweets.inferredBoothId),
-    inferredBoothIdConfidence: excludedColumn(tweets.inferredBoothIdConfidence),
-    inferredItemTypes: excludedColumn(tweets.inferredItemTypes),
+    inferredFandoms: sql`case when ${shouldPreferIncomingClassification} and json_array_length(${excludedColumn(tweets.inferredFandoms)}) > 0
+        then coalesce(${excludedColumn(tweets.inferredFandoms)}, ${tweets.inferredFandoms})
+        else ${tweets.inferredFandoms} end`,
+    inferredFandomsConfidence: sql`case when ${shouldPreferIncomingClassification}
+        then coalesce(${excludedColumn(tweets.inferredFandomsConfidence)}, ${tweets.inferredFandomsConfidence})
+        else ${tweets.inferredFandomsConfidence} end`,
+    inferredBoothId: sql`case when ${shouldPreferIncomingClassification}
+        then coalesce(${excludedColumn(tweets.inferredBoothId)}, ${tweets.inferredBoothId})
+        else ${tweets.inferredBoothId} end`,
+    inferredBoothIdConfidence: sql`case when ${shouldPreferIncomingClassification} and ${excludedColumn(tweets.inferredBoothId)} is not null
+        then coalesce(${excludedColumn(tweets.inferredBoothIdConfidence)}, ${tweets.inferredBoothIdConfidence})
+        else ${tweets.inferredBoothIdConfidence} end`,
+    inferredItemTypes: sql`case when ${shouldPreferIncomingClassification} and json_array_length(${excludedColumn(tweets.inferredItemTypes)}) > 0
+        then coalesce(${excludedColumn(tweets.inferredItemTypes)}, ${tweets.inferredItemTypes})
+        else ${tweets.inferredItemTypes} end`,
     rootTweetId: sql<
         string | null
     >`coalesce(${excludedColumn(tweets.rootTweetId)}, ${tweets.rootTweetId})`,
@@ -139,10 +146,55 @@ export const replaceTweetMedia = async (
 };
 
 export const upsertScrapedTweet = async (db: SupportedDb, input: ScrapedTweetUpsert) => {
-    return withTransaction(db, async (tx) => {
-        const [tweet] = await upsertTweet(tx, input.tweet);
-        await replaceTweetMedia(tx, input.tweet.id, input.media);
-        return tweet;
+    const queries = (tx: SupportedDb) => {
+        const tweet = tx
+            .insert(tweets)
+            .values(input.tweet)
+            .onConflictDoUpdate({
+                target: tweets.id,
+                set: buildTweetUpsertSet(),
+            })
+            .returning();
+        // Scraper retries may contain a subset of media. Merge by index; deletion is an admin operation.
+        const media = input.media.length
+            ? tx
+                  .insert(tweetMedia)
+                  .values(input.media)
+                  .onConflictDoUpdate({
+                      target: [tweetMedia.tweetId, tweetMedia.mediaIndex],
+                      set: {
+                          r2Key: excludedColumn(tweetMedia.r2Key),
+                          thumbnailR2Key: sql`coalesce(${excludedColumn(tweetMedia.thumbnailR2Key)}, ${tweetMedia.thumbnailR2Key})`,
+                          sourceUrl: excludedColumn(tweetMedia.sourceUrl),
+                          contentType: excludedColumn(tweetMedia.contentType),
+                          width: excludedColumn(tweetMedia.width),
+                          height: excludedColumn(tweetMedia.height),
+                      },
+                  })
+                  .returning()
+            : null;
+        return { tweet, media };
+    };
+    if ("batch" in db) {
+        const { tweet, media } = queries(db);
+        const [rows] = await db.batch(media ? [tweet, media] : [tweet]);
+        return rows[0];
+    }
+    // Bun SQLite transactions must finish synchronously; an async callback commits too early.
+    return db.transaction((tx) => {
+        const { media } = queries(tx);
+        const rows = tx
+            .insert(tweets)
+            .values(input.tweet)
+            .onConflictDoUpdate({
+                target: tweets.id,
+                set: buildTweetUpsertSet(),
+            })
+            .returning()
+            .all();
+        // The builder uses this synchronous SQLite transaction at runtime.
+        void media?.all();
+        return rows[0];
     });
 };
 
@@ -455,67 +507,71 @@ export const rerootThread = async (
 ) => {
     const updatedAt = input.updatedAt ?? new Date();
 
-    return withTransaction(db, async (tx) => {
-        const threadTweets = await tx
-            .select()
-            .from(tweets)
-            .where(or(eq(tweets.id, input.rootTweetId), eq(tweets.rootTweetId, input.rootTweetId)))
-            .orderBy(asc(tweets.threadPosition), asc(tweets.id));
+    const threadTweets = await db
+        .select()
+        .from(tweets)
+        .where(or(eq(tweets.id, input.rootTweetId), eq(tweets.rootTweetId, input.rootTweetId)))
+        .orderBy(asc(tweets.threadPosition), asc(tweets.id));
 
-        const orderedTweets = threadTweets.sort((left, right) => {
-            const leftPosition =
-                left.id === input.rootTweetId
-                    ? 0
-                    : (left.threadPosition ?? Number.MAX_SAFE_INTEGER) + 1;
-            const rightPosition =
-                right.id === input.rootTweetId
-                    ? 0
-                    : (right.threadPosition ?? Number.MAX_SAFE_INTEGER) + 1;
+    const orderedTweets = threadTweets.sort((left, right) => {
+        const leftPosition =
+            left.id === input.rootTweetId
+                ? 0
+                : (left.threadPosition ?? Number.MAX_SAFE_INTEGER) + 1;
+        const rightPosition =
+            right.id === input.rootTweetId
+                ? 0
+                : (right.threadPosition ?? Number.MAX_SAFE_INTEGER) + 1;
 
-            if (leftPosition !== rightPosition) {
-                return leftPosition - rightPosition;
-            }
-
-            if (left.id === right.id) {
-                return 0;
-            }
-
-            return BigInt(left.id) > BigInt(right.id) ? 1 : -1;
-        });
-        const newRoot = orderedTweets.find((tweet) => tweet.id === input.newRootTweetId);
-
-        if (!newRoot) {
-            throw new Error("new root tweet is not part of the thread");
+        if (leftPosition !== rightPosition) {
+            return leftPosition - rightPosition;
         }
 
-        const nextOrder = [
-            newRoot,
-            ...orderedTweets.filter((tweet) => tweet.id !== input.newRootTweetId),
-        ];
-
-        for (const [index, tweet] of nextOrder.entries()) {
-            const parentTweetId = index === 0 ? null : (nextOrder[index - 1]?.id ?? null);
-            await tx
-                .update(tweets)
-                .set({
-                    classification: "catalogue",
-                    rootTweetId: index === 0 ? null : input.newRootTweetId,
-                    parentTweetId,
-                    threadPosition: index === 0 ? null : index,
-                    updatedAt,
-                })
-                .where(eq(tweets.id, tweet.id));
+        if (left.id === right.id) {
+            return 0;
         }
 
-        return tx
-            .select()
-            .from(tweets)
-            .where(
-                or(
-                    eq(tweets.id, input.newRootTweetId),
-                    eq(tweets.rootTweetId, input.newRootTweetId),
-                ),
-            )
-            .orderBy(asc(tweets.threadPosition), asc(tweets.id));
+        return BigInt(left.id) > BigInt(right.id) ? 1 : -1;
     });
+    const newRoot = orderedTweets.find((tweet) => tweet.id === input.newRootTweetId);
+
+    if (!newRoot) {
+        throw new Error("new root tweet is not part of the thread");
+    }
+
+    const nextOrder = [
+        newRoot,
+        ...orderedTweets.filter((tweet) => tweet.id !== input.newRootTweetId),
+    ];
+
+    const changes = nextOrder.map((tweet, index) => ({
+        id: tweet.id,
+        values: {
+            classification: "catalogue" as const,
+            rootTweetId: index === 0 ? null : input.newRootTweetId,
+            parentTweetId: index === 0 ? null : (nextOrder[index - 1]?.id ?? null),
+            threadPosition: index === 0 ? null : index,
+            updatedAt,
+        },
+    }));
+    if ("batch" in db) {
+        const statements = changes.map((change) =>
+            db.update(tweets).set(change.values).where(eq(tweets.id, change.id)),
+        );
+        const [first, ...rest] = statements;
+        if (first) await db.batch([first, ...rest]);
+    } else {
+        db.transaction((tx) => {
+            for (const change of changes)
+                tx.update(tweets).set(change.values).where(eq(tweets.id, change.id)).run();
+        });
+    }
+
+    return db
+        .select()
+        .from(tweets)
+        .where(
+            or(eq(tweets.id, input.newRootTweetId), eq(tweets.rootTweetId, input.newRootTweetId)),
+        )
+        .orderBy(asc(tweets.threadPosition), asc(tweets.id));
 };

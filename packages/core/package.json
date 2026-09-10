@@ -11,11 +11,17 @@
         "./schemas": "./src/schemas.ts",
         "./types": "./src/types.ts"
     },
+    "scripts": {
+        "typecheck": "tsgo --noEmit",
+        "test": "bun test src"
+    },
     "dependencies": {
         "drizzle-orm": "catalog:",
         "effect": "catalog:"
     },
     "devDependencies": {
-        "drizzle-kit": "catalog:"
+        "@types/node": "catalog:",
+        "drizzle-kit": "catalog:",
+        "miniflare": "catalog:"
     }
 }

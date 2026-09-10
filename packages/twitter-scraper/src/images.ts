@@ -1,3 +1,4 @@
+import { defaultRuntime, HttpError, type Runtime } from "./runtime";
 import sharp from "sharp";
 import { ApiClient } from "./api-client";
 import type { ExtractedTweet, UploadedMedia } from "./types";
@@ -25,29 +26,39 @@ function buildImageCandidates(previewUrl: string) {
     });
 }
 
-export async function fetchBestImage(previewUrl: string) {
+export async function fetchBestImage(previewUrl: string, runtime: Runtime = defaultRuntime) {
     let lastError: Error | null = null;
 
     for (const candidate of buildImageCandidates(previewUrl)) {
         try {
-            const response = await fetch(candidate, {
-                headers: {
-                    "user-agent":
-                        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-                },
+            return await runtime.request(candidate, {}, async (response) => {
+                const contentType = response.headers.get("content-type") ?? "image/jpeg";
+                if (!contentType.startsWith("image/"))
+                    throw new Error("Media response was not an image");
+                const maxBytes = 25 * 1024 * 1024;
+                if (Number(response.headers.get("content-length")) > maxBytes) {
+                    await response.body?.cancel();
+                    throw new Error("Image exceeds 25 MiB");
+                }
+                const reader = response.body?.getReader();
+                if (!reader) throw new Error("Image response has no body");
+                const chunks: Uint8Array[] = [];
+                let bytes = 0;
+                try {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        bytes += value.byteLength;
+                        if (bytes > maxBytes) throw new Error("Image exceeds 25 MiB");
+                        chunks.push(value);
+                    }
+                } finally {
+                    await reader.cancel();
+                }
+                return { sourceUrl: candidate, contentType, buffer: Buffer.concat(chunks) };
             });
-
-            if (!response.ok) {
-                lastError = new Error(`failed to fetch ${candidate}: ${response.status}`);
-                continue;
-            }
-
-            return {
-                sourceUrl: candidate,
-                contentType: response.headers.get("content-type") ?? "image/jpeg",
-                buffer: Buffer.from(await response.arrayBuffer()),
-            };
         } catch (error) {
+            if (!(error instanceof HttpError) || ![404, 400].includes(error.status)) throw error;
             lastError = error instanceof Error ? error : new Error(String(error));
         }
     }
@@ -64,14 +75,14 @@ export type RawImage = {
 
 export async function fetchRawImages(
     tweet: ExtractedTweet,
-    options?: { continueOnError?: boolean },
+    options?: { continueOnError?: boolean; runtime?: Runtime },
 ): Promise<RawImage[]> {
     const images: RawImage[] = [];
     const continueOnError = options?.continueOnError ?? false;
 
     for (const [mediaIndex, previewUrl] of tweet.previewImageUrls.entries()) {
         try {
-            const image = await fetchBestImage(previewUrl);
+            const image = await fetchBestImage(previewUrl, options?.runtime);
             images.push({
                 mediaIndex,
                 buffer: image.buffer,
@@ -94,6 +105,7 @@ export async function fetchRawImages(
     return images;
 }
 
+const MAX_IMAGE_PIXELS = 40_000_000;
 const WEBP_QUALITY = 85;
 const WEBP_EFFORT = 6;
 const THUMBNAIL_MAX_DIMENSION = 720;
@@ -109,12 +121,16 @@ export async function uploadRawImages(
 
     for (const image of images) {
         try {
-            const metadata = await sharp(image.buffer).metadata();
-            const webpBuffer = await sharp(image.buffer)
+            const metadata = await sharp(image.buffer, {
+                limitInputPixels: MAX_IMAGE_PIXELS,
+            }).metadata();
+            const webpBuffer = await sharp(image.buffer, { limitInputPixels: MAX_IMAGE_PIXELS })
                 .rotate()
                 .webp({ quality: WEBP_QUALITY, effort: WEBP_EFFORT })
                 .toBuffer();
-            const thumbnailBuffer = await sharp(image.buffer)
+            const thumbnailBuffer = await sharp(image.buffer, {
+                limitInputPixels: MAX_IMAGE_PIXELS,
+            })
                 .rotate()
                 .resize(THUMBNAIL_MAX_DIMENSION, THUMBNAIL_MAX_DIMENSION, {
                     fit: "inside",

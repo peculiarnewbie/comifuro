@@ -22,10 +22,12 @@ function getHeaders(config: ScraperConfig) {
     return undefined;
 }
 
-async function isHealthy(config: ScraperConfig) {
+async function isHealthy(config: ScraperConfig, signal: AbortSignal) {
     const client = createOpencodeClient({
         baseUrl: config.opencodeBaseUrl,
         headers: getHeaders(config),
+        fetch: (request) =>
+            fetch(request, { signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) }),
     });
 
     try {
@@ -41,8 +43,11 @@ function getManagedPort(baseUrl: string) {
     return Number(url.port || (url.protocol === "https:" ? 443 : 80));
 }
 
-export async function ensureOpencodeServer(config: ScraperConfig): Promise<ManagedOpencode> {
-    if (await isHealthy(config)) {
+export async function ensureOpencodeServer(
+    config: ScraperConfig,
+    signal = new AbortController().signal,
+): Promise<ManagedOpencode> {
+    if (await isHealthy(config, signal)) {
         return {
             startedByScraper: false,
             stop: () => {},
@@ -55,6 +60,12 @@ export async function ensureOpencodeServer(config: ScraperConfig): Promise<Manag
         );
     }
 
+    signal.throwIfAborted();
+    if (!["localhost", "127.0.0.1", "[::1]"].includes(new URL(config.opencodeBaseUrl).hostname)) {
+        throw new Error(
+            "Managed opencode requires a loopback OPENCODE_BASE_URL; start remote servers separately",
+        );
+    }
     const port = getManagedPort(config.opencodeBaseUrl);
     const env = {
         ...process.env,
@@ -71,37 +82,47 @@ export async function ensureOpencodeServer(config: ScraperConfig): Promise<Manag
         },
     );
 
-    const startedAt = Date.now();
-    const timeoutMs = 20_000;
-
-    while (Date.now() - startedAt < timeoutMs) {
-        if (subprocess.exitCode !== null) {
-            throw new Error(
-                `Managed opencode server exited early with code ${subprocess.exitCode}.`,
-            );
-        }
-
-        if (await isHealthy(config)) {
-            return {
-                startedByScraper: true,
-                stop: () => {
-                    try {
-                        subprocess.kill();
-                    } catch {
-                        // Ignore shutdown races.
-                    }
-                },
-            };
-        }
-
-        await sleep(300);
-    }
-
-    try {
+    // Unconsumed pipes eventually fill and freeze a long-running classifier server.
+    subprocess.stdout?.resume();
+    subprocess.stderr?.resume();
+    let spawnError: Error | null = null;
+    subprocess.on("error", (error) => {
+        spawnError = error;
+    });
+    const stop = () => {
+        if (subprocess.exitCode !== null || subprocess.signalCode !== null) return;
         subprocess.kill();
-    } catch {
-        // Ignore shutdown races.
+        const forceStop = setTimeout(() => {
+            subprocess.kill("SIGKILL");
+        }, 5_000);
+        forceStop.unref();
+        subprocess.once("exit", () => clearTimeout(forceStop));
+    };
+    signal.addEventListener("abort", stop, { once: true });
+    const startedAt = Date.now();
+    try {
+        while (Date.now() - startedAt < 20_000) {
+            signal.throwIfAborted();
+            if (spawnError) throw spawnError;
+            if (subprocess.exitCode !== null)
+                throw new Error(`Managed opencode server exited with code ${subprocess.exitCode}`);
+            if (await isHealthy(config, signal)) {
+                return {
+                    startedByScraper: true,
+                    stop: () => {
+                        signal.removeEventListener("abort", stop);
+                        stop();
+                    },
+                };
+            }
+            await sleep(300, undefined, { signal });
+        }
+        throw new Error(
+            `Timed out waiting for managed opencode server at ${config.opencodeBaseUrl}`,
+        );
+    } catch (error) {
+        signal.removeEventListener("abort", stop);
+        stop();
+        throw error;
     }
-
-    throw new Error(`Timed out waiting for managed opencode server at ${config.opencodeBaseUrl}`);
 }

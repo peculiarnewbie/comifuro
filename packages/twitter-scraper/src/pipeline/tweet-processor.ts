@@ -1,3 +1,7 @@
+import * as Schema from "effect/Schema";
+import { ExtractedTweetSchema } from "../types";
+import type { TaskJournal } from "../run-store";
+import { defaultRuntime, type Runtime } from "../runtime";
 import type { Page } from "playwright";
 import { ApiClient } from "../api-client";
 import { crawlThreadContinuations, openTweetDetailPage } from "../browser";
@@ -49,14 +53,11 @@ export async function storeCatalogueTweet(params: {
         skipUpsertWhenNoMedia,
     } = params;
 
-    let media: import("../types").UploadedMedia[] = [];
-    try {
-        media = await uploadRawImages(apiClient, tweet.id, rawImages, {
-            continueOnError: continueOnImageError,
-        });
-    } catch {
-        media = [];
-    }
+    const media = await uploadRawImages(apiClient, tweet.id, rawImages, {
+        continueOnError: continueOnImageError,
+    });
+    if (media.length === 0 && !skipUpsertWhenNoMedia)
+        throw new Error(`No images stored for catalogue ${tweet.id}`);
 
     const imageMask = buildImageMask(media.map((item) => item.mediaIndex));
 
@@ -102,16 +103,18 @@ export async function processSearchTweet(params: {
     tweet: ExtractedTweet;
     eventId: string;
     searchQuery: string;
+    runtime?: Runtime;
+    journal?: TaskJournal;
 }) {
     const { apiClient, classifier, tweet, eventId, searchQuery } = params;
 
-    const rawImages = await fetchRawImages(tweet, { continueOnError: true });
+    const rawImages = await fetchRawImages(tweet, { runtime: params.runtime });
 
     const classification = await classifier.classify({
         tweetText: tweet.text,
         matchedTags: tweet.matchedTags,
         searchQuery,
-        imageUrls: rawImages.map((img) => img.sourceUrl),
+        images: rawImages,
     });
 
     if (classification.classification === "not_catalogue") {
@@ -201,6 +204,8 @@ export async function processThreadContinuations(params: {
     rootInferredBoothIdConfidence: string | null;
     scrollDelayMs: number;
     idleScrollLimit: number;
+    runtime?: Runtime;
+    journal?: TaskJournal;
 }) {
     const {
         apiClient,
@@ -223,16 +228,29 @@ export async function processThreadContinuations(params: {
         }),
     );
 
-    const crawlResult = await crawlThreadContinuations({
-        page,
-        rootTweet,
-        scrollDelayMs,
-        idleScrollLimit,
-    });
+    const savedChain = params.journal?.read("thread-chain");
+    const chain =
+        savedChain !== undefined
+            ? Schema.decodeUnknownSync(Schema.Array(ExtractedTweetSchema))(savedChain)
+            : (
+                  await crawlThreadContinuations({
+                      page,
+                      rootTweet,
+                      scrollDelayMs,
+                      idleScrollLimit,
+                      runtime: params.runtime,
+                  })
+              ).chain;
+    params.journal?.write("thread-chain", chain);
 
     const acceptedIds: string[] = [];
-    for (const tweet of crawlResult.chain) {
-        const rawImages = await fetchRawImages(tweet, { continueOnError: true });
+    for (const tweet of chain) {
+        const doneKey = `continuation:${tweet.id}`;
+        if (params.journal?.read(doneKey) === true) {
+            acceptedIds.push(tweet.id);
+            continue;
+        }
+        const rawImages = await fetchRawImages(tweet, { runtime: params.runtime });
 
         const accepted = await storeCatalogueTweet({
             apiClient,
@@ -248,11 +266,10 @@ export async function processThreadContinuations(params: {
             preorderDeadline: null,
             items: [],
             rawImages,
-            continueOnImageError: true,
-            skipUpsertWhenNoMedia: true,
         });
 
         if (accepted) {
+            params.journal?.write(doneKey, true);
             acceptedIds.push(tweet.id);
         }
     }
@@ -261,9 +278,8 @@ export async function processThreadContinuations(params: {
         JSON.stringify({
             type: "thread-crawl-end",
             rootTweetId: rootTweet.id,
-            discoveredCount: crawlResult.chain.length,
+            discoveredCount: chain.length,
             acceptedCount: acceptedIds.length,
-            skipped: crawlResult.skipped,
         }),
     );
 
@@ -279,103 +295,48 @@ export async function processDiscoveredTweet(params: {
     searchQuery: string;
     threadScrollDelayMs: number;
     threadIdleScrollLimit: number;
-    seenTweetIds: Set<string>;
+    runtime?: Runtime;
+    journal?: TaskJournal;
 }) {
-    const {
-        apiClient,
-        classifier,
-        page,
-        tweet,
-        eventId,
-        searchQuery,
-        threadScrollDelayMs,
-        threadIdleScrollLimit,
-        seenTweetIds,
-    } = params;
+    const runtime = params.runtime ?? defaultRuntime;
+    runtime.signal.throwIfAborted();
+    const savedRoot = params.journal?.read("root-result");
+    const result =
+        savedRoot !== undefined
+            ? Schema.decodeUnknownSync(
+                  Schema.Struct({
+                      accepted: Schema.Boolean,
+                      classifierPromptVersion: Schema.String,
+                      inferredBoothId: Schema.NullOr(Schema.String),
+                      inferredBoothIdConfidence: Schema.NullOr(Schema.String),
+                  }),
+              )(savedRoot)
+            : await processSearchTweet(params);
+    params.journal?.write("root-result", result);
+    if (!result.accepted) return 0;
 
+    await runtime.wait(params.threadScrollDelayMs);
+    const detailPage =
+        params.journal?.read("thread-chain") !== undefined
+            ? params.page
+            : await openTweetDetailPage(params.page, params.tweet.tweetUrl);
     try {
-        const result = await processSearchTweet({
-            apiClient,
-            classifier,
-            tweet,
-            eventId,
-            searchQuery,
+        const acceptedIds = await processThreadContinuations({
+            apiClient: params.apiClient,
+            page: detailPage,
+            rootTweet: params.tweet,
+            eventId: params.eventId,
+            searchQuery: params.searchQuery,
+            classifierPromptVersion: result.classifierPromptVersion,
+            rootInferredBoothId: result.inferredBoothId,
+            rootInferredBoothIdConfidence: result.inferredBoothIdConfidence,
+            scrollDelayMs: params.threadScrollDelayMs,
+            idleScrollLimit: params.threadIdleScrollLimit,
+            runtime,
+            journal: params.journal,
         });
-
-        if (!result.accepted) {
-            return 0;
-        }
-
-        let acceptedCount = 1;
-
-        try {
-            const detailPage = await openTweetDetailPage(page, tweet.tweetUrl);
-            try {
-                const acceptedThreadIds = await processThreadContinuations({
-                    apiClient,
-                    page: detailPage,
-                    rootTweet: tweet,
-                    eventId,
-                    searchQuery,
-                    classifierPromptVersion: result.classifierPromptVersion,
-                    rootInferredBoothId: result.inferredBoothId,
-                    rootInferredBoothIdConfidence: result.inferredBoothIdConfidence,
-                    scrollDelayMs: threadScrollDelayMs,
-                    idleScrollLimit: threadIdleScrollLimit,
-                });
-
-                for (const tweetId of acceptedThreadIds) {
-                    seenTweetIds.add(tweetId);
-                }
-
-                acceptedCount += acceptedThreadIds.length;
-            } finally {
-                await detailPage.close();
-            }
-        } catch (error) {
-            console.error(
-                JSON.stringify({
-                    type: "thread-crawl-failed",
-                    rootTweetId: tweet.id,
-                    tweetUrl: tweet.tweetUrl,
-                    error: error instanceof Error ? error.message : String(error),
-                }),
-            );
-        }
-
-        return acceptedCount;
-    } catch (error) {
-        console.error(`failed ${tweet.id}`, error);
-        try {
-            await apiClient.upsertTweet({
-                id: tweet.id,
-                eventId,
-                user: tweet.user,
-                displayName: tweet.displayName,
-                timestamp: tweet.timestamp,
-                text: tweet.text,
-                tweetUrl: tweet.tweetUrl,
-                searchQuery,
-                matchedTags: tweet.matchedTags,
-                imageMask: 0,
-                classification: "error",
-                classificationReason: error instanceof Error ? error.message : String(error),
-                classifierPromptVersion: classifier.promptVersion,
-                inferredFandoms: [],
-                inferredBoothId: null,
-                inferredBoothIdConfidence: null,
-                inferredItemTypes: [],
-                preorderDeadline: null,
-                items: [],
-                rootTweetId: null,
-                parentTweetId: null,
-                threadPosition: null,
-                media: [],
-            });
-        } catch (upsertError) {
-            console.error(`failed to persist scraper error for ${tweet.id}`, upsertError);
-        }
-
-        return 0;
+        return 1 + acceptedIds.length;
+    } finally {
+        if (detailPage !== params.page) await detailPage.close().catch(() => {});
     }
 }

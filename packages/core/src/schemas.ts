@@ -1,27 +1,17 @@
-import { createSelectSchema } from "drizzle-orm/effect-schema";
-import { tweets, TweetId, UserId, EventId, BoothId, MarkValues } from "./schema";
+import { TweetClassificationValues, TweetId, UserId, EventId, BoothId, MarkValues } from "./schema";
 import * as Schema from "effect/Schema";
 
 export type { TweetId, UserId, EventId, BoothId } from "./schema";
 
-const BaseTweetRow = createSelectSchema(tweets);
-
-// Exclusion-by-destructure: fields listed below are NOT sent to clients.
-// When adding a sensitive column to the tweets table, add it to this
-// destructure (or explicitly pick the safe fields) to prevent leaking it.
-const {
-    // unused fields destructured out to exclude them from sync schema
-    searchQuery: _searchQuery,
-    classificationReason: _classificationReason,
-    classifierPromptVersion: _classifierPromptVersion,
-    inferredFandomsConfidence: _inferredFandomsConfidence,
-    inferredBoothIdConfidence: _inferredBoothIdConfidence,
-    createdAt: _createdAt,
-    ...byDefault
-} = BaseTweetRow.fields;
-
+// Explicit wire fields keep database-only dependencies (including Node Buffer)
+// out of browsers and prevent new database columns from leaking into sync responses.
 export const TweetSyncItemSchema = Schema.Struct({
-    ...byDefault,
+    displayName: Schema.NullOr(Schema.String),
+    text: Schema.String,
+    tweetUrl: Schema.String,
+    imageMask: Schema.Int,
+    classification: Schema.Literals(TweetClassificationValues),
+    threadPosition: Schema.NullOr(Schema.Int),
     id: TweetId,
     eventId: EventId,
     user: UserId,

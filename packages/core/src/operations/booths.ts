@@ -5,7 +5,6 @@ import type { EventId, TweetId, UserId } from "../schema";
 import * as Schema from "effect/Schema";
 import type { BoothInsert } from "../types";
 import type { SupportedDb } from "./_shared";
-import { withTransaction } from "./_shared";
 
 function parseSectionFromBoothId(boothId: string): string {
     const match = boothId.match(/^([A-Z]+)/i);
@@ -117,53 +116,59 @@ export const getBoothWithTweets = async (db: SupportedDb, eventId: EventId, id: 
 };
 
 export const rebuildBoothsFromTweets = async (db: SupportedDb, eventId: EventId) => {
-    return withTransaction(db, async (tx) => {
-        await tx.delete(booths).where(eq(booths.eventId, eventId));
+    const tweetRows = await db
+        .select()
+        .from(tweets)
+        .where(
+            and(
+                eq(tweets.eventId, eventId),
+                eq(tweets.classification, "catalogue"),
+                isNull(tweets.deleted),
+                gt(tweets.imageMask, 0),
+            ),
+        )
+        .orderBy(asc(tweets.id));
 
-        const tweetRows = await tx
-            .select()
-            .from(tweets)
-            .where(
-                and(
-                    eq(tweets.eventId, eventId),
-                    eq(tweets.classification, "catalogue"),
-                    isNull(tweets.deleted),
-                    gt(tweets.imageMask, 0),
-                ),
-            )
-            .orderBy(asc(tweets.id));
+    const seenBooths = new Set<string>();
+    const inserted: BoothInsert[] = [];
 
-        const seenBooths = new Set<string>();
-        const inserted: BoothInsert[] = [];
-
-        for (const tweet of tweetRows) {
-            if (!tweet.inferredBoothId) {
-                continue;
-            }
-            const upperBoothId = tweet.inferredBoothId.toUpperCase();
-            const key = `${eventId}:${upperBoothId}`;
-            if (seenBooths.has(key)) {
-                continue;
-            }
-            seenBooths.add(key);
-
-            const section = parseSectionFromBoothId(upperBoothId);
-            const row: BoothInsert = {
-                eventId,
-                id: Schema.decodeUnknownSync(BoothId)(upperBoothId),
-                section,
-                status: "occupied",
-                exhibitorUser: tweet.user,
-                exhibitorDisplayName: tweet.displayName,
-                primaryTweetId: tweet.id,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            };
-
-            await tx.insert(booths).values(row);
-            inserted.push(row);
+    for (const tweet of tweetRows) {
+        if (!tweet.inferredBoothId) {
+            continue;
         }
+        const upperBoothId = tweet.inferredBoothId.toUpperCase();
+        const key = `${eventId}:${upperBoothId}`;
+        if (seenBooths.has(key)) {
+            continue;
+        }
+        seenBooths.add(key);
 
-        return inserted;
-    });
+        const section = parseSectionFromBoothId(upperBoothId);
+        const row: BoothInsert = {
+            eventId,
+            id: Schema.decodeUnknownSync(BoothId)(upperBoothId),
+            section,
+            status: "occupied",
+            exhibitorUser: tweet.user,
+            exhibitorDisplayName: tweet.displayName,
+            primaryTweetId: tweet.id,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        };
+
+        inserted.push(row);
+    }
+
+    if ("batch" in db) {
+        await db.batch([
+            db.delete(booths).where(eq(booths.eventId, eventId)),
+            ...inserted.map((row) => db.insert(booths).values(row)),
+        ]);
+    } else {
+        db.transaction((tx) => {
+            tx.delete(booths).where(eq(booths.eventId, eventId)).run();
+            for (const row of inserted) tx.insert(booths).values(row).run();
+        });
+    }
+    return inserted;
 };

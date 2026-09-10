@@ -20,6 +20,7 @@ async function safeEqual(
     actual: string | undefined,
     expected: string | undefined,
 ): Promise<boolean> {
+    if (!actual || !expected) return false;
     const encoder = new TextEncoder();
     const a = encoder.encode(actual ?? "");
     const b = encoder.encode(expected ?? "");

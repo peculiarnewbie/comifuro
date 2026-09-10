@@ -38,6 +38,7 @@
         "@cloudflare/vite-plugin": "^1.39.1",
         "@tanstack/router-plugin": "^1.168.13",
         "@types/node": "catalog:",
+        "playwright": "catalog:",
         "typescript": "^5.9.3",
         "vite": "npm:@voidzero-dev/vite-plus-core@^0.1.24",
         "vite-plugin-solid": "^2.11.12",

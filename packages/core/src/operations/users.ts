@@ -26,8 +26,8 @@ export const upsertUserMeta = async (
         .onConflictDoUpdate({
             target: [userEventMeta.user, userEventMeta.eventId],
             set: {
-                boothId: sql.raw(`excluded.${userEventMeta.boothId.name}`),
-                preorderDeadline: sql.raw(`excluded.${userEventMeta.preorderDeadline.name}`),
+                boothId: sql`coalesce(${sql.raw(`excluded.${userEventMeta.boothId.name}`)}, ${userEventMeta.boothId})`,
+                preorderDeadline: sql`coalesce(${sql.raw(`excluded.${userEventMeta.preorderDeadline.name}`)}, ${userEventMeta.preorderDeadline})`,
                 updatedAt: sql.raw(`excluded.${userEventMeta.updatedAt.name}`),
             },
         })

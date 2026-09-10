@@ -23,6 +23,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .env.local
 
 # caches
+.tanstack/
 .eslintcache
 .cache
 *.tsbuildinfo
@@ -38,3 +39,6 @@ backup/
 .dev.vars
 
 .wrangler
+
+# Durable scraper journals and SQLite sidecars
+.scraper/
